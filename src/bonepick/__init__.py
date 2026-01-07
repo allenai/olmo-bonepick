@@ -1,3 +1,9 @@
+import os
+
+# this before any other import (specifically before datasets)
+os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
+
+
 from bonepick.cli import cli
 from bonepick.data_loop import (
     balance_dataset,
