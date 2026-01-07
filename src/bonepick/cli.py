@@ -36,13 +36,17 @@ class FloatOrIntParamType(click.ParamType):
 class PathParamType(click.ParamType):
     name = "path"
 
-    def __init__(self, exists: bool = False, mkdir: bool = False, is_dir: bool = False, is_file: bool = False):
+    def __init__(self, exists: bool = False, mkdir: bool = False, is_dir: bool = False, is_file: bool = False, optional: bool = False):
         self.exists = exists
         self.mkdir = mkdir
         self.is_dir = is_dir
         self.is_file = is_file
+        self.optional = optional
 
     def convert(self, value, param, ctx):
+        if self.optional and value is None:
+            return None
+
         if isinstance(value, Path):
             path = value
         elif isinstance(value, str):
@@ -63,3 +67,16 @@ class PathParamType(click.ParamType):
             raise self.fail(f"{path!r} is not a file", param, ctx)
 
         return path
+
+
+class PCADimTypeParamType(FloatOrIntParamType):
+    name = "pca-dims"
+
+    def convert(self, value, param, ctx):
+        if value is None:
+            return None
+
+        if isinstance(value, str) and value.lower() == "auto":
+            return "auto"
+
+        return super().convert(value, param, ctx)

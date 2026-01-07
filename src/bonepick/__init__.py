@@ -1,8 +1,4 @@
-from bonepick.train_loop import (
-    train_fasttext,
-    train_model2vec,
-)
-from bonepick.eval_loop import eval_fasttext, eval_model2vec
+from bonepick.cli import cli
 from bonepick.data_loop import (
     balance_dataset,
     convert_to_fasttext,
@@ -10,12 +6,18 @@ from bonepick.data_loop import (
     normalize_dataset,
     transform_dataset,
 )
-from bonepick.cli import cli
+from bonepick.distill_loop import distill_model
+from bonepick.eval_loop import eval_fasttext, eval_model2vec
+from bonepick.train_loop import (
+    train_fasttext,
+    train_model2vec,
+)
 
 __all__ = ["cli"]
 
 cli.add_command(balance_dataset)
 cli.add_command(convert_to_fasttext)
+cli.add_command(distill_model)
 cli.add_command(eval_fasttext)
 cli.add_command(eval_model2vec)
 cli.add_command(import_hf_dataset)
