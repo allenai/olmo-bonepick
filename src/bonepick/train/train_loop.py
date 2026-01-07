@@ -9,10 +9,10 @@ import numpy as np
 from sklearn.utils.class_weight import compute_class_weight
 from sklearn.preprocessing import LabelEncoder
 
-from bonepick.data_utils import load_jsonl_dataset
+from bonepick.train.data_utils import load_jsonl_dataset
 from bonepick.cli import PathParamType
-from bonepick.fasttext_utils import check_fasttext_binary
-from bonepick.model2vec_utils import BetterStaticModelForClassification
+from bonepick.train.fasttext_utils import check_fasttext_binary
+from bonepick.train.model2vec_utils import BetterStaticModelForClassification
 
 
 @click.command()

@@ -11,7 +11,7 @@ import smart_open
 from tqdm import tqdm
 
 from bonepick.cli import FloatOrIntParamType, PathParamType
-from bonepick.data_utils import (
+from bonepick.train.data_utils import (
     load_jsonl_dataset,
     DatasetSplit,
     DatasetTuple,
@@ -22,7 +22,7 @@ from bonepick.data_utils import (
     FILE_SUFFIXES,
     transform_single_file,
 )
-from bonepick.normalizers import list_normalizers
+from bonepick.train.normalizers import list_normalizers
 
 
 

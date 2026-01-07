@@ -4,20 +4,19 @@ import os
 os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
 
 
-from bonepick.cli import cli
-from bonepick.data_loop import (
+from bonepick.train import (
     balance_dataset,
     convert_to_fasttext,
+    distill_model,
+    eval_fasttext,
+    eval_model2vec,
     import_hf_dataset,
     normalize_dataset,
-    transform_dataset,
-)
-from bonepick.distill_loop import distill_model
-from bonepick.eval_loop import eval_fasttext, eval_model2vec
-from bonepick.train_loop import (
     train_fasttext,
     train_model2vec,
+    transform_dataset,
 )
+from bonepick.cli import cli
 
 __all__ = ["cli"]
 

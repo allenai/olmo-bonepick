@@ -14,7 +14,7 @@ from model2vec.train.base import TextDataset
 from tokenizers import Tokenizer
 from tqdm import tqdm
 
-from bonepick.data_utils import ChunkedDataset, ChunkedDatasetPath
+from bonepick.train.data_utils import ChunkedDataset, ChunkedDatasetPath
 
 logger = logging.getLogger(__name__)
 if not logger.hasHandlers():

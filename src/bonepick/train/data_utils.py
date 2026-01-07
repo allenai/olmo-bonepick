@@ -18,7 +18,7 @@ import msgspec
 import smart_open
 from tqdm import tqdm
 
-from bonepick.normalizers import get_normalizer
+from bonepick.train.normalizers import get_normalizer
 
 
 FILE_SUFFIXES = [

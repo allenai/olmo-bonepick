@@ -10,10 +10,10 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import precision_recall_fscore_support, roc_auc_score
 from model2vec.inference import StaticModelPipeline
 
-from bonepick.data_utils import load_jsonl_dataset, load_fasttext_dataset, FasttextDatasetSplit
-from bonepick.fasttext_utils import fasttext_dataset_signature
+from bonepick.train.data_utils import load_jsonl_dataset, load_fasttext_dataset, FasttextDatasetSplit
+from bonepick.train.fasttext_utils import fasttext_dataset_signature
 from bonepick.cli import PathParamType
-from bonepick.fasttext_utils import check_fasttext_binary
+from bonepick.train.fasttext_utils import check_fasttext_binary
 
 
 def _compute_metrics_from_predictions(
