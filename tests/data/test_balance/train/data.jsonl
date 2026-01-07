@@ -1,0 +1,10 @@
+{"text": "hello world", "score": "pos"}
+{"text": "good morning", "score": "pos"}
+{"text": "nice day", "score": "pos"}
+{"text": "bad weather", "score": "neg"}
+{"text": "terrible news", "score": "neg"}
+{"text": "awful day", "score": "neg"}
+{"text": "great work", "score": "pos"}
+{"text": "excellent job", "score": "pos"}
+{"text": "horrible mistake", "score": "neg"}
+{"text": "perfect score", "score": "pos"}
