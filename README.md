@@ -1,6 +1,6 @@
 
 <p align="center">
-  <img src="assets/logo.png" alt="bonepick logo" width="300"/>
+  <img src="assets/logo.png" alt="Olmo Bonepick library logo" width="400"/>
 </p>
 
 
