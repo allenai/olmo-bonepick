@@ -1,12 +1,17 @@
-**NOTE: CLAUDE WROTE MOST OF THIS.**
 
-# Better Quality Classifiers
+<p align="center">
+  <img src="assets/logo.png" alt="bonepick logo" width="300"/>
+</p>
 
-`better-cls` trains efficient text quality classifiers that run on GPU. It supports training [**Model2Vec**][1] (static embeddings) and [**FastText**][2] classifiers.
+
+
+`bonepick` trains efficient text quality classifiers that run on GPU. It supports training [**Model2Vec**][1] (static embeddings) and [**FastText**][2] classifiers.
+
+⚠️ **Warning: Claude-generated documentation below.** ⚠️
 
 ## Installation
 
-```bash
+```shell
 uv sync
 ```
 
@@ -29,8 +34,8 @@ dataset/
 
 Download a HuggingFace dataset to local JSONL format:
 
-```bash
-uv run better-cls import-hf-dataset \
+```shell
+uv run bonepick import-hf-dataset \
     -n HuggingFaceFW/fineweb-edu-llama3-annotations \
     -o data/fineweb-edu-llama3-annotations \
     --test-split 0.1
@@ -40,15 +45,15 @@ uv run better-cls import-hf-dataset \
 
 Use jq expressions to reshape fields. Common use case: binarize multi-class labels.
 
-```bash
+```shell
 # Binarize scores: 0-1 → 0 (low quality), 2-5 → 1 (high quality)
-uv run better-cls transform-dataset \
+uv run bonepick transform-dataset \
     --input-dir data/fineweb-edu-llama3-annotations \
     --output-dir data/fineweb-edu-binary \
     -l '{score: (if .score < 2 then 0 else 1 end)}'
 
 # Or use string labels
-uv run better-cls transform-dataset \
+uv run bonepick transform-dataset \
     --input-dir data/fineweb-edu-llama3-annotations \
     --output-dir data/fineweb-edu-binary \
     -l '{score: (if .score < 2 then "neg" else "pos" end)}'
@@ -58,8 +63,8 @@ uv run better-cls transform-dataset \
 
 Balance the dataset so each label has equal representation. Useful when one class significantly outnumbers others:
 
-```bash
-uv run better-cls balance-dataset \
+```shell
+uv run bonepick balance-dataset \
     --input-dir data/fineweb-edu-binary \
     --output-dir data/fineweb-edu-binary-balanced \
     --seed 42
@@ -67,8 +72,8 @@ uv run better-cls balance-dataset \
 
 Supports multiple input directories:
 
-```bash
-uv run better-cls balance-dataset \
+```shell
+uv run bonepick balance-dataset \
     -i data/dataset1 \
     -i data/dataset2 \
     -o data/combined-balanced \
@@ -79,8 +84,8 @@ uv run better-cls balance-dataset \
 
 Apply text normalization before training Model2Vec classifiers:
 
-```bash
-uv run better-cls normalize-dataset \
+```shell
+uv run bonepick normalize-dataset \
     --input-dir data/fineweb-edu-binary \
     --output-dir data/fineweb-edu-binary-normalized \
     -n plsfix
@@ -92,8 +97,8 @@ Available normalizers: `whitespace`, `plsfix`, `tokenizer`, `ultrafine`, `ultraf
 
 Convert JSONL to FastText's `__label__<label> <text>` format:
 
-```bash
-uv run better-cls convert-to-fasttext \
+```shell
+uv run bonepick convert-to-fasttext \
     --input-dir data/fineweb-edu-binary \
     --output-dir data/fasttext-fineweb-edu-binary \
     -n ultrafine
@@ -105,8 +110,8 @@ uv run better-cls convert-to-fasttext \
 
 Trains a classifier head on top of frozen Model2Vec static embeddings:
 
-```bash
-uv run better-cls train-model2vec \
+```shell
+uv run bonepick train-model2vec \
     -d data/fineweb-edu-binary-normalized \
     -o models/model2vec-classifier
 ```
@@ -115,8 +120,8 @@ uv run better-cls train-model2vec \
 
 Clusters documents by semantic similarity, then trains using pairwise hinge loss within clusters. Better for ranking/quality scoring:
 
-```bash
-uv run better-cls train-contrastive \
+```shell
+uv run bonepick train-contrastive \
     --dataset-dir data/fineweb-edu-binary-normalized \
     --output-dir models/contrastive-classifier \
     --n-clusters 100
@@ -126,8 +131,8 @@ uv run better-cls train-contrastive \
 
 Trains a FastText classifier (requires `fasttext` binary in PATH):
 
-```bash
-uv run better-cls train-fasttext \
+```shell
+uv run bonepick train-fasttext \
     -d data/fasttext-fineweb-edu-binary \
     -o models/fasttext-classifier
 ```
@@ -136,9 +141,9 @@ uv run better-cls train-fasttext \
 
 All training commands support combining data from multiple directories using repeated `-d` flags:
 
-```bash
+```shell
 # Combine multiple datasets for training
-uv run better-cls train-contrastive \
+uv run bonepick train-contrastive \
     -d data/dataset1-normalized \
     -d data/dataset2-normalized \
     -d data/dataset3-normalized \
@@ -149,19 +154,19 @@ Data from all directories is concatenated before training. Each directory must h
 
 ## Evaluation
 
-```bash
+```shell
 # Evaluate Model2Vec classifier
-uv run better-cls eval-model2vec \
+uv run bonepick eval-model2vec \
     -d data/fineweb-edu-binary-normalized \
     -m models/contrastive-classifier
 
 # Evaluate FastText classifier
-uv run better-cls eval-fasttext \
+uv run bonepick eval-fasttext \
     -d data/fasttext-fineweb-edu-binary \
     -m models/fasttext-classifier
 
 # Evaluate on multiple datasets (results combined)
-uv run better-cls eval-model2vec \
+uv run bonepick eval-model2vec \
     -d data/dataset1-normalized \
     -d data/dataset2-normalized \
     -m models/combined-classifier
@@ -169,9 +174,9 @@ uv run better-cls eval-model2vec \
 
 ## CLI Reference
 
-```bash
-uv run better-cls --help
-uv run better-cls <command> --help
+```shell
+uv run bonepick --help
+uv run bonepick <command> --help
 ```
 
 | Command | Description |
@@ -198,7 +203,7 @@ uv run better-cls <command> --help
 ##### Step 1a: import FineWeb dataset
 
 ```shell
-uv run better-cls import-hf-dataset \
+uv run bonepick import-hf-dataset \
     --name HuggingFaceFW/fineweb-edu-llama3-annotations \
     --output-dir tmp/data/fineweb-edu-llama3-annotations \
     --test-split 10000
@@ -221,7 +226,7 @@ s5cmd cp -sp \
 ##### Step 2a: binarize fineweb
 
 ```shell
-uv run better-cls transform-dataset \
+uv run bonepick transform-dataset \
     --input-dir tmp/data/fineweb-edu-llama3-annotations \
     --output-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg \
     --label-transform '{score: (if .score < 3 then "neg" else "pos" end)}'
@@ -230,12 +235,12 @@ uv run better-cls transform-dataset \
 ##### Step 2b: binarize FineWeb++
 
 ```shell
-uv run better-cls transform-dataset \
+uv run bonepick transform-dataset \
     --input-dir tmp/data/fw_pp_ref_mini_o4-mini-batch_medium \
     --output-dir tmp/data/fw_pp_ref_mini_o4-mini-batch_medium-pos-neg \
     --label-transform '{score: (if .metadata."fw_pp_ref_mini_o4-mini-batch_medium".score < 3 then "neg" else "pos" end)}'
 
-uv run better-cls transform-dataset \
+uv run bonepick transform-dataset \
     --input-dir tmp/data/fw_pp_ref \
     --output-dir tmp/data/fw_pp_ref-pos-neg \
     --label-transform '{score: (if .metadata."fw_pp_ref".score < 3 then "neg" else "pos" end)}'
@@ -246,17 +251,17 @@ uv run better-cls transform-dataset \
 ##### Step 3a: FastText format, `ultrafine` normalizer
 
 ```shell
-uv run better-cls convert-to-fasttext \
+uv run bonepick convert-to-fasttext \
     --input-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg \
     --output-dir tmp/data/fasttext-fineweb-edu-llama3-annotations-binary-pos-neg-ultrafine \
     --normalization ultrafine
 
-uv run better-cls convert-to-fasttext \
+uv run bonepick convert-to-fasttext \
     --input-dir tmp/data/fw_pp_ref_mini_o4-mini-batch_medium-pos-neg \
     --output-dir tmp/data/fasttext-fw_pp_ref_mini_o4-mini-batch_medium-pos-neg-ultrafine \
     --normalization ultrafine
 
-uv run better-cls convert-to-fasttext \
+uv run bonepick convert-to-fasttext \
     --input-dir tmp/data/fw_pp_ref-pos-neg \
     --output-dir tmp/data/fasttext-fw_pp_ref-pos-neg-ultrafine \
     --normalization ultrafine
@@ -265,17 +270,17 @@ uv run better-cls convert-to-fasttext \
 ##### Step 3b: Model2Vec format, `potion` normalizer
 
 ```shell
-uv run better-cls normalize-dataset \
+uv run bonepick normalize-dataset \
     --input-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg \
     --output-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion \
     -n potion
 
-uv run better-cls normalize-dataset \
+uv run bonepick normalize-dataset \
     --input-dir tmp/data/fw_pp_ref_mini_o4-mini-batch_medium-pos-neg \
     --output-dir tmp/data/fw_pp_ref_mini_o4-mini-batch_medium-pos-neg-normalized-potion \
     -n potion
 
-uv run better-cls normalize-dataset \
+uv run bonepick normalize-dataset \
     --input-dir tmp/data/fw_pp_ref-pos-neg \
     --output-dir tmp/data/fw_pp_ref-pos-neg-normalized-potion \
     -n potion
@@ -287,7 +292,7 @@ uv run better-cls normalize-dataset \
 ##### Step 4a: train FastText model (only fineweb)
 
 ```shell
-uv run better-cls train-fasttext \
+uv run bonepick train-fasttext \
     --dataset-dir tmp/data/fasttext-fineweb-edu-llama3-annotations-binary-pos-neg-ultrafine \
     --output-dir tmp/models/fasttext-fineweb-edu-llama3-annotations-binary-pos-neg-ultrafine
 ```
@@ -296,7 +301,7 @@ uv run better-cls train-fasttext \
 
 
 ```shell
-uv run better-cls train-model2vec \
+uv run bonepick train-model2vec \
     --dataset-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion \
     --output-dir tmp/models/potion-32M-fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion
 ```
@@ -304,7 +309,7 @@ uv run better-cls train-model2vec \
 ##### Step 4c: train a Model2Vec model with extra annotations
 
 ```shell
-uv run better-cls train-model2vec \
+uv run bonepick train-model2vec \
     --dataset-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion \
     --dataset-dir tmp/data/fw_pp_ref_mini_o4-mini-batch_medium-pos-neg-normalized-potion \
     --dataset-dir tmp/data/fw_pp_ref-pos-neg-normalized-potion \
@@ -317,7 +322,7 @@ uv run better-cls train-model2vec \
 ##### Step 5a: eval FastText model
 
 ```shell
-uv run better-cls eval-fasttext \
+uv run bonepick eval-fasttext \
     --dataset-dir tmp/data/fasttext-fineweb-edu-llama3-annotations-binary-pos-neg-ultrafine \
     --model-dir tmp/models/fasttext-fineweb-edu-llama3-annotations-binary-pos-neg-ultrafine
 ```
@@ -337,7 +342,7 @@ R@1     0.934
 
 
 ```shell
-uv run better-cls eval-model2vec \
+uv run bonepick eval-model2vec \
     --dataset-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion \
     --model-dir tmp/models/potion-32M-fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion
 ```
@@ -367,7 +372,7 @@ mkdir -p tmp/models/openbmb_Ultra-FineWeb-classifier_en
 mv /tmp/openbmb/Ultra-FineWeb-classifier/classifiers/ultra_fineweb_en.bin tmp/models/openbmb_Ultra-FineWeb-classifier_en/model.bin
 rm -rf /tmp/openbmb
 
-uv run better-cls eval-fasttext \
+uv run bonepick eval-fasttext \
     --dataset-dir tmp/data/fasttext-fineweb-edu-llama3-annotations-binary-pos-neg-ultrafine \
     --model-dir tmp/models/openbmb_Ultra-FineWeb-classifier_en
 ```
@@ -390,7 +395,7 @@ R@1     0.737
 This ensures same number of positive and negative items
 
 ```shell
-uv run better-cls balance-dataset \
+uv run bonepick balance-dataset \
     --input-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion \
     --input-dir tmp/data/fw_pp_ref_mini_o4-mini-batch_medium-pos-neg-normalized-potion \
     --input-dir tmp/data/fw_pp_ref-pos-neg-normalized-potion \
@@ -400,7 +405,7 @@ uv run better-cls balance-dataset \
 #### Step 7: train on balanced dataset
 
 ```shell
-uv run better-cls train-model2vec \
+uv run bonepick train-model2vec \
     --dataset-dir tmp/data/fw-fw_pp-fw_pp_o4-posneg-normalized-potion-balanced \
     --output-dir tmp/models/potion-32M-fw-fw_pp-fw_pp_o4-posneg-normalized-potion-balanced
 ```

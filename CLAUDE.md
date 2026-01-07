@@ -8,20 +8,20 @@ Always use `uv run python3` instead of `python3` directly.
 
 ```bash
 # Run CLI commands
-uv run better-cls <command>
+uv run bonepick <command>
 
 # Available commands
-uv run better-cls --help
-uv run better-cls import-hf-dataset --help
-uv run better-cls transform-dataset --help
-uv run better-cls balance-dataset --help
-uv run better-cls normalize-dataset --help
-uv run better-cls convert-to-fasttext --help
-uv run better-cls train-model2vec --help
-uv run better-cls train-contrastive --help
-uv run better-cls train-fasttext --help
-uv run better-cls eval-model2vec --help
-uv run better-cls eval-fasttext --help
+uv run bonepick --help
+uv run bonepick import-hf-dataset --help
+uv run bonepick transform-dataset --help
+uv run bonepick balance-dataset --help
+uv run bonepick normalize-dataset --help
+uv run bonepick convert-to-fasttext --help
+uv run bonepick train-model2vec --help
+uv run bonepick train-contrastive --help
+uv run bonepick train-fasttext --help
+uv run bonepick eval-model2vec --help
+uv run bonepick eval-fasttext --help
 ```
 
 ## Architecture
