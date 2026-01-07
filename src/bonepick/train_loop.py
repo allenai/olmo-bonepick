@@ -9,7 +9,7 @@ import numpy as np
 from sklearn.utils.class_weight import compute_class_weight
 from sklearn.preprocessing import LabelEncoder
 
-from bonepick.data_utils import load_dataset
+from bonepick.data_utils import load_jsonl_dataset
 from bonepick.cli import PathParamType
 from bonepick.fasttext_utils import check_fasttext_binary
 from bonepick.model2vec_utils import BetterStaticModelForClassification
@@ -60,7 +60,7 @@ def train_model2vec(
     click.echo(f"  Model name: {model_name}")
 
     click.echo(f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}...")
-    dataset_tuple = load_dataset(
+    dataset_tuple = load_jsonl_dataset(
         dataset_dirs=list(dataset_dir),
         text_field_name=text_field,
         label_field_name=label_field,

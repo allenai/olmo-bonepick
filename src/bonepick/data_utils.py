@@ -13,6 +13,7 @@ from typing import Callable, Generator, Self, TypeVar, Generic, ClassVar
 import uuid
 
 import jq
+import click
 import msgspec
 import smart_open
 from tqdm import tqdm
@@ -166,7 +167,7 @@ class DatasetTuple:
     def new(cls):
         return cls(train=DatasetSplit.new(), valid=DatasetSplit.new(), test=DatasetSplit.new())
 
-def load_dataset(
+def load_jsonl_dataset(
     dataset_dirs: Path | list[Path],
     train_split_name: str = "train",
     val_split_name: str = "valid",
@@ -435,3 +436,94 @@ class ChunkedDataset(Generic[T]):
     def __exit__(self, exc_type, exc_value, traceback):
         if self.tempdir is not None:
             shutil.rmtree(self.tempdir)
+
+
+
+@dt.dataclass(frozen=True)
+class FasttextElement:
+    text: str
+    label: str
+
+@dt.dataclass(frozen=True)
+class FasttextDatasetSplit:
+    path: Path
+
+    def __len__(self) -> int:
+        # count lines in file
+        with smart_open.open(self.path, "rt", encoding="utf-8") as f: # pyright: ignore
+            return sum(1 for _ in f)
+
+    def __iter__(self) -> Generator[FasttextElement, None, None]:
+        with smart_open.open(self.path, "rt", encoding="utf-8") as f: # pyright: ignore
+            for line in f:
+                label, text = line.strip().split(" ", 1)
+                yield FasttextElement(text=text, label=label)
+
+    @classmethod
+    def merge(cls, splits: list[Self], split_name: str, tempdir: Path | None = None) -> Self:
+        if len(splits) == 0:
+            raise ValueError("No splits provided")
+        elif len(splits) == 1:
+            return splits[0]
+        elif tempdir is None:
+            raise ValueError("Tempdir is required if there are multiple splits")
+
+        tempdir.mkdir(parents=True, exist_ok=True)
+        split_path = tempdir / f"{split_name}.txt"
+        with smart_open.open(split_path, "wt", encoding="utf-8") as f: # pyright: ignore
+            for split in splits:
+                for element in split:
+                    f.write(f"{element.text} {element.label}\n")
+        return cls(path=split_path)
+
+
+@dt.dataclass(frozen=True)
+class FasttextDataset:
+    train: FasttextDatasetSplit
+    test: FasttextDatasetSplit
+    valid: FasttextDatasetSplit | None = None
+
+    @classmethod
+    def from_splits(
+        cls,
+        train: list[FasttextDatasetSplit],
+        test: list[FasttextDatasetSplit],
+        valid: list[FasttextDatasetSplit] | None = None,
+        tempdir: Path | None = None,
+    ) -> Self:
+
+
+        train_split = FasttextDatasetSplit.merge(splits=train, split_name="train", tempdir=tempdir)
+        test_split = FasttextDatasetSplit.merge(splits=test, split_name="test", tempdir=tempdir)
+        valid_split = (
+            FasttextDatasetSplit.merge(splits=valid, split_name="valid", tempdir=tempdir)
+            if valid is not None else None
+        )
+        return cls(train=train_split, test=test_split, valid=valid_split)
+
+
+def load_fasttext_dataset(
+    dataset_dirs: list[Path],
+    tempdir: Path,
+) -> FasttextDataset:
+
+    collected_splits: dict[str, list[FasttextDatasetSplit]] = {}
+
+    for dataset_dir in dataset_dirs:
+        for split_name in ("train", "test", "valid"):
+            split_path = dataset_dir / f"{split_name}.txt"
+
+            if not split_path.exists():
+                # skip if the split does not exist
+                continue
+
+            collected_splits.setdefault(split_name, []).append(
+                FasttextDatasetSplit(path=split_path)
+            )
+
+    return FasttextDataset.from_splits(
+        train=collected_splits.get("train", []),
+        test=collected_splits.get("test", []),
+        valid=valid_split if len(valid_split := collected_splits.get("valid", [])) > 0 else None,
+        tempdir=tempdir,
+    )

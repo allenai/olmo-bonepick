@@ -1,13 +1,180 @@
-import json
 import subprocess
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import cast
 
 import click
+import yaml
+import numpy as np
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import precision_recall_fscore_support, roc_auc_score
 from model2vec.inference import StaticModelPipeline
 
-from bonepick.data_utils import load_dataset
+from bonepick.data_utils import load_jsonl_dataset, load_fasttext_dataset, FasttextDatasetSplit
+from bonepick.fasttext_utils import fasttext_dataset_signature
 from bonepick.cli import PathParamType
-from bonepick.fasttext_utils import check_fasttext_binary, fasttext_dataset_signature
+from bonepick.fasttext_utils import check_fasttext_binary
+
+
+def _compute_metrics_from_predictions(
+    y_true: np.ndarray,
+    y_proba: np.ndarray,
+    encoded_classes: np.ndarray,
+    plain_classes: list[str],
+) -> dict:
+    y_pred = np.argmax(y_proba, axis=1)
+
+    # Calculate per-class metrics
+    precision, recall, f1, support = cast(
+        tuple[np.ndarray, ...],
+        precision_recall_fscore_support(y_true, y_pred, labels=encoded_classes),
+    )
+
+    # Calculate macro averages
+    macro_precision = np.mean(precision)
+    macro_recall = np.mean(recall)
+    macro_f1 = np.mean(f1)
+
+    # Calculate AUC (handle binary and multi-class cases)
+    try:
+        if len(encoded_classes) == 2:
+            # Binary classification: use probabilities for positive class
+            auc = roc_auc_score(y_true, y_proba[:, 1])
+            per_class_auc = {str(plain_classes[1]): auc}
+        else:
+            # Multi-class: calculate AUC for each class (one-vs-rest)
+            auc = roc_auc_score(y_true, y_proba, multi_class="ovr", average="macro")
+            per_class_auc = {}
+            for i, class_label in enumerate(plain_classes):
+                try:
+                    class_auc = roc_auc_score((y_true == i).astype(int), y_proba[:, i])
+                    per_class_auc[str(class_label)] = class_auc
+                except ValueError:
+                    # Handle case where a class might not be present
+                    per_class_auc[str(class_label)] = None
+    except ValueError:
+        # Handle cases where AUC cannot be calculated
+        auc = None
+        per_class_auc = {}
+
+    results = {
+        "macro_precision": float(macro_precision),
+        "macro_recall": float(macro_recall),
+        "macro_f1": float(macro_f1),
+        "macro_auc": float(auc) if auc is not None else None,
+        "per_class_metrics": {}
+    }
+
+    for i, class_label in enumerate(plain_classes):
+        class_name = str(class_label)
+        results["per_class_metrics"][class_name] = {
+            "precision": float(precision[i]),
+            "recall": float(recall[i]),
+            "f1": float(f1[i]),
+            "support": int(support[i]),
+            "auc": per_class_auc.get(class_name)
+        }
+
+    return results
+
+
+
+def compute_detailed_metrics(pipeline: StaticModelPipeline, texts: list[str], labels: list[str]) -> dict:
+    """
+    Compute detailed classification metrics using predict_proba.
+
+    Returns precision, recall, F1, macro averages, and AUC for each class.
+    """
+    # Encode labels
+    label_encoder = LabelEncoder()
+    y_true = cast(np.ndarray, label_encoder.fit_transform(labels))
+
+    plain_classes = cast(list[str], label_encoder.classes_)
+    encoded_classes = cast(np.ndarray, label_encoder.transform(plain_classes)).flatten()
+
+    # Get probability predictions
+    y_proba = pipeline.predict_proba(texts)
+
+    # Build results dictionary
+    return _compute_metrics_from_predictions(y_true, y_proba, encoded_classes, plain_classes)
+
+
+def compute_detailed_metrics_fasttext(
+    model_path: Path,
+    dataset_split: FasttextDatasetSplit,
+    fasttext_path: Path,
+    temp_dir: Path
+) -> dict:
+    """
+    Compute detailed classification metrics for FastText using predict with probabilities.
+
+    Returns precision, recall, F1, macro averages, and AUC for each class.
+    """
+    # Create temporary input file for predictions
+    temp_input = temp_dir / "temp_predict_input.txt"
+    gold_labels: list[str] = []
+    with open(temp_input, "w", encoding="utf-8") as f:
+        for element in dataset_split:
+            # Write each text on a line (without label)
+            f.write(element.text + "\n")
+            gold_labels.append(element.label)
+
+    # Encode labels
+    label_encoder = LabelEncoder()
+    y_true = cast(np.ndarray, label_encoder.fit_transform(gold_labels))
+
+    # Get names of classes
+    plain_classes = cast(list[str], label_encoder.classes_)
+    encoded_classes = cast(np.ndarray, label_encoder.transform(plain_classes)).flatten()
+
+    # Run fasttext predict with probabilities (k=-1 means all classes)
+    predict_cmd = [
+        str(fasttext_path),
+        "predict-prob",
+        str(model_path),
+        str(temp_input),
+        "-1",  # Return all class probabilities
+    ]
+
+    predict_result = subprocess.run(
+        predict_cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    if predict_result.returncode != 0:
+        raise RuntimeError(
+            f"fasttext predict failed with return code {predict_result.returncode}\n"
+            f"stderr: {predict_result.stderr}"
+        )
+
+    # Parse predictions - each line contains: __label__X prob __label__Y prob ...
+    y_proba = np.zeros((len(dataset_split), len(plain_classes)))
+    for i, raw_prediction in enumerate(predict_result.stdout.strip().split("\n")):
+        labels, probas = (arr := raw_prediction.strip().split())[::2], [float(p) for p in arr[1::2]]
+        labels_enc = np.array(label_encoder.transform(labels))
+        y_proba[i, labels_enc] = np.array(probas)
+
+    return _compute_metrics_from_predictions(y_true, y_proba, encoded_classes, plain_classes)
+
+
+def result_to_text(dataset_dir: tuple[Path, ...], model_dir: Path, results: dict) -> str:
+    per_class_metrics = [
+        {
+            **{"class_name": class_name},
+            **{k: round(v, 4) if isinstance(v, float) else v for k, v in metrics.items()}
+        }
+        for class_name, metrics in results.pop("per_class_metrics").items()
+    ]
+
+    output = {
+        "dataset_dir": [str(d) for d in dataset_dir],
+        "model_dir": str(model_dir),
+        "overall_results": {k: round(v, 4) if isinstance(v, float) else v for k, v in results.items()},
+        "per_class_metrics": per_class_metrics,
+    }
+    return yaml.dump(output, sort_keys=False, indent=2)
 
 
 @click.command()
@@ -45,7 +212,7 @@ def eval_model2vec(
     click.echo("Model loaded successfully.")
 
     click.echo(f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}...")
-    dt = load_dataset(
+    dt = load_jsonl_dataset(
         dataset_dirs=list(dataset_dir),
         text_field_name=text_field,
         label_field_name=label_field,
@@ -54,26 +221,28 @@ def eval_model2vec(
     click.echo(f"  Test samples: {len(dt.test.text)}")
 
     click.echo("\nEvaluating model on test data...")
-    results = pipeline.evaluate(dt.test.text, dt.test.label)
-    click.echo("\nEvaluation results:")
-    click.echo(results)
+    results = compute_detailed_metrics(pipeline, dt.test.text, dt.test.label)
 
-    results_txt = "Dataset paths:\n"
-    for d in dataset_dir:
-        results_txt += f"  - {d}\n"
-    results_txt += "\n"
-    results_txt += json.dumps(results, indent=4) if isinstance(results, dict) else str(results)
-    results_txt += "\n"
-    results_file = model_dir / f"results_{dt.test.signature}.txt"
+    results_txt = result_to_text(dataset_dir, model_dir, results)
+    click.echo(f"Evaluation results:\n{results_txt}\n")
+
+    results_file = model_dir / f"results_{dt.test.signature[:6]}.yaml"
     click.echo(f"\nSaving results to {results_file}...")
     with open(results_file, "wt", encoding="utf-8") as f:
         f.write(results_txt)
     click.echo(f"Results saved to: {results_file}")
-
     click.echo("\nEvaluation complete!")
 
 
 @click.command()
+@click.option(
+    "-d",
+    "--dataset-dir",
+    type=PathParamType(exists=True, is_dir=True),
+    required=True,
+    multiple=True,
+    help="Dataset directory (can be specified multiple times)",
+)
 @click.option(
     "-m",
     "--model-dir",
@@ -81,104 +250,55 @@ def eval_model2vec(
     required=True,
     help="Path to the trained fasttext model (.bin file)",
 )
-@click.option(
-    "-d",
-    "--dataset-dir",
-    type=PathParamType(exists=True, is_dir=True),
-    required=True,
-    multiple=True,
-    help="Directory containing the dataset (can be specified multiple times)",
-)
+@click.option("-t", "--text-field", type=str, default="text", help="field in dataset to use as text")
+@click.option("-l", "--label-field", type=str, default="score", help="field in dataset to use as label")
 def eval_fasttext(
-    model_dir: Path,
     dataset_dir: tuple[Path, ...],
+    model_dir: Path,
+    text_field: str,
+    label_field: str,
 ):
     """Evaluate a fasttext classifier on a test set."""
     click.echo("Starting fasttext evaluation...")
-    click.echo(f"  Model directory: {model_dir}")
     click.echo(f"  Dataset directories: {', '.join(str(d) for d in dataset_dir)}")
+    click.echo(f"  Model directory: {model_dir}")
+    click.echo(f"  Text field: {text_field}")
+    click.echo(f"  Label field: {label_field}")
 
     fasttext_path = check_fasttext_binary()
-
-    # Collect all test.txt files from all directories
-    test_files: list[Path] = []
-    for d in dataset_dir:
-        test_file = d / "test.txt"
-        assert test_file.exists(), f"Test file {test_file} does not exist"
-        assert test_file.is_file(), f"Test file {test_file} is not a file"
-        test_files.append(test_file)
-    click.echo(f"Found {len(test_files)} test file(s)")
-
-    # If multiple directories, concatenate into a temporary file
-    if len(test_files) == 1:
-        test_file = test_files[0]
-    else:
-        combined_test = model_dir / "combined_test.txt"
-        click.echo(f"Concatenating test files to: {combined_test}")
-        with open(combined_test, "w", encoding="utf-8") as out_f:
-            for tf in test_files:
-                with open(tf, "r", encoding="utf-8") as in_f:
-                    for line in in_f:
-                        out_f.write(line)
-        test_file = combined_test
-    click.echo(f"Test file: {test_file}")
 
     model_path = model_dir / "model.bin"
     assert model_path.exists(), f"Model file {model_path} does not exist"
     assert model_path.is_file(), f"Model file {model_path} is not a file"
     click.echo(f"Model file found: {model_path}")
 
-    click.echo("\nBuilding evaluation command...")
-    test_cmd = [
-        str(fasttext_path),
-        "test-label",
-        str(model_path),
-        str(test_file),
-    ]
+    with TemporaryDirectory() as _temp_dir:
+        # gotta work in from a temporary directory for two reasons:
+        # 1. if a user has provided multiple dataset directories, we need
+        #    to merge them into a single dataset because fasttext expects a single file
+        # 2. we need to output predictions from fasttext into a temporary file
+        #    so we can compute the metrics we want on the predictions
 
-    click.echo("\nEvaluating fasttext model on test set...")
-    click.echo(f"Command: {' '.join(test_cmd)}")
+        temp_dir = Path(_temp_dir)
 
-    test_result = subprocess.run(test_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        click.echo(f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}...")
+        dt = load_fasttext_dataset(dataset_dirs=list(dataset_dir), tempdir=temp_dir)
+        click.echo("Dataset loaded successfully.")
+        click.echo(f"  Test samples: {len(dt.test)}")
 
-    if test_result.returncode != 0:
-        click.echo(f"Evaluation failed with return code: {test_result.returncode}", err=True)
-        raise click.ClickException(
-            f"fasttext test failed with return code {test_result.returncode}\nstderr: {test_result.stderr}"
+        click.echo("\nEvaluating model on test data...")
+        results = compute_detailed_metrics_fasttext(
+            model_path=model_path,
+            dataset_split=dt.test,
+            fasttext_path=fasttext_path,
+            temp_dir=temp_dir,
         )
+        results_txt = result_to_text(dataset_dir, model_dir, results)
+        click.echo(f"Evaluation results:\n{results_txt}\n")
 
-    click.echo("Evaluation subprocess completed successfully.")
-
-    # Parse and display results
-    test_output = test_result.stdout.strip().decode("utf-8")
-    click.echo(f"\nTest results:\n{test_output}")
-
-    # Save results to file
-    click.echo("\nPreparing results for saving...")
-    results = {
-        "test_command": " ".join(test_cmd),
-        "model_path": str(model_path),
-        "test_file": str(test_file),
-        "test_output": test_output,
-    }
-
-    click.echo("Computing dataset signature...")
-    signature = fasttext_dataset_signature(test_file)
-    click.echo(f"Dataset signature: {signature}")
-
-    results_file = model_path.parent / f"results_{signature}.txt"
-
-
-    results_txt = "Dataset paths:\n"
-    for d in dataset_dir:
-        results_txt += f"  - {d}\n"
-    results_txt += "\n"
-    results_txt += json.dumps(results, indent=4) if isinstance(results, dict) else str(results)
-    results_txt += "\n"
-
-    click.echo(f"Saving results to: {results_file}")
+    results_file = model_dir / f"results_{fasttext_dataset_signature(dt.test.path)[:6]}.yaml"
+    click.echo(f"\nSaving results to {results_file}...")
     with open(results_file, "wt", encoding="utf-8") as f:
         f.write(results_txt)
-
-    click.echo(f"\nResults saved to: {results_file}")
-    click.echo("\nFasttext evaluation complete!")
+    click.echo(f"Results saved to: {results_file}")
+    click.echo("\nEvaluation complete!")

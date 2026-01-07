@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from bonepick.cli import FloatOrIntParamType, PathParamType
 from bonepick.data_utils import (
-    load_dataset,
+    load_jsonl_dataset,
     DatasetSplit,
     DatasetTuple,
     batch_save_hf_dataset,
@@ -283,7 +283,7 @@ def balance_dataset(
 
     rng = random.Random(seed)
 
-    dataset_tuple = load_dataset(
+    dataset_tuple = load_jsonl_dataset(
         dataset_dirs=list(input_dir),
         text_field_name=text_field,
         label_field_name=label_field,
