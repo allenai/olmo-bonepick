@@ -10,8 +10,8 @@ import datasets
 import smart_open
 from tqdm import tqdm
 
-from better_cls.cli import FloatOrIntParamType, PathParamType
-from better_cls.data_utils import (
+from bonepick.cli import FloatOrIntParamType, PathParamType
+from bonepick.data_utils import (
     load_dataset,
     DatasetSplit,
     DatasetTuple,
@@ -22,7 +22,7 @@ from better_cls.data_utils import (
     FILE_SUFFIXES,
     transform_single_file,
 )
-from better_cls.normalizers import list_normalizers
+from bonepick.normalizers import list_normalizers
 
 
 

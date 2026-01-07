@@ -5,9 +5,9 @@ from pathlib import Path
 import click
 from model2vec.inference import StaticModelPipeline
 
-from better_cls.data_utils import load_dataset
-from better_cls.cli import PathParamType
-from better_cls.fasttext_utils import check_fasttext_binary, fasttext_dataset_signature
+from bonepick.data_utils import load_dataset
+from bonepick.cli import PathParamType
+from bonepick.fasttext_utils import check_fasttext_binary, fasttext_dataset_signature
 
 
 @click.command()

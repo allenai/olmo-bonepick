@@ -1,5 +1,5 @@
 [project]
-name = "better-cls"
+name = "bonepick"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -20,14 +20,14 @@ dependencies = [
 ]
 
 [project.scripts]
-better-cls = "better_cls.__init__:cli"
+bonepick = "bonepick.__init__:cli"
 
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]
 build-backend = "uv_build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/better_cls"]
+packages = ["src/bonepick"]
 
 
 [[tool.uv.index]]

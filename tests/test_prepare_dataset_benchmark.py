@@ -4,7 +4,7 @@ import time
 import numpy as np
 import pytest
 
-from better_cls.train_utils import HingeLossModelForClassification
+from bonepick.train_utils import HingeLossModelForClassification
 
 
 def generate_fake_data(n_samples: int, text_length: int = 5000) -> tuple[list[str], list[str], np.ndarray]:

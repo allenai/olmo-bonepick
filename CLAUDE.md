@@ -67,4 +67,4 @@ All training and evaluation commands support multiple `--dataset-dir` options to
 
 ### Git commands
 
-Use git commands directly, e.g., `git status` not `git -C /home/lucas/oe-data-internal/better_cls status`.
+Use git commands directly, e.g., `git status` not `git -C /home/lucas/oe-data-internal/bonepick status`.

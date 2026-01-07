@@ -1,16 +1,16 @@
-from better_cls.train_loop import (
+from bonepick.train_loop import (
     train_fasttext,
     train_model2vec,
 )
-from better_cls.eval_loop import eval_fasttext, eval_model2vec
-from better_cls.data_loop import (
+from bonepick.eval_loop import eval_fasttext, eval_model2vec
+from bonepick.data_loop import (
     balance_dataset,
     convert_to_fasttext,
     import_hf_dataset,
     normalize_dataset,
     transform_dataset,
 )
-from better_cls.cli import cli
+from bonepick.cli import cli
 
 __all__ = ["cli"]
 

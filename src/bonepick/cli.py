@@ -4,7 +4,13 @@ from pathlib import Path
 
 @click.group()
 def cli():
-    """Train fast CPU classifiers."""
+    """
+    Bonepick: Train efficient text quality classifiers using Model2Vec and FastText.
+
+    A complete pipeline for building fast, CPU-friendly text classifiers from HuggingFace
+    datasets through data preparation (import, transform, balance, normalize) to training
+    (Model2Vec with standard or contrastive learning, FastText) and evaluation.
+    """
     pass
 
 
