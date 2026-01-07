@@ -58,7 +58,12 @@ def eval_model2vec(
     click.echo("\nEvaluation results:")
     click.echo(results)
 
-    results_txt = json.dumps(results, indent=4) if isinstance(results, dict) else str(results)
+    results_txt = "Dataset paths:\n"
+    for d in dataset_dir:
+        results_txt += f"  - {d}\n"
+    results_txt += "\n"
+    results_txt += json.dumps(results, indent=4) if isinstance(results, dict) else str(results)
+    results_txt += "\n"
     results_file = model_dir / f"results_{dt.test.signature}.txt"
     click.echo(f"\nSaving results to {results_file}...")
     with open(results_file, "wt", encoding="utf-8") as f:
@@ -161,10 +166,19 @@ def eval_fasttext(
     signature = fasttext_dataset_signature(test_file)
     click.echo(f"Dataset signature: {signature}")
 
-    results_file = model_path.parent / f"results_{signature}.json"
+    results_file = model_path.parent / f"results_{signature}.txt"
+
+
+    results_txt = "Dataset paths:\n"
+    for d in dataset_dir:
+        results_txt += f"  - {d}\n"
+    results_txt += "\n"
+    results_txt += json.dumps(results, indent=4) if isinstance(results, dict) else str(results)
+    results_txt += "\n"
+
     click.echo(f"Saving results to: {results_file}")
-    with open(results_file, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2)
+    with open(results_file, "wt", encoding="utf-8") as f:
+        f.write(results_txt)
 
     click.echo(f"\nResults saved to: {results_file}")
     click.echo("\nFasttext evaluation complete!")
