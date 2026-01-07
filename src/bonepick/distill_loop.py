@@ -12,13 +12,13 @@ from bonepick.cli import PathParamType, PCADimTypeParamType
 @click.option("-m", "--model-name-or-path", type=str, required=True)
 @click.option("-v", "--vocabulary-path", type=PathParamType(exists=True, is_file=True, optional=True), default=None)
 @click.option("-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True)
-@click.option("--pca-dims", type=PCADimTypeParamType, default=256)
-@click.option("--sif-coefficient", type=float, default=1e-4)
-@click.option("--token-remove-pattern", type=str, default=r"\[unused\d+\]")
-@click.option("--trust-remote-code", is_flag=True, default=False)
-@click.option("--quantize-to", default="float16", type=click.Choice(["float16", "float32", "float64", "int8"]))
-@click.option("--vocabulary-quantization", type=int, default=None)
-@click.option("--pooling", default="mean", type=click.Choice(["mean", "last", "first", "pooler"]))
+@click.option("-d", "--pca-dims", type=PCADimTypeParamType(), default=256)
+@click.option("-s", "--sif-coefficient", type=float, default=1e-4)
+@click.option("-t", "--token-remove-pattern", type=str, default=r"\[unused\d+\]")
+@click.option("-r", "--trust-remote-code", is_flag=True, default=False)
+@click.option("-q", "--quantize-to", default="float16", type=click.Choice(["float16", "float32", "float64", "int8"]))
+@click.option("-k", "--vocabulary-quantization", type=int, default=None)
+@click.option("-p", "--pooling", default="mean", type=click.Choice(["mean", "last", "first", "pooler"]))
 def distill_model(
     model_name_or_path: str,
     vocabulary_path: Path | None,

@@ -17,6 +17,7 @@ dependencies = [
     "tqdm>=4.66.5",
     "tokenizers>=0.22.1",
     "plsfix>=0.1.8",
+    "tokenlearn>=0.2.1",
 ]
 
 [project.scripts]
