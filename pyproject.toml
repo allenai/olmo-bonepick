@@ -1,6 +1,6 @@
 [project]
 name = "bonepick"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -19,14 +19,18 @@ dependencies = [
     "plsfix>=0.1.8",
     "tokenlearn>=0.2.1",
     "pyyaml>=6.0.3",
+    "lazy-imports>=1.2.0",
 ]
 
 [project.scripts]
 bonepick = "bonepick.__init__:cli"
 
 [build-system]
-requires = ["uv_build>=0.9.18,<0.10.0"]
-build-backend = "uv_build"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/bonepick/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bonepick"]
@@ -35,6 +39,15 @@ packages = ["src/bonepick"]
 [[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
+
+[project.optional-dependencies]
+annotate = [
+    "lm-deluge>=0.0.95,<0.1.0",
+    "platformdirs",
+    "fastmcp",
+    "pydantic<2.12.0",
+
+]
 
 [dependency-groups]
 dev = [

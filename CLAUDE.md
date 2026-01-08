@@ -42,13 +42,31 @@ This is a CLI tool for training efficient quality classifiers (Model2Vec and Fas
 - **train-contrastive**: Contrastive/ranking training using hinge loss within semantic clusters (PyTorch Lightning)
 - **train-fasttext**: Shells out to the fasttext binary for training
 
+### Evaluation System
+
+Both `eval-model2vec` and `eval-fasttext` compute detailed classification metrics:
+
+- **Metrics**: Precision, recall, F1-score, and AUC for each class, plus macro averages
+- **Implementation**:
+  - Model2Vec: Uses `pipeline.predict_proba()` to get probability distributions
+  - FastText: Shells out to `fasttext predict-prob` command with `-1` flag (all classes)
+- **Label Encoding**: Uses `sklearn.preprocessing.LabelEncoder` for consistent label encoding
+- **Output Format**: YAML files saved to model directory as `results_<dataset_signature>.yaml`
+- **Multi-dataset**: Supports multiple `--dataset-dir` options; results computed on combined test sets
+
+Key functions in `eval_loop.py`:
+- `_compute_metrics_from_predictions()`: Shared helper that computes all metrics from probability predictions
+- `compute_detailed_metrics()`: Model2Vec evaluation wrapper
+- `compute_detailed_metrics_fasttext()`: FastText evaluation wrapper with subprocess handling
+- `result_to_text()`: Formats results as YAML with dataset paths, macro metrics, and per-class breakdowns
+
 ### Key Components
 
 - `train_loop.py`: Training CLI commands (`train-model2vec`, `train-contrastive`, `train-fasttext`)
-- `eval_loop.py`: Evaluation CLI commands (`eval-model2vec`, `eval-fasttext`)
+- `eval_loop.py`: Evaluation CLI commands (`eval-model2vec`, `eval-fasttext`) with detailed probability-based metrics
 - `model2vec_utils.py`: `HingeLossModelForClassification` - extends Model2Vec's `StaticModelForClassification` with contrastive training that clusters documents by semantic similarity, then trains with pairwise hinge loss
 - `data.py`: Dataset loading, transformation, balancing, and format conversion CLI commands
-- `data_utils.py`: Helper functions for file I/O, label counting, and sample reading
+- `data_utils.py`: Helper functions for file I/O, label counting, and sample reading; includes `load_jsonl_dataset()` and `load_fasttext_dataset()` with support for multiple dataset directories
 - `normalizers.py`: Text normalizer registry with implementations (whitespace, plsfix, tokenizer, ultrafine, ultrafine-plus, potion)
 - `fasttext_utils.py`: FastText binary detection and dataset signature utilities
 - `cli.py`: Click CLI setup and custom parameter types

@@ -15,6 +15,16 @@
 uv sync
 ```
 
+### Optional Dependencies
+
+The `annotate` extra provides tools for using LLM APIs to label data:
+
+```shell
+uv sync --extra annotate
+```
+
+**Note:** Support for the `annotate` feature is coming soon. This will include tools to classify and label text data using various LLM providers (OpenAI, Anthropic, etc.).
+
 ## Data Format
 
 Datasets are stored as compressed JSONL files (`.jsonl.zst`, `.jsonl.gz`, or `.jsonl`) in `train/` and `test/` subdirectories. Each row must have a text field and a label field.
