@@ -11,7 +11,12 @@ from typing import Literal, TypedDict, cast as typing_cast
 import click
 from lazy_imports import try_import
 
-from bonepick.train.data_utils import load_jsonl_dataset, DatasetSplit, write_dataset, DatasetTuple
+from bonepick.train.data_utils import (
+    load_jsonl_dataset,
+    DatasetSplit,
+    write_dataset,
+    DatasetTuple,
+)
 from bonepick.cli import PathParamType
 from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt
 from bonepick.train.data_utils import ChunkedDatasetPath, ChunkedDataset
@@ -21,6 +26,7 @@ with try_import() as extra_dependencies:
     # extra imports; they won't fail here, but later when running the command they will
     from lm_deluge import LLMClient, Conversation, Message
     from lm_deluge.client import _LLMClient as LLMClientType
+
     # from lm_deluge.cache import SqliteCache
     # from lm_deluge.models import registry as lm_deluge_registry
     # from lm_deluge.api_requests.base import APIResponse
@@ -28,7 +34,7 @@ with try_import() as extra_dependencies:
     from bonepick.annotate.deluge_utils import SqliteInvalidableCache
 
     # import here to register all the prompts
-    from bonepick.annotate import prompt_collections    # noqa: F401
+    from bonepick.annotate import prompt_collections  # noqa: F401
 
 
 class DatasetRow(TypedDict):
@@ -43,6 +49,7 @@ class ServiceTier(Enum):
     PRIORITY = "priority"
     NONE = None
 
+
 def annotate_batch(
     batch_input: ChunkedDatasetPath[DatasetRow],
     batch_output: ChunkedDataset[DatasetRow],
@@ -52,7 +59,11 @@ def annotate_batch(
     service_tier: ServiceTier,
 ):
     task_prompt = BaseAnnotationPrompt.get(annotation_task_prompt)
-    system_prompt = BaseSystemPrompt.get(annotation_system_prompt) if annotation_system_prompt else None
+    system_prompt = (
+        BaseSystemPrompt.get(annotation_system_prompt)
+        if annotation_system_prompt
+        else None
+    )
     batch_prompts: list[Conversation] = []
 
     for row in batch_input:
@@ -67,7 +78,7 @@ def annotate_batch(
         client.process_prompts_async(
             batch_prompts,
             service_tier=service_tier.value,
-            output_schema=task_prompt.schema
+            output_schema=task_prompt.schema,
         )
     )  # pyright: ignore
     failed_cnt = 0
@@ -82,12 +93,13 @@ def annotate_batch(
         result = typing_cast(str, task_prompt.parse(response.completion))
         output.append(DatasetRow(text=row["text"], label=result))
 
-    click.echo(f"batch {batch_input.chunk_path.name}: failed to annotate {failed_cnt:,} rows")
+    click.echo(
+        f"batch {batch_input.chunk_path.name}: failed to annotate {failed_cnt:,} rows"
+    )
 
     batch_output.add_chunk(output)
 
     return len(output)
-
 
 
 @click.command()
@@ -103,22 +115,24 @@ def annotate_batch(
     "-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), default=None
 )
 @click.option(
-    "-m", "--model-name",
+    "-m",
+    "--model-name",
     default="gpt-5.2",
-    help="Name of the model to use for annotation"
+    help="Name of the model to use for annotation",
 )
 @click.option(
     "-i",
     "--input-field",
     type=str,
     default="text",
-    help="Field in dataset to use as input for annotation")
+    help="Field in dataset to use as input for annotation",
+)
 @click.option(
     "-f",
     "--input-field-format",
     type=click.Choice(["text", "conversation"]),
     default="text",
-    help="Format of the input: `text` is a string, `conversation` is a list of messages in OpenAI chat format."
+    help="Format of the input: `text` is a string, `conversation` is a list of messages in OpenAI chat format.",
 )
 @click.option(
     "-c",
@@ -132,14 +146,14 @@ def annotate_batch(
     "--annotation-task-prompt",
     required=True,
     type=str,
-    help="Name of the annotation task prompt to use; use `bonepick annotation-prompts` to list available prompts"
+    help="Name of the annotation task prompt to use; use `bonepick annotation-prompts` to list available prompts",
 )
 @click.option(
     "-S",
     "--annotation-system-prompt",
     default=None,
     type=str,
-    help="Name of the annotation system prompt to use; use `bonepick annotation-prompts` to list available prompts"
+    help="Name of the annotation system prompt to use; use `bonepick annotation-prompts` to list available prompts",
 )
 @click.option(
     "-e",
@@ -233,11 +247,15 @@ def annotate_dataset(
             to_annotate_text.append(text)
     del dataset
 
-    click.echo(f"Found {len(existing_text):,} existing rows and {len(to_annotate_text):,} rows to annotate")
+    click.echo(
+        f"Found {len(existing_text):,} existing rows and {len(to_annotate_text):,} rows to annotate"
+    )
 
     with ExitStack() as stack:
         batch_input = stack.enter_context(ChunkedDataset())
-        batch_input.add_dataset([DatasetRow(text=text, label=None) for text in to_annotate_text])
+        batch_input.add_dataset(
+            [DatasetRow(text=text, label=None) for text in to_annotate_text]
+        )
         batch_output = stack.enter_context(ChunkedDataset())
 
         pool_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
@@ -248,13 +266,17 @@ def annotate_dataset(
             client=client,
             annotation_task_prompt=annotation_task_prompt,
             annotation_system_prompt=annotation_system_prompt,
-            service_tier=ServiceTier(service_tier) if service_tier else ServiceTier.NONE,
+            service_tier=ServiceTier(service_tier)
+            if service_tier
+            else ServiceTier.NONE,
             batch_output=batch_output,
         )
 
         # we don't pass the number of processes to make sure we run this in single thread
         annotate_pbar = stack.enter_context(
-            tqdm(total=len(to_annotate_text), desc="Annotating dataset", unit_scale=True)
+            tqdm(
+                total=len(to_annotate_text), desc="Annotating dataset", unit_scale=True
+            )
         )
         futures = []
         for batch_input_path in batch_input:
@@ -272,7 +294,11 @@ def annotate_dataset(
         annotate_pbar.close()
 
         retrieve_pbar = stack.enter_context(
-            tqdm(total=len(existing_text), desc="Retrieving annotated dataset", unit_scale=True)
+            tqdm(
+                total=len(existing_text),
+                desc="Retrieving annotated dataset",
+                unit_scale=True,
+            )
         )
         for batch_output_path in batch_output:
             for row in batch_output_path:
@@ -282,12 +308,18 @@ def annotate_dataset(
         retrieve_pbar.close()
 
     dataset_split = DatasetSplit(text=existing_text, label=existing_label)
-    dataset = DatasetTuple(train=dataset_split, valid=DatasetSplit.new(), test=DatasetSplit.new())
-    write_dataset(dataset, output_dir, text_field_name=input_field, label_field_name=annotation_task_prompt)
+    dataset = DatasetTuple(
+        train=dataset_split, valid=DatasetSplit.new(), test=DatasetSplit.new()
+    )
+    write_dataset(
+        dataset,
+        output_dir,
+        text_field_name=input_field,
+        label_field_name=annotation_task_prompt,
+    )
 
     # processed_dataset.push_to_hub(destination_path, private=keep_private)
     # print("Dataset pushed to https://huggingface.co/datasets/" + destination_path)
-
 
 
 @click.command()

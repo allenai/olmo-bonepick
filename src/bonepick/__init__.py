@@ -25,8 +25,8 @@ from bonepick.train import (
 from bonepick.annotate import annotate_dataset, list_prompts
 
 
-from bonepick.cli import cli    # noqa: E402
-from bonepick.logger import init_logger # noqa: E402
+from bonepick.cli import cli  # noqa: E402
+from bonepick.logger import init_logger  # noqa: E402
 
 __all__ = ["cli", "__version__"]
 
@@ -48,6 +48,7 @@ cli.add_command(train_model2vec)
 cli.add_command(transform_dataset)
 cli.add_command(annotate_dataset)
 cli.add_command(list_prompts)
+
 
 @cli.command()
 def version():

@@ -6,7 +6,9 @@ import sys
 LOGGER = logging.getLogger(__package__)
 
 
-def init_logger(cache_location: Path | str | None = None, logger: logging.Logger | None = None) -> logging.Logger:
+def init_logger(
+    cache_location: Path | str | None = None, logger: logging.Logger | None = None
+) -> logging.Logger:
     """Initialize a global logger writing to stderr and a log file.
 
     Args:

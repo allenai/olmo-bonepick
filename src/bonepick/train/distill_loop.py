@@ -10,15 +10,32 @@ from bonepick.cli import PathParamType, PCADimTypeParamType
 
 @click.command()
 @click.option("-m", "--model-name-or-path", type=str, required=True)
-@click.option("-v", "--vocabulary-path", type=PathParamType(exists=True, is_file=True, optional=True), default=None)
-@click.option("-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True)
+@click.option(
+    "-v",
+    "--vocabulary-path",
+    type=PathParamType(exists=True, is_file=True, optional=True),
+    default=None,
+)
+@click.option(
+    "-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True
+)
 @click.option("-d", "--pca-dims", type=PCADimTypeParamType(), default=256)
 @click.option("-s", "--sif-coefficient", type=float, default=1e-4)
 @click.option("-t", "--token-remove-pattern", type=str, default=r"\[unused\d+\]")
 @click.option("-r", "--trust-remote-code", is_flag=True, default=False)
-@click.option("-q", "--quantize-to", default="float16", type=click.Choice(["float16", "float32", "float64", "int8"]))
+@click.option(
+    "-q",
+    "--quantize-to",
+    default="float16",
+    type=click.Choice(["float16", "float32", "float64", "int8"]),
+)
 @click.option("-k", "--vocabulary-quantization", type=int, default=None)
-@click.option("-p", "--pooling", default="mean", type=click.Choice(["mean", "last", "first", "pooler"]))
+@click.option(
+    "-p",
+    "--pooling",
+    default="mean",
+    type=click.Choice(["mean", "last", "first", "pooler"]),
+)
 def distill_model(
     model_name_or_path: str,
     vocabulary_path: Path | None,
@@ -36,7 +53,7 @@ def distill_model(
     # load vocabulary if provided
     if vocabulary_path is not None:
         click.echo(f"Loading vocabulary from {vocabulary_path}...")
-        with smart_open.open(vocabulary_path, "rt", encoding="utf-8") as f: # pyright: ignore
+        with smart_open.open(vocabulary_path, "rt", encoding="utf-8") as f:  # pyright: ignore
             vocabulary = [line.strip() for line in f]
         click.echo(f"Vocabulary loaded successfully with {len(vocabulary)} tokens.")
     else:

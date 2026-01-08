@@ -42,7 +42,7 @@ def batch_save_hf_dataset(
 
     encoder = msgspec.json.Encoder()
 
-    with smart_open.open(str(destination_file), "wb") as f:   # pyright: ignore
+    with smart_open.open(str(destination_file), "wb") as f:  # pyright: ignore
         for idx, loc in enumerate(indices):
             sample = {k: v[idx] for k, v in batch.items()}
             f.write(encoder.encode(sample) + b"\n")
@@ -51,7 +51,6 @@ def batch_save_hf_dataset(
 
 
 def compile_jq(jq_expr: str) -> Callable[[dict], dict]:
-
     if not jq_expr.strip():
 
         def identity(x: dict) -> dict:
@@ -62,7 +61,7 @@ def compile_jq(jq_expr: str) -> Callable[[dict], dict]:
 
     compiled_jq = jq.compile(jq_expr)
 
-    def transform(x: dict, _compiled_jq = compiled_jq) -> dict:
+    def transform(x: dict, _compiled_jq=compiled_jq) -> dict:
         assert isinstance(x, dict), f"Expected dict, got {type(x)}"
         output = _compiled_jq.input_value(x).first()
         assert output is not None, "Expected output, got None"
@@ -109,8 +108,8 @@ def normalize_single_file(
     encoder = msgspec.json.Encoder()
 
     with ExitStack() as stack:
-        source_file = stack.enter_context(smart_open.open(source_path, "rb")) # pyright: ignore
-        destination_file = stack.enter_context(smart_open.open(destination_path, "wb")) # pyright: ignore
+        source_file = stack.enter_context(smart_open.open(source_path, "rb"))  # pyright: ignore
+        destination_file = stack.enter_context(smart_open.open(destination_path, "wb"))  # pyright: ignore
 
         for line in source_file:
             row = decoder.decode(line)
@@ -133,20 +132,26 @@ class DatasetSplit:
             yield text, label
 
     def __len__(self) -> int:
-        assert len(self.text) == len(self.label), "Text and label lists must have the same length"
+        assert len(self.text) == len(self.label), (
+            "Text and label lists must have the same length"
+        )
         return len(self.text)
 
     def shuffle(self, rng: random.Random | None = None) -> Self:
         rng = rng or random.Random()
         indices = list(range(len(self)))
         rng.shuffle(indices)
-        return self.__class__(text=[self.text[i] for i in indices], label=[self.label[i] for i in indices])
+        return self.__class__(
+            text=[self.text[i] for i in indices], label=[self.label[i] for i in indices]
+        )
 
     @cached_property
     def signature(self) -> str:
         h = hashlib.sha256()
         for text, label in zip(self.text, self.label):
-            h.update(f"{text}\t{label}".encode() if label is not None else text.encode())
+            h.update(
+                f"{text}\t{label}".encode() if label is not None else text.encode()
+            )
         return h.hexdigest()
 
 
@@ -169,7 +174,10 @@ class DatasetTuple:
 
     @classmethod
     def new(cls):
-        return cls(train=DatasetSplit.new(), valid=DatasetSplit.new(), test=DatasetSplit.new())
+        return cls(
+            train=DatasetSplit.new(), valid=DatasetSplit.new(), test=DatasetSplit.new()
+        )
+
 
 def load_jsonl_dataset(
     dataset_dirs: Path | list[Path],
@@ -206,7 +214,9 @@ def load_jsonl_dataset(
             split_path = dataset_dir / split_name
             if split_path.exists():
                 if not split_path.is_dir():
-                    raise NotADirectoryError(f"Split path {split_path} is not a directory")
+                    raise NotADirectoryError(
+                        f"Split path {split_path} is not a directory"
+                    )
             elif is_required and not split_path.exists():
                 raise FileNotFoundError(f"Split path {split_path} does not exist")
 
@@ -220,19 +230,30 @@ def load_jsonl_dataset(
             if is_required and not all_files:
                 raise FileNotFoundError(f"No files found for {split_name} split")
 
-        for file_path in tqdm(all_files, desc=f"Loading {split_name} split", unit=" files", unit_scale=True):
-            with smart_open.open(file_path, "rb") as f: # pyright: ignore
+        for file_path in tqdm(
+            all_files,
+            desc=f"Loading {split_name} split",
+            unit=" files",
+            unit_scale=True,
+        ):
+            with smart_open.open(file_path, "rb") as f:  # pyright: ignore
                 for line in f:
                     row = decoder.decode(line)
                     dataset_split.text.append(row[text_field_name])
 
                     label_value: str | None
                     if allow_missing_label:
-                        label_value = str(row[label_field_name]) if label_field_name in row else None
+                        label_value = (
+                            str(row[label_field_name])
+                            if label_field_name in row
+                            else None
+                        )
                     elif label_field_name in row:
                         label_value = str(row[label_field_name])
                     else:
-                        raise ValueError(f"Label field {label_field_name} not found in row {row}")
+                        raise ValueError(
+                            f"Label field {label_field_name} not found in row {row}"
+                        )
 
                     dataset_split.label.append(label_value)
 
@@ -250,7 +271,9 @@ def write_dataset(
     encoder = msgspec.json.Encoder()
 
     with ExitStack() as stack:
-        pbar = stack.enter_context(tqdm(desc="Writing dataset files", unit=" files", unit_scale=True))
+        pbar = stack.enter_context(
+            tqdm(desc="Writing dataset files", unit=" files", unit_scale=True)
+        )
 
         for split_name, split_data in dataset:
             if len(split_data) == 0:
@@ -261,14 +284,19 @@ def write_dataset(
 
             def make_new_file():
                 return stack.enter_context(
-                    smart_open.open(split_path / f"shard_{uuid.uuid4()}.jsonl.zst", "wb") # pyright: ignore
+                    smart_open.open(
+                        split_path / f"shard_{uuid.uuid4()}.jsonl.zst", "wb"
+                    )  # pyright: ignore
                 )
 
             current_file = make_new_file()
             count = 0
             for text, label in split_data:
                 pbar.set_postfix(split=split_name, elements=len(split_data))
-                current_file.write(encoder.encode({text_field_name: text, label_field_name: label}) + b"\n")
+                current_file.write(
+                    encoder.encode({text_field_name: text, label_field_name: label})
+                    + b"\n"
+                )
                 count += 1
                 if count >= max_rows_per_file:
                     current_file.close()
@@ -295,7 +323,7 @@ def convert_single_file_to_fasttext(
     normalizer = get_normalizer(normalization)
     re_remove_extra_labels = re.compile(r"\b__label__(\S+)\b")
 
-    with smart_open.open(source_path, "rb") as f: # pyright: ignore
+    with smart_open.open(source_path, "rb") as f:  # pyright: ignore
         for line in f:
             row = decoder.decode(line)
             text = normalizer.normalize(str(row[text_field]))
@@ -344,7 +372,6 @@ def read_samples_from_file(
 T = TypeVar("T")
 
 
-
 @dt.dataclass(frozen=True)
 class ChunkedDatasetStructManager(Generic[T]):
     type_: type[T]
@@ -358,10 +385,12 @@ class ChunkedDatasetStructManager(Generic[T]):
 
     @classmethod
     def make(cls, type_: type[T], tempdir: Path) -> Self:
-        assert tempdir.is_dir() or not tempdir.exists(), f"Tempdir {tempdir} is not a directory"
+        assert tempdir.is_dir() or not tempdir.exists(), (
+            f"Tempdir {tempdir} is not a directory"
+        )
         tempdir.mkdir(parents=True, exist_ok=True)
         type_path = tempdir / cls.TYPE_PATH_NAME
-        with smart_open.open(type_path, "wb") as f: # pyright: ignore
+        with smart_open.open(type_path, "wb") as f:  # pyright: ignore
             pickle.dump(type_, f)
 
         return cls(type_=type_, tempdir=tempdir)
@@ -371,7 +400,7 @@ class ChunkedDatasetStructManager(Generic[T]):
         type_path = tempdir / cls.TYPE_PATH_NAME
         if not type_path.exists():
             raise FileNotFoundError(f"Type path {type_path} does not exist")
-        with smart_open.open(type_path, "rb") as f: # pyright: ignore
+        with smart_open.open(type_path, "rb") as f:  # pyright: ignore
             type_ = pickle.load(f)
         return cls(type_=type_, tempdir=tempdir)
 
@@ -390,7 +419,7 @@ class ChunkedDatasetPath(Generic[T]):
     def __iter__(self) -> Generator[T, None, None]:
         struct_manager = ChunkedDatasetStructManager.load(self.chunk_path.parent)
         decoder = msgspec.json.Decoder(struct_manager.struct_cls)
-        with smart_open.open(self.chunk_path, "rb") as f: # pyright: ignore
+        with smart_open.open(self.chunk_path, "rb") as f:  # pyright: ignore
             for line in f:
                 row = decoder.decode(line)
                 yield getattr(row, "element")
@@ -401,19 +430,28 @@ class ChunkedDataset(Generic[T]):
     tempdir: Path | None = None
 
     def get_tempdir(self) -> Path:
-        assert self.tempdir is not None, "Tempdir not created, have you entered the context?"
+        assert self.tempdir is not None, (
+            "Tempdir not created, have you entered the context?"
+        )
         return self.tempdir
 
     def add_chunk(self, chunk: list[T], encoder: msgspec.json.Encoder | None = None):
         element_type = type(chunk[0])
-        struct_cls = ChunkedDatasetStructManager.make_or_load(element_type, self.get_tempdir()).struct_cls
+        struct_cls = ChunkedDatasetStructManager.make_or_load(
+            element_type, self.get_tempdir()
+        ).struct_cls
         encoder = encoder or msgspec.json.Encoder()
         chunk_path = self.get_tempdir() / f"chunk_{uuid.uuid4()}.jsonl.zst"
-        with smart_open.open(chunk_path, "wb") as f: # pyright: ignore
+        with smart_open.open(chunk_path, "wb") as f:  # pyright: ignore
             for element in chunk:
                 f.write(encoder.encode(struct_cls(element=element)) + b"\n")
 
-    def add_dataset(self, dataset: list[T], chunk_size: int | float | None = None, chunk_number: int | None = None):
+    def add_dataset(
+        self,
+        dataset: list[T],
+        chunk_size: int | float | None = None,
+        chunk_number: int | None = None,
+    ):
         if chunk_size is not None:
             chunk_size = float(chunk_size)
         elif chunk_number is not None:
@@ -436,18 +474,25 @@ class ChunkedDataset(Generic[T]):
         return ChunkedDataset(tempdir=Path(tempfile.mkdtemp()))
 
     def __len__(self) -> int:
-        assert self.tempdir is not None, "Tempdir not created, have you entered the context?"
+        assert self.tempdir is not None, (
+            "Tempdir not created, have you entered the context?"
+        )
         return len(list(self.tempdir.iterdir()))
 
     def __iter__(self) -> Generator[ChunkedDatasetPath[T], None, None]:
-        assert self.tempdir is not None, "Tempdir not created, have you entered the context?"
+        assert self.tempdir is not None, (
+            "Tempdir not created, have you entered the context?"
+        )
         try:
             struct_manager = ChunkedDatasetStructManager.load(self.tempdir)
         except FileNotFoundError:
             raise FileNotFoundError("Tempdir does not contain a valid chunked dataset")
 
         for chunk_path in self.tempdir.iterdir():
-            if chunk_path.is_file() and chunk_path.name != struct_manager.TYPE_PATH_NAME:
+            if (
+                chunk_path.is_file()
+                and chunk_path.name != struct_manager.TYPE_PATH_NAME
+            ):
                 yield ChunkedDatasetPath(chunk_path=chunk_path)
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -455,11 +500,11 @@ class ChunkedDataset(Generic[T]):
             shutil.rmtree(self.tempdir)
 
 
-
 @dt.dataclass(frozen=True)
 class FasttextElement:
     text: str
     label: str
+
 
 @dt.dataclass(frozen=True)
 class FasttextDatasetSplit:
@@ -467,17 +512,19 @@ class FasttextDatasetSplit:
 
     def __len__(self) -> int:
         # count lines in file
-        with smart_open.open(self.path, "rt", encoding="utf-8") as f: # pyright: ignore
+        with smart_open.open(self.path, "rt", encoding="utf-8") as f:  # pyright: ignore
             return sum(1 for _ in f)
 
     def __iter__(self) -> Generator[FasttextElement, None, None]:
-        with smart_open.open(self.path, "rt", encoding="utf-8") as f: # pyright: ignore
+        with smart_open.open(self.path, "rt", encoding="utf-8") as f:  # pyright: ignore
             for line in f:
                 label, text = line.strip().split(" ", 1)
                 yield FasttextElement(text=text, label=label)
 
     @classmethod
-    def merge(cls, splits: list[Self], split_name: str, tempdir: Path | None = None) -> Self:
+    def merge(
+        cls, splits: list[Self], split_name: str, tempdir: Path | None = None
+    ) -> Self:
         if len(splits) == 0:
             raise ValueError("No splits provided")
         elif len(splits) == 1:
@@ -487,7 +534,7 @@ class FasttextDatasetSplit:
 
         tempdir.mkdir(parents=True, exist_ok=True)
         split_path = tempdir / f"{split_name}.txt"
-        with smart_open.open(split_path, "wt", encoding="utf-8") as f: # pyright: ignore
+        with smart_open.open(split_path, "wt", encoding="utf-8") as f:  # pyright: ignore
             for split in splits:
                 for element in split:
                     f.write(f"{element.text} {element.label}\n")
@@ -508,13 +555,18 @@ class FasttextDataset:
         valid: list[FasttextDatasetSplit] | None = None,
         tempdir: Path | None = None,
     ) -> Self:
-
-
-        train_split = FasttextDatasetSplit.merge(splits=train, split_name="train", tempdir=tempdir)
-        test_split = FasttextDatasetSplit.merge(splits=test, split_name="test", tempdir=tempdir)
+        train_split = FasttextDatasetSplit.merge(
+            splits=train, split_name="train", tempdir=tempdir
+        )
+        test_split = FasttextDatasetSplit.merge(
+            splits=test, split_name="test", tempdir=tempdir
+        )
         valid_split = (
-            FasttextDatasetSplit.merge(splits=valid, split_name="valid", tempdir=tempdir)
-            if valid is not None else None
+            FasttextDatasetSplit.merge(
+                splits=valid, split_name="valid", tempdir=tempdir
+            )
+            if valid is not None
+            else None
         )
         return cls(train=train_split, test=test_split, valid=valid_split)
 
@@ -523,7 +575,6 @@ def load_fasttext_dataset(
     dataset_dirs: list[Path],
     tempdir: Path,
 ) -> FasttextDataset:
-
     collected_splits: dict[str, list[FasttextDatasetSplit]] = {}
 
     for dataset_dir in dataset_dirs:
@@ -541,6 +592,8 @@ def load_fasttext_dataset(
     return FasttextDataset.from_splits(
         train=collected_splits.get("train", []),
         test=collected_splits.get("test", []),
-        valid=valid_split if len(valid_split := collected_splits.get("valid", [])) > 0 else None,
+        valid=valid_split
+        if len(valid_split := collected_splits.get("valid", [])) > 0
+        else None,
         tempdir=tempdir,
     )

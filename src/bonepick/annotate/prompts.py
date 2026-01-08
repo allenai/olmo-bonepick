@@ -19,7 +19,6 @@ with try_import() as extra_dependencies:
     from bonepick.annotate.pydantic_utils import dataclass_to_json_schema
 
 
-
 T = TypeVar("T")
 
 
@@ -27,6 +26,7 @@ class TurnRole(Enum):
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
+
 
 class TurnPosition(Enum):
     FIRST = "first"
@@ -47,7 +47,6 @@ SPECIAL_TOKENS = [
 
 THINK_START = "<think>"
 THINK_END = "</think>"
-
 
 
 @dt.dataclass(frozen=True)
@@ -106,7 +105,11 @@ class BasePrompt(Generic[T]):
     def filter(self, conversation: list[TurnDict]) -> list[TurnDict]:
         select_fn = max if self.turn_to_annotate == TurnPosition.LAST else min
         last_turn = select_fn(
-            [i for i, c in enumerate(conversation) if c["role"] == self.role_to_annotate.value]
+            [
+                i
+                for i, c in enumerate(conversation)
+                if c["role"] == self.role_to_annotate.value
+            ]
         )
         return [
             self.clean_turn(turn)
@@ -153,7 +156,9 @@ class BasePrompt(Generic[T]):
         messages = self.filter(messages)
         formatted_messages = ""
         for turn in messages:
-            formatted_messages += f"ROLE:{turn['role']}\nCONTENT:{self.clean_turn(turn)['content']}\n\n\n"
+            formatted_messages += (
+                f"ROLE:{turn['role']}\nCONTENT:{self.clean_turn(turn)['content']}\n\n\n"
+            )
         return f"CONVERSATION:\n{formatted_messages.strip()}"
 
     def format_text(self, text: str) -> str:
@@ -173,7 +178,7 @@ class BasePrompt(Generic[T]):
         ).strip()
 
         # add preamble if it exists
-        if (preamble := self.preamble.strip()):
+        if preamble := self.preamble.strip():
             content = f"{preamble}\n\n\n{content}"
 
         # add instructions after content
@@ -181,8 +186,6 @@ class BasePrompt(Generic[T]):
 
         # return formatted content
         return content
-
-
 
 
 @dt.dataclass(frozen=True)

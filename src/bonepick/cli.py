@@ -36,7 +36,14 @@ class FloatOrIntParamType(click.ParamType):
 class PathParamType(click.ParamType):
     name = "path"
 
-    def __init__(self, exists: bool = False, mkdir: bool = False, is_dir: bool = False, is_file: bool = False, optional: bool = False):
+    def __init__(
+        self,
+        exists: bool = False,
+        mkdir: bool = False,
+        is_dir: bool = False,
+        is_file: bool = False,
+        optional: bool = False,
+    ):
         self.exists = exists
         self.mkdir = mkdir
         self.is_dir = is_dir

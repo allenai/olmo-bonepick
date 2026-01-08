@@ -10,7 +10,11 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import precision_recall_fscore_support, roc_auc_score
 from model2vec.inference import StaticModelPipeline
 
-from bonepick.train.data_utils import load_jsonl_dataset, load_fasttext_dataset, FasttextDatasetSplit
+from bonepick.train.data_utils import (
+    load_jsonl_dataset,
+    load_fasttext_dataset,
+    FasttextDatasetSplit,
+)
 from bonepick.train.fasttext_utils import fasttext_dataset_signature
 from bonepick.cli import PathParamType
 from bonepick.train.fasttext_utils import check_fasttext_binary
@@ -62,7 +66,7 @@ def _compute_metrics_from_predictions(
         "macro_recall": float(macro_recall),
         "macro_f1": float(macro_f1),
         "macro_auc": float(auc) if auc is not None else None,
-        "per_class_metrics": {}
+        "per_class_metrics": {},
     }
 
     for i, class_label in enumerate(plain_classes):
@@ -72,14 +76,15 @@ def _compute_metrics_from_predictions(
             "recall": float(recall[i]),
             "f1": float(f1[i]),
             "support": int(support[i]),
-            "auc": per_class_auc.get(class_name)
+            "auc": per_class_auc.get(class_name),
         }
 
     return results
 
 
-
-def compute_detailed_metrics(pipeline: StaticModelPipeline, texts: list[str], labels: list[str]) -> dict:
+def compute_detailed_metrics(
+    pipeline: StaticModelPipeline, texts: list[str], labels: list[str]
+) -> dict:
     """
     Compute detailed classification metrics using predict_proba.
 
@@ -96,14 +101,16 @@ def compute_detailed_metrics(pipeline: StaticModelPipeline, texts: list[str], la
     y_proba = pipeline.predict_proba(texts)
 
     # Build results dictionary
-    return _compute_metrics_from_predictions(y_true, y_proba, encoded_classes, plain_classes)
+    return _compute_metrics_from_predictions(
+        y_true, y_proba, encoded_classes, plain_classes
+    )
 
 
 def compute_detailed_metrics_fasttext(
     model_path: Path,
     dataset_split: FasttextDatasetSplit,
     fasttext_path: Path,
-    temp_dir: Path
+    temp_dir: Path,
 ) -> dict:
     """
     Compute detailed classification metrics for FastText using predict with probabilities.
@@ -137,10 +144,7 @@ def compute_detailed_metrics_fasttext(
     ]
 
     predict_result = subprocess.run(
-        predict_cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
+        predict_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
 
     if predict_result.returncode != 0:
@@ -152,18 +156,28 @@ def compute_detailed_metrics_fasttext(
     # Parse predictions - each line contains: __label__X prob __label__Y prob ...
     y_proba = np.zeros((len(dataset_split), len(plain_classes)))
     for i, raw_prediction in enumerate(predict_result.stdout.strip().split("\n")):
-        labels, probas = (arr := raw_prediction.strip().split())[::2], [float(p) for p in arr[1::2]]
+        labels, probas = (
+            (arr := raw_prediction.strip().split())[::2],
+            [float(p) for p in arr[1::2]],
+        )
         labels_enc = np.array(label_encoder.transform(labels))
         y_proba[i, labels_enc] = np.array(probas)
 
-    return _compute_metrics_from_predictions(y_true, y_proba, encoded_classes, plain_classes)
+    return _compute_metrics_from_predictions(
+        y_true, y_proba, encoded_classes, plain_classes
+    )
 
 
-def result_to_text(dataset_dir: tuple[Path, ...], model_dir: Path, results: dict) -> str:
+def result_to_text(
+    dataset_dir: tuple[Path, ...], model_dir: Path, results: dict
+) -> str:
     per_class_metrics = [
         {
             **{"class_name": class_name},
-            **{k: round(v, 4) if isinstance(v, float) else v for k, v in metrics.items()}
+            **{
+                k: round(v, 4) if isinstance(v, float) else v
+                for k, v in metrics.items()
+            },
         }
         for class_name, metrics in results.pop("per_class_metrics").items()
     ]
@@ -171,7 +185,9 @@ def result_to_text(dataset_dir: tuple[Path, ...], model_dir: Path, results: dict
     output = {
         "dataset_dir": [str(d) for d in dataset_dir],
         "model_dir": str(model_dir),
-        "overall_results": {k: round(v, 4) if isinstance(v, float) else v for k, v in results.items()},
+        "overall_results": {
+            k: round(v, 4) if isinstance(v, float) else v for k, v in results.items()
+        },
         "per_class_metrics": per_class_metrics,
     }
     return yaml.dump(output, sort_keys=False, indent=2)
@@ -192,8 +208,20 @@ def result_to_text(dataset_dir: tuple[Path, ...], model_dir: Path, results: dict
     type=PathParamType(exists=True, is_dir=True),
     required=True,
 )
-@click.option("-t", "--text-field", type=str, default="text", help="field in dataset to use as text")
-@click.option("-l", "--label-field", type=str, default="score", help="field in dataset to use as label")
+@click.option(
+    "-t",
+    "--text-field",
+    type=str,
+    default="text",
+    help="field in dataset to use as text",
+)
+@click.option(
+    "-l",
+    "--label-field",
+    type=str,
+    default="score",
+    help="field in dataset to use as label",
+)
 def eval_model2vec(
     dataset_dir: tuple[Path, ...],
     model_dir: Path,
@@ -211,7 +239,9 @@ def eval_model2vec(
     pipeline = StaticModelPipeline.from_pretrained(pipeline_dir)
     click.echo("Model loaded successfully.")
 
-    click.echo(f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}...")
+    click.echo(
+        f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}..."
+    )
     dt = load_jsonl_dataset(
         dataset_dirs=list(dataset_dir),
         text_field_name=text_field,
@@ -250,8 +280,20 @@ def eval_model2vec(
     required=True,
     help="Path to the trained fasttext model (.bin file)",
 )
-@click.option("-t", "--text-field", type=str, default="text", help="field in dataset to use as text")
-@click.option("-l", "--label-field", type=str, default="score", help="field in dataset to use as label")
+@click.option(
+    "-t",
+    "--text-field",
+    type=str,
+    default="text",
+    help="field in dataset to use as text",
+)
+@click.option(
+    "-l",
+    "--label-field",
+    type=str,
+    default="score",
+    help="field in dataset to use as label",
+)
 def eval_fasttext(
     dataset_dir: tuple[Path, ...],
     model_dir: Path,
@@ -281,7 +323,9 @@ def eval_fasttext(
 
         temp_dir = Path(_temp_dir)
 
-        click.echo(f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}...")
+        click.echo(
+            f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}..."
+        )
         dt = load_fasttext_dataset(dataset_dirs=list(dataset_dir), tempdir=temp_dir)
         click.echo("Dataset loaded successfully.")
         click.echo(f"  Test samples: {len(dt.test)}")
@@ -296,7 +340,9 @@ def eval_fasttext(
         results_txt = result_to_text(dataset_dir, model_dir, results)
         click.echo(f"Evaluation results:\n{results_txt}\n")
 
-    results_file = model_dir / f"results_{fasttext_dataset_signature(dt.test.path)[:6]}.yaml"
+    results_file = (
+        model_dir / f"results_{fasttext_dataset_signature(dt.test.path)[:6]}.yaml"
+    )
     click.echo(f"\nSaving results to {results_file}...")
     with open(results_file, "wt", encoding="utf-8") as f:
         f.write(results_txt)

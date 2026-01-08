@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 if not logger.hasHandlers():
     handler = logging.StreamHandler()
     handler.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s - %(message)s')
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
@@ -44,8 +44,12 @@ class BetterStaticModelForClassification(StaticModelForClassification):
         tokenizer.enable_truncation(max_length=max_length)
 
         to_tokenize_batch = [text[:truncate_length] for text in chunk_file]
-        batch_output = tokenizer.encode_batch_fast(to_tokenize_batch, add_special_tokens=False)
-        output_chunks.add_chunk([tokens_sequence.ids for tokens_sequence in batch_output])
+        batch_output = tokenizer.encode_batch_fast(
+            to_tokenize_batch, add_special_tokens=False
+        )
+        output_chunks.add_chunk(
+            [tokens_sequence.ids for tokens_sequence in batch_output]
+        )
         return len(to_tokenize_batch)
 
     def _faster_tokenize(
@@ -53,7 +57,7 @@ class BetterStaticModelForClassification(StaticModelForClassification):
         X: list[str],
         max_length: int = 512,
         num_proc: int | None = None,
-        max_chunk_size: int = 20_000
+        max_chunk_size: int = 20_000,
     ) -> list[list[int]]:
         if num_proc is None:
             num_proc = os.cpu_count() or 1
@@ -71,9 +75,13 @@ class BetterStaticModelForClassification(StaticModelForClassification):
             input_chunks.add_dataset(X, chunk_size=chunk_size)
             output_chunks = stack.enter_context(ChunkedDataset())
             del X
-            pbar = stack.enter_context(tqdm(total=n_samples, desc="Tokenizing dataset", unit_scale=True))
+            pbar = stack.enter_context(
+                tqdm(total=n_samples, desc="Tokenizing dataset", unit_scale=True)
+            )
             pool = stack.enter_context(
-                ProcessPoolExecutor(max_workers=num_proc) if num_proc > 1 else ThreadPoolExecutor(max_workers=1)
+                ProcessPoolExecutor(max_workers=num_proc)
+                if num_proc > 1
+                else ThreadPoolExecutor(max_workers=1)
             )
             futures = []
 
@@ -99,7 +107,9 @@ class BetterStaticModelForClassification(StaticModelForClassification):
 
         return tokenized
 
-    def _prepare_dataset(self, X: list[str], y: "LabelType", max_length: int = 512) -> "TextDataset":
+    def _prepare_dataset(
+        self, X: list[str], y: "LabelType", max_length: int = 512
+    ) -> "TextDataset":
         """
         Prepare a dataset. For multilabel classification, each target is converted into a multi-hot vector.
 
@@ -120,5 +130,8 @@ class BetterStaticModelForClassification(StaticModelForClassification):
                 indices = [mapping[label] for label in sample_labels]
                 labels_tensor[i, indices] = 1.0
         else:
-            labels_tensor = torch.tensor([self.classes_.index(label) for label in cast(list[str], y)], dtype=torch.long)
+            labels_tensor = torch.tensor(
+                [self.classes_.index(label) for label in cast(list[str], y)],
+                dtype=torch.long,
+            )
         return TextDataset(tokenized, labels_tensor)

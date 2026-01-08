@@ -24,15 +24,44 @@ from bonepick.train.model2vec_utils import BetterStaticModelForClassification
     multiple=True,
     help="Dataset directory (can be specified multiple times)",
 )
-@click.option("-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), default=None)
-@click.option("-t", "--text-field", type=str, default="text", help="field in dataset to use as text")
-@click.option("-l", "--label-field", type=str, default="score", help="field in dataset to use as label")
-@click.option("-m", "--model-name", type=str, default="minishlab/potion-base-32M", help="model name")
+@click.option(
+    "-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), default=None
+)
+@click.option(
+    "-t",
+    "--text-field",
+    type=str,
+    default="text",
+    help="field in dataset to use as text",
+)
+@click.option(
+    "-l",
+    "--label-field",
+    type=str,
+    default="score",
+    help="field in dataset to use as label",
+)
+@click.option(
+    "-m",
+    "--model-name",
+    type=str,
+    default="minishlab/potion-base-32M",
+    help="model name",
+)
 @click.option("--learning-rate", type=float, default=1e-3, help="learning rate")
-@click.option("--batch-size", type=int, default=None, help="batch size (if not set, auto-computed)")
+@click.option(
+    "--batch-size",
+    type=int,
+    default=None,
+    help="batch size (if not set, auto-computed)",
+)
 @click.option("--min-epochs", type=int, default=None, help="minimum number of epochs")
-@click.option("--max-epochs", type=int, default=-1, help="max epochs (-1 for unlimited)")
-@click.option("--early-stopping-patience", type=int, default=5, help="early stopping patience")
+@click.option(
+    "--max-epochs", type=int, default=-1, help="max epochs (-1 for unlimited)"
+)
+@click.option(
+    "--early-stopping-patience", type=int, default=5, help="early stopping patience"
+)
 @click.option(
     "--loss-class-weight",
     type=click.Choice(["balanced", "uniform", "sqrt"], case_sensitive=False),
@@ -59,7 +88,9 @@ def train_model2vec(
     click.echo(f"  Label field: {label_field}")
     click.echo(f"  Model name: {model_name}")
 
-    click.echo(f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}...")
+    click.echo(
+        f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}..."
+    )
     dataset_tuple = load_jsonl_dataset(
         dataset_dirs=list(dataset_dir),
         text_field_name=text_field,
@@ -73,21 +104,27 @@ def train_model2vec(
     click.echo("Pretrained model loaded.")
 
     if loss_class_weight != "uniform":
-        encoded_labels = (label_encoder := LabelEncoder()).fit_transform(dataset_tuple.train.label)
+        encoded_labels = (label_encoder := LabelEncoder()).fit_transform(
+            dataset_tuple.train.label
+        )
         class_weights = compute_class_weight(
             "balanced",
             classes=label_encoder.transform(label_encoder.classes_),
-            y=encoded_labels
+            y=encoded_labels,
         )
 
         if loss_class_weight == "sqrt":
             class_weights = np.sqrt(class_weights)
 
         # renormalize to sum to 1
-        class_weights = torch.tensor(class_weights / class_weights.sum(), dtype=torch.float)
+        class_weights = torch.tensor(
+            class_weights / class_weights.sum(), dtype=torch.float
+        )
 
         click.echo(f"Class weights ({loss_class_weight}):")
-        for class_name, class_weight in zip(label_encoder.classes_.tolist(), class_weights.tolist()):   # pyright: ignore
+        for class_name, class_weight in zip(
+            label_encoder.classes_.tolist(), class_weights.tolist()
+        ):  # pyright: ignore
             click.echo(f"  {class_name}: {class_weight:.4f}")
     else:
         class_weights = None
@@ -138,17 +175,38 @@ def train_model2vec(
 )
 @click.option("--learning-rate", type=float, default=0.1, help="Learning rate")
 @click.option("--word-ngrams", type=int, default=3, help="Max length of word n-gram")
-@click.option("--min-count", type=int, default=5, help="Minimal number of word occurrences")
+@click.option(
+    "--min-count", type=int, default=5, help="Minimal number of word occurrences"
+)
 @click.option("--epoch", type=int, default=3, help="Number of training epochs")
-@click.option("--bucket", type=int, default=2_000_000, help="Number of buckets for hashing n-grams")
+@click.option(
+    "--bucket",
+    type=int,
+    default=2_000_000,
+    help="Number of buckets for hashing n-grams",
+)
 @click.option("--min-char-ngram", type=int, default=0, help="Min length of char n-gram")
 @click.option("--max-char-ngram", type=int, default=0, help="Max length of char n-gram")
 @click.option("--window-size", type=int, default=5, help="Window size for word n-gram")
 @click.option("--dimension", type=int, default=256, help="Size of word vectors")
-@click.option("--loss", type=click.Choice(["softmax", "hs", "ova"]), default="softmax", help="Loss function")
+@click.option(
+    "--loss",
+    type=click.Choice(["softmax", "hs", "ova"]),
+    default="softmax",
+    help="Loss function",
+)
 @click.option("--num-negatives", type=int, default=5, help="Number of negative samples")
-@click.option("--thread", type=int, default=cpu_count(), help="Number of threads (default: number of CPUs)")
-@click.option("--pretrained-vectors", type=PathParamType(exists=True, is_file=True), help="Path to pretrained vectors")
+@click.option(
+    "--thread",
+    type=int,
+    default=cpu_count(),
+    help="Number of threads (default: number of CPUs)",
+)
+@click.option(
+    "--pretrained-vectors",
+    type=PathParamType(exists=True, is_file=True),
+    help="Path to pretrained vectors",
+)
 @click.option("--seed", type=int, default=42, help="Random seed")
 @click.option("--verbose", type=int, default=2, help="Verbosity level (0-2)")
 def train_fasttext(
@@ -224,29 +282,51 @@ def train_fasttext(
     train_cmd = [
         str(fasttext_path),
         "supervised",
-        "-input", str(train_file),
-        "-output", str(model_prefix),
-        "-dim", str(dimension),
-        "-lr", str(learning_rate),
-        "-wordNgrams", str(word_ngrams),
-        "-minCount", str(min_count),
-        "-epoch", str(epoch),
-        "-bucket", str(bucket),
-        "-minn", str(min_char_ngram),
-        "-maxn", str(max_char_ngram),
-        "-ws", str(window_size),
-        "-neg", str(num_negatives),
-        "-seed", str(seed),
-        "-thread", str(thread),
-        "-loss", loss,
-        "-verbose", str(verbose),
-        *(["-pretrainedVectors", str(pretrained_vectors)] if pretrained_vectors is not None else []),
+        "-input",
+        str(train_file),
+        "-output",
+        str(model_prefix),
+        "-dim",
+        str(dimension),
+        "-lr",
+        str(learning_rate),
+        "-wordNgrams",
+        str(word_ngrams),
+        "-minCount",
+        str(min_count),
+        "-epoch",
+        str(epoch),
+        "-bucket",
+        str(bucket),
+        "-minn",
+        str(min_char_ngram),
+        "-maxn",
+        str(max_char_ngram),
+        "-ws",
+        str(window_size),
+        "-neg",
+        str(num_negatives),
+        "-seed",
+        str(seed),
+        "-thread",
+        str(thread),
+        "-loss",
+        loss,
+        "-verbose",
+        str(verbose),
+        *(
+            ["-pretrainedVectors", str(pretrained_vectors)]
+            if pretrained_vectors is not None
+            else []
+        ),
     ]
 
     click.echo("\nTraining fasttext model...")
     click.echo(f"Command: {' '.join(train_cmd)}")
 
-    train_result = subprocess.run(train_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    train_result = subprocess.run(
+        train_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
 
     if train_result.returncode != 0:
         raise click.ClickException(

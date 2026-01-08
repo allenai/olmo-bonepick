@@ -1,4 +1,4 @@
-from bonepick.cli import cli    # noqa: F401
+from bonepick.cli import cli  # noqa: F401
 from bonepick.train.data_loop import (
     balance_dataset,
     convert_to_fasttext,

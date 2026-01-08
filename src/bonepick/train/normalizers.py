@@ -19,7 +19,7 @@ T = TypeVar("T", bound="BaseRowNormalizer")
 NORMALIZER_REGISTRY: dict[str, type["BaseRowNormalizer"]] = {}
 
 
-def fix_and_cut_text(text: str, max_length: int = 2 ** 20) -> str:
+def fix_and_cut_text(text: str, max_length: int = 2**20) -> str:
     if len(text) > max_length:
         next_newline = text.find("\n", max_length)
         text = text[:max_length] if next_newline == -1 else text[:next_newline]
@@ -33,10 +33,14 @@ def fix_and_cut_text(text: str, max_length: int = 2 ** 20) -> str:
 
 def register_normalizer(name: str) -> Callable[[type[T]], type[T]]:
     def decorator(normalizer_cls: type[T]) -> type[T]:
-        if name in NORMALIZER_REGISTRY and normalizer_cls is not NORMALIZER_REGISTRY[name]:
+        if (
+            name in NORMALIZER_REGISTRY
+            and normalizer_cls is not NORMALIZER_REGISTRY[name]
+        ):
             raise ValueError(f"Normalizer {name} already registered")
         NORMALIZER_REGISTRY[name] = normalizer_cls
         return normalizer_cls
+
     return decorator
 
 
@@ -44,6 +48,7 @@ def get_normalizer(name: str) -> "BaseRowNormalizer":
     if name not in NORMALIZER_REGISTRY:
         raise ValueError(f"Normalizer {name} not found")
     return NORMALIZER_REGISTRY[name]()
+
 
 def list_normalizers() -> list[str]:
     return list(NORMALIZER_REGISTRY.keys())
@@ -90,15 +95,17 @@ class UltraFineWebNormalizer(BaseRowNormalizer):
 
     def normalize(self, text: str) -> str:
         # 1. remove multiple newlines
-        text = re.sub(r'\n{3,}', '\n\n', text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
 
         # 2. lower the content
         text = text.lower()
 
         # 3. remove diacritics
-        text = ''.join(
-            c for c in unicodedata.normalize('NFKD', text)
-            if unicodedata.category(c) != 'Mn')
+        text = "".join(
+            c
+            for c in unicodedata.normalize("NFKD", text)
+            if unicodedata.category(c) != "Mn"
+        )
 
         # 4. word segmentation
         token_ids = self.tokenizer.encode(text, add_special_tokens=False)
@@ -107,14 +114,14 @@ class UltraFineWebNormalizer(BaseRowNormalizer):
             curr_text = self.tokenizer.decode([token_id])
             single_text_list.append(curr_text)
 
-        text = ' '.join(single_text_list)
+        text = " ".join(single_text_list)
 
         # 5. keep escape chars, \n, \t, \r -> \\n, \\t, \\r,
         # which will saved as \n, \t, \r in txt file.
-        text = re.sub(r'\n', '\\\\n', text)
-        text = re.sub(r'\r', '\\\\r', text)
-        text = re.sub(r'\t', '\\\\t', text)
-        text = re.sub(r' +', ' ', text)
+        text = re.sub(r"\n", "\\\\n", text)
+        text = re.sub(r"\r", "\\\\r", text)
+        text = re.sub(r"\t", "\\\\t", text)
+        text = re.sub(r" +", " ", text)
         text = text.strip()
 
         return text
@@ -139,7 +146,11 @@ class UltraFineWebPlusNormalizer(BaseRowNormalizer):
         text = text.lower()
 
         # 4. remove diacritics
-        text = "".join(c for c in unicodedata.normalize("NFKD", text) if unicodedata.category(c) != "Mn")
+        text = "".join(
+            c
+            for c in unicodedata.normalize("NFKD", text)
+            if unicodedata.category(c) != "Mn"
+        )
 
         # 5. add spacing around special characters
         text = self.space_before_special_re.sub(" \\1 ", text)
@@ -169,22 +180,25 @@ class PotionNormalizer(BaseRowNormalizer):
         text = fix_and_cut_text(text)
 
         # 2. remove multiple newlines
-        text = re.sub(r'\n{3,}', '\n\n', text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
 
         # 3. lower the content
         text = text.lower()
 
         # 4. remove diacritics
-        text = ''.join(
-            c for c in unicodedata.normalize('NFKD', text)
-            if unicodedata.category(c) != 'Mn'
+        text = "".join(
+            c
+            for c in unicodedata.normalize("NFKD", text)
+            if unicodedata.category(c) != "Mn"
         )
 
         # 5. escape spacing characters
-        text = re.sub(r"\r?\n\r?\n", "¶", text) # end of paragraph marker for multiple newlines
-        text = re.sub(r"\r?\n", "·", text) # just cdot for single newlines
-        text = re.sub(r"\t", "↦", text) # use ↦ for tabs
-        text = re.sub(r"\s+", " ", text) # remove extra whitespace
+        text = re.sub(
+            r"\r?\n\r?\n", "¶", text
+        )  # end of paragraph marker for multiple newlines
+        text = re.sub(r"\r?\n", "·", text)  # just cdot for single newlines
+        text = re.sub(r"\t", "↦", text)  # use ↦ for tabs
+        text = re.sub(r"\s+", " ", text)  # remove extra whitespace
         text = text.strip()
 
         return text
