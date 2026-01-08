@@ -44,12 +44,8 @@ class BetterStaticModelForClassification(StaticModelForClassification):
         tokenizer.enable_truncation(max_length=max_length)
 
         to_tokenize_batch = [text[:truncate_length] for text in chunk_file]
-        batch_output = tokenizer.encode_batch_fast(
-            to_tokenize_batch, add_special_tokens=False
-        )
-        output_chunks.add_chunk(
-            [tokens_sequence.ids for tokens_sequence in batch_output]
-        )
+        batch_output = tokenizer.encode_batch_fast(to_tokenize_batch, add_special_tokens=False)
+        output_chunks.add_chunk([tokens_sequence.ids for tokens_sequence in batch_output])
         return len(to_tokenize_batch)
 
     def _faster_tokenize(
@@ -75,13 +71,9 @@ class BetterStaticModelForClassification(StaticModelForClassification):
             input_chunks.add_dataset(X, chunk_size=chunk_size)
             output_chunks = stack.enter_context(ChunkedDataset())
             del X
-            pbar = stack.enter_context(
-                tqdm(total=n_samples, desc="Tokenizing dataset", unit_scale=True)
-            )
+            pbar = stack.enter_context(tqdm(total=n_samples, desc="Tokenizing dataset", unit_scale=True))
             pool = stack.enter_context(
-                ProcessPoolExecutor(max_workers=num_proc)
-                if num_proc > 1
-                else ThreadPoolExecutor(max_workers=1)
+                ProcessPoolExecutor(max_workers=num_proc) if num_proc > 1 else ThreadPoolExecutor(max_workers=1)
             )
             futures = []
 
@@ -107,9 +99,7 @@ class BetterStaticModelForClassification(StaticModelForClassification):
 
         return tokenized
 
-    def _prepare_dataset(
-        self, X: list[str], y: "LabelType", max_length: int = 512
-    ) -> "TextDataset":
+    def _prepare_dataset(self, X: list[str], y: "LabelType", max_length: int = 512) -> "TextDataset":
         """
         Prepare a dataset. For multilabel classification, each target is converted into a multi-hot vector.
 

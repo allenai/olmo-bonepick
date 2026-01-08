@@ -82,9 +82,7 @@ def _compute_metrics_from_predictions(
     return results
 
 
-def compute_detailed_metrics(
-    pipeline: StaticModelPipeline, texts: list[str], labels: list[str]
-) -> dict:
+def compute_detailed_metrics(pipeline: StaticModelPipeline, texts: list[str], labels: list[str]) -> dict:
     """
     Compute detailed classification metrics using predict_proba.
 
@@ -101,9 +99,7 @@ def compute_detailed_metrics(
     y_proba = pipeline.predict_proba(texts)
 
     # Build results dictionary
-    return _compute_metrics_from_predictions(
-        y_true, y_proba, encoded_classes, plain_classes
-    )
+    return _compute_metrics_from_predictions(y_true, y_proba, encoded_classes, plain_classes)
 
 
 def compute_detailed_metrics_fasttext(
@@ -143,9 +139,7 @@ def compute_detailed_metrics_fasttext(
         "-1",  # Return all class probabilities
     ]
 
-    predict_result = subprocess.run(
-        predict_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    )
+    predict_result = subprocess.run(predict_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     if predict_result.returncode != 0:
         raise RuntimeError(
@@ -163,21 +157,14 @@ def compute_detailed_metrics_fasttext(
         labels_enc = np.array(label_encoder.transform(labels))
         y_proba[i, labels_enc] = np.array(probas)
 
-    return _compute_metrics_from_predictions(
-        y_true, y_proba, encoded_classes, plain_classes
-    )
+    return _compute_metrics_from_predictions(y_true, y_proba, encoded_classes, plain_classes)
 
 
-def result_to_text(
-    dataset_dir: tuple[Path, ...], model_dir: Path, results: dict
-) -> str:
+def result_to_text(dataset_dir: tuple[Path, ...], model_dir: Path, results: dict) -> str:
     per_class_metrics = [
         {
             **{"class_name": class_name},
-            **{
-                k: round(v, 4) if isinstance(v, float) else v
-                for k, v in metrics.items()
-            },
+            **{k: round(v, 4) if isinstance(v, float) else v for k, v in metrics.items()},
         }
         for class_name, metrics in results.pop("per_class_metrics").items()
     ]
@@ -185,9 +172,7 @@ def result_to_text(
     output = {
         "dataset_dir": [str(d) for d in dataset_dir],
         "model_dir": str(model_dir),
-        "overall_results": {
-            k: round(v, 4) if isinstance(v, float) else v for k, v in results.items()
-        },
+        "overall_results": {k: round(v, 4) if isinstance(v, float) else v for k, v in results.items()},
         "per_class_metrics": per_class_metrics,
     }
     return yaml.dump(output, sort_keys=False, indent=2)
@@ -239,9 +224,7 @@ def eval_model2vec(
     pipeline = StaticModelPipeline.from_pretrained(pipeline_dir)
     click.echo("Model loaded successfully.")
 
-    click.echo(
-        f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}..."
-    )
+    click.echo(f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}...")
     dt = load_jsonl_dataset(
         dataset_dirs=list(dataset_dir),
         text_field_name=text_field,
@@ -340,9 +323,7 @@ def eval_fasttext(
         results_txt = result_to_text(dataset_dir, model_dir, results)
         click.echo(f"Evaluation results:\n{results_txt}\n")
 
-    results_file = (
-        model_dir / f"results_{fasttext_dataset_signature(dt.test.path)[:6]}.yaml"
-    )
+    results_file = model_dir / f"results_{fasttext_dataset_signature(dt.test.path)[:6]}.yaml"
     click.echo(f"\nSaving results to {results_file}...")
     with open(results_file, "wt", encoding="utf-8") as f:
         f.write(results_txt)

@@ -59,11 +59,7 @@ def annotate_batch(
     service_tier: ServiceTier,
 ):
     task_prompt = BaseAnnotationPrompt.get(annotation_task_prompt)
-    system_prompt = (
-        BaseSystemPrompt.get(annotation_system_prompt)
-        if annotation_system_prompt
-        else None
-    )
+    system_prompt = BaseSystemPrompt.get(annotation_system_prompt) if annotation_system_prompt else None
     batch_prompts: list[Conversation] = []
 
     for row in batch_input:
@@ -93,9 +89,7 @@ def annotate_batch(
         result = typing_cast(str, task_prompt.parse(response.completion))
         output.append(DatasetRow(text=row["text"], label=result))
 
-    click.echo(
-        f"batch {batch_input.chunk_path.name}: failed to annotate {failed_cnt:,} rows"
-    )
+    click.echo(f"batch {batch_input.chunk_path.name}: failed to annotate {failed_cnt:,} rows")
 
     batch_output.add_chunk(output)
 
@@ -111,9 +105,7 @@ def annotate_batch(
     multiple=True,
     help="Dataset directory (can be specified multiple times)",
 )
-@click.option(
-    "-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), default=None
-)
+@click.option("-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), default=None)
 @click.option(
     "-m",
     "--model-name",
@@ -215,9 +207,7 @@ def annotate_dataset(
     cache_location.mkdir(parents=True, exist_ok=True)
 
     # we need to disable the cache if we to reprocess rows that do not meet validation
-    cache = SqliteInvalidableCache(
-        path=str(cache_location / f"{model_name}.db"), invalidate=reprocess_missing
-    )
+    cache = SqliteInvalidableCache(path=str(cache_location / f"{model_name}.db"), invalidate=reprocess_missing)
 
     client = LLMClient(
         model_name,
@@ -247,15 +237,11 @@ def annotate_dataset(
             to_annotate_text.append(text)
     del dataset
 
-    click.echo(
-        f"Found {len(existing_text):,} existing rows and {len(to_annotate_text):,} rows to annotate"
-    )
+    click.echo(f"Found {len(existing_text):,} existing rows and {len(to_annotate_text):,} rows to annotate")
 
     with ExitStack() as stack:
         batch_input = stack.enter_context(ChunkedDataset())
-        batch_input.add_dataset(
-            [DatasetRow(text=text, label=None) for text in to_annotate_text]
-        )
+        batch_input.add_dataset([DatasetRow(text=text, label=None) for text in to_annotate_text])
         batch_output = stack.enter_context(ChunkedDataset())
 
         pool_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
@@ -266,17 +252,13 @@ def annotate_dataset(
             client=client,
             annotation_task_prompt=annotation_task_prompt,
             annotation_system_prompt=annotation_system_prompt,
-            service_tier=ServiceTier(service_tier)
-            if service_tier
-            else ServiceTier.NONE,
+            service_tier=ServiceTier(service_tier) if service_tier else ServiceTier.NONE,
             batch_output=batch_output,
         )
 
         # we don't pass the number of processes to make sure we run this in single thread
         annotate_pbar = stack.enter_context(
-            tqdm(
-                total=len(to_annotate_text), desc="Annotating dataset", unit_scale=True
-            )
+            tqdm(total=len(to_annotate_text), desc="Annotating dataset", unit_scale=True)
         )
         futures = []
         for batch_input_path in batch_input:
@@ -308,9 +290,7 @@ def annotate_dataset(
         retrieve_pbar.close()
 
     dataset_split = DatasetSplit(text=existing_text, label=existing_label)
-    dataset = DatasetTuple(
-        train=dataset_split, valid=DatasetSplit.new(), test=DatasetSplit.new()
-    )
+    dataset = DatasetTuple(train=dataset_split, valid=DatasetSplit.new(), test=DatasetSplit.new())
     write_dataset(
         dataset,
         output_dir,

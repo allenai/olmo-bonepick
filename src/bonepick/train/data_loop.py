@@ -34,9 +34,7 @@ __all__ = [
 @click.command()
 @click.option("-n", "--name", type=str, required=True)
 @click.option("-s", "--subset", type=str, default=None)
-@click.option(
-    "-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True
-)
+@click.option("-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True)
 @click.option("-t", "--test-split", type=FloatOrIntParamType(), default=None)
 @click.option("-b", "--batch-size", type=int, default=100_000)
 @click.option("-p", "--num-proc", type=int, default=os.cpu_count())
@@ -75,12 +73,8 @@ def import_hf_dataset(
 
 
 @click.command()
-@click.option(
-    "-i", "--input-dir", type=PathParamType(exists=True, is_dir=True), required=True
-)
-@click.option(
-    "-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True
-)
+@click.option("-i", "--input-dir", type=PathParamType(exists=True, is_dir=True), required=True)
+@click.option("-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True)
 @click.option("-t", "--text-transform", type=str, default="{text: .text}")
 @click.option("-l", "--label-transform", type=str, default="{score: .score}")
 @click.option("-p", "--num-proc", type=int, default=os.cpu_count())
@@ -130,15 +124,9 @@ def transform_dataset(
 
 
 @click.command()
-@click.option(
-    "-i", "--input-dir", type=PathParamType(exists=True, is_dir=True), required=True
-)
-@click.option(
-    "-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True
-)
-@click.option(
-    "-n", "--normalization", type=click.Choice(list_normalizers()), default="plsfix"
-)
+@click.option("-i", "--input-dir", type=PathParamType(exists=True, is_dir=True), required=True)
+@click.option("-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True)
+@click.option("-n", "--normalization", type=click.Choice(list_normalizers()), default="plsfix")
 @click.option("-t", "--text-field", type=str, default="text")
 @click.option("-l", "--label-field", type=str, default="score")
 @click.option("-p", "--num-proc", type=int, default=os.cpu_count())
@@ -190,18 +178,12 @@ def normalize_dataset(
 
 
 @click.command()
-@click.option(
-    "-i", "--input-dir", type=PathParamType(exists=True, is_dir=True), required=True
-)
-@click.option(
-    "-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True
-)
+@click.option("-i", "--input-dir", type=PathParamType(exists=True, is_dir=True), required=True)
+@click.option("-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True)
 @click.option("-t", "--text-field", type=str, default="text")
 @click.option("-l", "--label-field", type=str, default="score")
 @click.option("-p", "--num-proc", type=int, default=os.cpu_count())
-@click.option(
-    "-n", "--normalization", type=click.Choice(list_normalizers()), default="whitespace"
-)
+@click.option("-n", "--normalization", type=click.Choice(list_normalizers()), default="whitespace")
 def convert_to_fasttext(
     input_dir: Path,
     output_dir: Path,
@@ -223,9 +205,7 @@ def convert_to_fasttext(
             # output to a single text file for each split
             output_file = output_dir / f"{split}.txt"
             output_file.parent.mkdir(parents=True, exist_ok=True)
-            output_file = stack.enter_context(
-                smart_open.open(output_file, "wt", encoding="utf-8")
-            )  # pyright: ignore
+            output_file = stack.enter_context(smart_open.open(output_file, "wt", encoding="utf-8"))  # pyright: ignore
 
             futures = []
             for root, _, files in os.walk(split_dir):
@@ -246,9 +226,7 @@ def convert_to_fasttext(
             files_pbar = stack.enter_context(
                 tqdm(total=len(futures), desc=f"Converting {split} files", unit="file")
             )
-            rows_pbar = stack.enter_context(
-                tqdm(desc=f"Writing {split} rows", unit=" rows", unit_scale=True)
-            )
+            rows_pbar = stack.enter_context(tqdm(desc=f"Writing {split} rows", unit=" rows", unit_scale=True))
 
             for future in as_completed(futures):
                 try:
@@ -293,9 +271,7 @@ def convert_to_fasttext(
     default="score",
     help="Field in dataset to use as label",
 )
-@click.option(
-    "-s", "--seed", type=int, default=42, help="Random seed for reproducibility"
-)
+@click.option("-s", "--seed", type=int, default=42, help="Random seed for reproducibility")
 @click.option(
     "-p",
     "--num-proc",

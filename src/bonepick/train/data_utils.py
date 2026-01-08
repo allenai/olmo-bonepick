@@ -21,9 +21,7 @@ from bonepick.train.normalizers import get_normalizer
 
 
 FILE_SUFFIXES = [
-    f"{type_}{compr}"
-    for type_ in (".jsonl", ".json")
-    for compr in (".zst", ".zstd", ".gz", ".gzip", "")
+    f"{type_}{compr}" for type_ in (".jsonl", ".json") for compr in (".zst", ".zstd", ".gz", ".gzip", "")
 ]
 DEFAULT_SUFFIX = ".jsonl.zst"
 
@@ -132,26 +130,20 @@ class DatasetSplit:
             yield text, label
 
     def __len__(self) -> int:
-        assert len(self.text) == len(self.label), (
-            "Text and label lists must have the same length"
-        )
+        assert len(self.text) == len(self.label), "Text and label lists must have the same length"
         return len(self.text)
 
     def shuffle(self, rng: random.Random | None = None) -> Self:
         rng = rng or random.Random()
         indices = list(range(len(self)))
         rng.shuffle(indices)
-        return self.__class__(
-            text=[self.text[i] for i in indices], label=[self.label[i] for i in indices]
-        )
+        return self.__class__(text=[self.text[i] for i in indices], label=[self.label[i] for i in indices])
 
     @cached_property
     def signature(self) -> str:
         h = hashlib.sha256()
         for text, label in zip(self.text, self.label):
-            h.update(
-                f"{text}\t{label}".encode() if label is not None else text.encode()
-            )
+            h.update(f"{text}\t{label}".encode() if label is not None else text.encode())
         return h.hexdigest()
 
 
@@ -174,9 +166,7 @@ class DatasetTuple:
 
     @classmethod
     def new(cls):
-        return cls(
-            train=DatasetSplit.new(), valid=DatasetSplit.new(), test=DatasetSplit.new()
-        )
+        return cls(train=DatasetSplit.new(), valid=DatasetSplit.new(), test=DatasetSplit.new())
 
 
 def load_jsonl_dataset(
@@ -214,9 +204,7 @@ def load_jsonl_dataset(
             split_path = dataset_dir / split_name
             if split_path.exists():
                 if not split_path.is_dir():
-                    raise NotADirectoryError(
-                        f"Split path {split_path} is not a directory"
-                    )
+                    raise NotADirectoryError(f"Split path {split_path} is not a directory")
             elif is_required and not split_path.exists():
                 raise FileNotFoundError(f"Split path {split_path} does not exist")
 
@@ -243,17 +231,11 @@ def load_jsonl_dataset(
 
                     label_value: str | None
                     if allow_missing_label:
-                        label_value = (
-                            str(row[label_field_name])
-                            if label_field_name in row
-                            else None
-                        )
+                        label_value = str(row[label_field_name]) if label_field_name in row else None
                     elif label_field_name in row:
                         label_value = str(row[label_field_name])
                     else:
-                        raise ValueError(
-                            f"Label field {label_field_name} not found in row {row}"
-                        )
+                        raise ValueError(f"Label field {label_field_name} not found in row {row}")
 
                     dataset_split.label.append(label_value)
 
@@ -271,9 +253,7 @@ def write_dataset(
     encoder = msgspec.json.Encoder()
 
     with ExitStack() as stack:
-        pbar = stack.enter_context(
-            tqdm(desc="Writing dataset files", unit=" files", unit_scale=True)
-        )
+        pbar = stack.enter_context(tqdm(desc="Writing dataset files", unit=" files", unit_scale=True))
 
         for split_name, split_data in dataset:
             if len(split_data) == 0:
@@ -284,19 +264,14 @@ def write_dataset(
 
             def make_new_file():
                 return stack.enter_context(
-                    smart_open.open(
-                        split_path / f"shard_{uuid.uuid4()}.jsonl.zst", "wb"
-                    )  # pyright: ignore
+                    smart_open.open(split_path / f"shard_{uuid.uuid4()}.jsonl.zst", "wb")  # pyright: ignore
                 )
 
             current_file = make_new_file()
             count = 0
             for text, label in split_data:
                 pbar.set_postfix(split=split_name, elements=len(split_data))
-                current_file.write(
-                    encoder.encode({text_field_name: text, label_field_name: label})
-                    + b"\n"
-                )
+                current_file.write(encoder.encode({text_field_name: text, label_field_name: label}) + b"\n")
                 count += 1
                 if count >= max_rows_per_file:
                     current_file.close()
@@ -385,9 +360,7 @@ class ChunkedDatasetStructManager(Generic[T]):
 
     @classmethod
     def make(cls, type_: type[T], tempdir: Path) -> Self:
-        assert tempdir.is_dir() or not tempdir.exists(), (
-            f"Tempdir {tempdir} is not a directory"
-        )
+        assert tempdir.is_dir() or not tempdir.exists(), f"Tempdir {tempdir} is not a directory"
         tempdir.mkdir(parents=True, exist_ok=True)
         type_path = tempdir / cls.TYPE_PATH_NAME
         with smart_open.open(type_path, "wb") as f:  # pyright: ignore
@@ -430,16 +403,12 @@ class ChunkedDataset(Generic[T]):
     tempdir: Path | None = None
 
     def get_tempdir(self) -> Path:
-        assert self.tempdir is not None, (
-            "Tempdir not created, have you entered the context?"
-        )
+        assert self.tempdir is not None, "Tempdir not created, have you entered the context?"
         return self.tempdir
 
     def add_chunk(self, chunk: list[T], encoder: msgspec.json.Encoder | None = None):
         element_type = type(chunk[0])
-        struct_cls = ChunkedDatasetStructManager.make_or_load(
-            element_type, self.get_tempdir()
-        ).struct_cls
+        struct_cls = ChunkedDatasetStructManager.make_or_load(element_type, self.get_tempdir()).struct_cls
         encoder = encoder or msgspec.json.Encoder()
         chunk_path = self.get_tempdir() / f"chunk_{uuid.uuid4()}.jsonl.zst"
         with smart_open.open(chunk_path, "wb") as f:  # pyright: ignore
@@ -474,25 +443,18 @@ class ChunkedDataset(Generic[T]):
         return ChunkedDataset(tempdir=Path(tempfile.mkdtemp()))
 
     def __len__(self) -> int:
-        assert self.tempdir is not None, (
-            "Tempdir not created, have you entered the context?"
-        )
+        assert self.tempdir is not None, "Tempdir not created, have you entered the context?"
         return len(list(self.tempdir.iterdir()))
 
     def __iter__(self) -> Generator[ChunkedDatasetPath[T], None, None]:
-        assert self.tempdir is not None, (
-            "Tempdir not created, have you entered the context?"
-        )
+        assert self.tempdir is not None, "Tempdir not created, have you entered the context?"
         try:
             struct_manager = ChunkedDatasetStructManager.load(self.tempdir)
         except FileNotFoundError:
             raise FileNotFoundError("Tempdir does not contain a valid chunked dataset")
 
         for chunk_path in self.tempdir.iterdir():
-            if (
-                chunk_path.is_file()
-                and chunk_path.name != struct_manager.TYPE_PATH_NAME
-            ):
+            if chunk_path.is_file() and chunk_path.name != struct_manager.TYPE_PATH_NAME:
                 yield ChunkedDatasetPath(chunk_path=chunk_path)
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -522,9 +484,7 @@ class FasttextDatasetSplit:
                 yield FasttextElement(text=text, label=label)
 
     @classmethod
-    def merge(
-        cls, splits: list[Self], split_name: str, tempdir: Path | None = None
-    ) -> Self:
+    def merge(cls, splits: list[Self], split_name: str, tempdir: Path | None = None) -> Self:
         if len(splits) == 0:
             raise ValueError("No splits provided")
         elif len(splits) == 1:
@@ -555,16 +515,10 @@ class FasttextDataset:
         valid: list[FasttextDatasetSplit] | None = None,
         tempdir: Path | None = None,
     ) -> Self:
-        train_split = FasttextDatasetSplit.merge(
-            splits=train, split_name="train", tempdir=tempdir
-        )
-        test_split = FasttextDatasetSplit.merge(
-            splits=test, split_name="test", tempdir=tempdir
-        )
+        train_split = FasttextDatasetSplit.merge(splits=train, split_name="train", tempdir=tempdir)
+        test_split = FasttextDatasetSplit.merge(splits=test, split_name="test", tempdir=tempdir)
         valid_split = (
-            FasttextDatasetSplit.merge(
-                splits=valid, split_name="valid", tempdir=tempdir
-            )
+            FasttextDatasetSplit.merge(splits=valid, split_name="valid", tempdir=tempdir)
             if valid is not None
             else None
         )
@@ -585,15 +539,11 @@ def load_fasttext_dataset(
                 # skip if the split does not exist
                 continue
 
-            collected_splits.setdefault(split_name, []).append(
-                FasttextDatasetSplit(path=split_path)
-            )
+            collected_splits.setdefault(split_name, []).append(FasttextDatasetSplit(path=split_path))
 
     return FasttextDataset.from_splits(
         train=collected_splits.get("train", []),
         test=collected_splits.get("test", []),
-        valid=valid_split
-        if len(valid_split := collected_splits.get("valid", [])) > 0
-        else None,
+        valid=valid_split if len(valid_split := collected_splits.get("valid", [])) > 0 else None,
         tempdir=tempdir,
     )

@@ -84,8 +84,7 @@ class BasePrompt(Generic[T]):
 
             if start_loc >= 0 and end_loc >= 0:
                 turn["content"] = (
-                    turn["content"][:start_loc]
-                    + turn["content"][end_loc + len(THINK_END) :]
+                    turn["content"][:start_loc] + turn["content"][end_loc + len(THINK_END) :]
                 ).strip()
             elif start_loc >= 0:
                 turn["content"] = turn["content"].replace(THINK_START, "")
@@ -104,18 +103,8 @@ class BasePrompt(Generic[T]):
 
     def filter(self, conversation: list[TurnDict]) -> list[TurnDict]:
         select_fn = max if self.turn_to_annotate == TurnPosition.LAST else min
-        last_turn = select_fn(
-            [
-                i
-                for i, c in enumerate(conversation)
-                if c["role"] == self.role_to_annotate.value
-            ]
-        )
-        return [
-            self.clean_turn(turn)
-            for i, turn in enumerate(conversation)
-            if i <= last_turn
-        ]
+        last_turn = select_fn([i for i, c in enumerate(conversation) if c["role"] == self.role_to_annotate.value])
+        return [self.clean_turn(turn) for i, turn in enumerate(conversation) if i <= last_turn]
 
     @property
     def schema(self) -> dict | None:
@@ -156,9 +145,7 @@ class BasePrompt(Generic[T]):
         messages = self.filter(messages)
         formatted_messages = ""
         for turn in messages:
-            formatted_messages += (
-                f"ROLE:{turn['role']}\nCONTENT:{self.clean_turn(turn)['content']}\n\n\n"
-            )
+            formatted_messages += f"ROLE:{turn['role']}\nCONTENT:{self.clean_turn(turn)['content']}\n\n\n"
         return f"CONVERSATION:\n{formatted_messages.strip()}"
 
     def format_text(self, text: str) -> str:

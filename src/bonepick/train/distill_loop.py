@@ -16,9 +16,7 @@ from bonepick.cli import PathParamType, PCADimTypeParamType
     type=PathParamType(exists=True, is_file=True, optional=True),
     default=None,
 )
-@click.option(
-    "-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True
-)
+@click.option("-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True)
 @click.option("-d", "--pca-dims", type=PCADimTypeParamType(), default=256)
 @click.option("-s", "--sif-coefficient", type=float, default=1e-4)
 @click.option("-t", "--token-remove-pattern", type=str, default=r"\[unused\d+\]")
