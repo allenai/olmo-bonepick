@@ -35,7 +35,7 @@ class BetterStaticModelForClassification(StaticModelForClassification):
         tokenizer_json: str,
         max_length: int,
         truncate_length: int,
-        output_chunks: ChunkedDataset,
+        output_chunks: ChunkedDataset[list[int]],
         # encode_batch_size: int = 20_000,
     ) -> int:
         """Tokenize a chunk of texts in a separate process."""

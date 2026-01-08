@@ -1,0 +1,197 @@
+import dataclasses as dt
+import json
+import re
+from enum import Enum
+from typing import (
+    Generic,
+    TypeVar,
+    ClassVar,
+    cast as typing_cast,
+    TypedDict,
+    Self,
+)
+
+from lazy_imports import try_import
+
+from .annotate_utils import DataclassType
+
+with try_import() as extra_dependencies:
+    from bonepick.annotate.pydantic_utils import dataclass_to_json_schema
+
+
+
+T = TypeVar("T")
+
+
+class TurnRole(Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+    SYSTEM = "system"
+
+class TurnPosition(Enum):
+    FIRST = "first"
+    LAST = "last"
+
+
+class TurnDict(TypedDict):
+    role: TurnRole
+    content: str
+
+
+SPECIAL_TOKENS = [
+    "<|pad|>",
+    "<|endoftext|>",
+    "<|im_start|>",
+    "<|im_end|>",
+]
+
+THINK_START = "<think>"
+THINK_END = "</think>"
+
+
+
+@dt.dataclass(frozen=True)
+class BasePrompt(Generic[T]):
+    name: str = dt.field(default_factory=str)
+    preamble: str = dt.field(default_factory=str)
+    instructions: str = dt.field(default_factory=str)
+    output: list[str] = dt.field(default_factory=list)
+    role_to_annotate: TurnRole = TurnRole.USER
+    turn_to_annotate: TurnPosition = TurnPosition.LAST
+    output_type: type[DataclassType] | None = dt.field(default=None)
+
+    _registry: ClassVar[dict[str, type[Self]]]
+
+    def __post_init__(self):
+        assert self.name.strip(), "Prompt name cannot be empty"
+        assert self.instructions.strip(), "Prompt instructions cannot be empty"
+        assert self.role_to_annotate in TurnRole, "Invalid role to annotate"
+        assert self.turn_to_annotate in TurnPosition, "Invalid turn to annotate"
+
+        # check if imports are fine
+        extra_dependencies.check()
+
+    @property
+    def null(self) -> T:
+        return typing_cast(T, "")
+
+    def postprocess(self, text: str) -> T:
+        return typing_cast(T, text.strip("'").strip('"').strip())
+
+    def clean_turn(self, turn: TurnDict) -> TurnDict:
+        if turn["role"] == TurnRole.ASSISTANT.value:
+            start_loc = turn["content"].find(THINK_START)
+            end_loc = turn["content"].rfind(THINK_END)
+
+            if start_loc >= 0 and end_loc >= 0:
+                turn["content"] = (
+                    turn["content"][:start_loc]
+                    + turn["content"][end_loc + len(THINK_END) :]
+                ).strip()
+            elif start_loc >= 0:
+                turn["content"] = turn["content"].replace(THINK_START, "")
+            elif end_loc >= 0:
+                turn["content"] = turn["content"].replace(THINK_END, "")
+
+        for special_token in SPECIAL_TOKENS:
+            if special_token in turn["content"]:
+                replacement = " ".join(re.split(r"\b", special_token))
+                turn["content"] = turn["content"].replace(special_token, replacement)
+
+        # removes excessive newlines
+        turn["content"] = re.sub(r"\n{3,}", "\n\n", turn["content"]).strip()
+
+        return turn
+
+    def filter(self, conversation: list[TurnDict]) -> list[TurnDict]:
+        select_fn = max if self.turn_to_annotate == TurnPosition.LAST else min
+        last_turn = select_fn(
+            [i for i, c in enumerate(conversation) if c["role"] == self.role_to_annotate.value]
+        )
+        return [
+            self.clean_turn(turn)
+            for i, turn in enumerate(conversation)
+            if i <= last_turn
+        ]
+
+    @property
+    def schema(self) -> dict | None:
+        if self.output_type is None:
+            return None
+        return dataclass_to_json_schema(self.output_type)
+
+    def parse(self, response_text: str) -> dict | str:
+        if self.output_type is None:
+            return response_text
+        return json.loads(response_text)
+
+    def subset(self, batch: dict[str, list]) -> list[bool]:
+        """Use this function to subset a dataset based on the content of each example."""
+        if len(batch) == 0:
+            raise ValueError("Batch is empty")
+        batch_key = list(batch.keys())[0]
+        return [True] * len(batch[batch_key])
+
+    @classmethod
+    def register(cls, prompt: type[Self]) -> type[Self]:
+        assert hasattr(cls, "_registry"), "BasePrompt must be subclassed"
+        cls._registry[prompt.name] = prompt
+        return prompt
+
+    @classmethod
+    def get(cls, name: str) -> Self:
+        assert hasattr(cls, "_registry"), "BasePrompt must be subclassed"
+        if name not in cls._registry:
+            raise ValueError(f"Prompt '{name}' not found")
+        return cls._registry[name]()
+
+    @classmethod
+    def prompts(cls) -> list[str]:
+        return [prompt.name for prompt in cls._registry.values()]
+
+    def format_conversation(self, messages: list[TurnDict]) -> str:
+        messages = self.filter(messages)
+        formatted_messages = ""
+        for turn in messages:
+            formatted_messages += f"ROLE:{turn['role']}\nCONTENT:{self.clean_turn(turn)['content']}\n\n\n"
+        return f"CONVERSATION:\n{formatted_messages.strip()}"
+
+    def format_text(self, text: str) -> str:
+        text = re.sub(r"\n{3,}", "\n\n", text).strip()
+        return f"TEXT:\n{text}"
+
+    def apply(self, conversation_or_text: list[TurnDict] | str | None = None) -> str:
+        if conversation_or_text is None:
+            # this is for the case of system prompts
+            return self.instructions.strip()
+
+        # format conversation or text
+        content = (
+            self.format_conversation(conversation_or_text)
+            if isinstance(conversation_or_text, list)
+            else self.format_text(conversation_or_text)
+        ).strip()
+
+        # add preamble if it exists
+        if (preamble := self.preamble.strip()):
+            content = f"{preamble}\n\n\n{content}"
+
+        # add instructions after content
+        content = f"{content}\n\n\nINSTRUCTIONS:\n{self.instructions.strip()}"
+
+        # return formatted content
+        return content
+
+
+
+
+@dt.dataclass(frozen=True)
+class BaseSystemPrompt(BasePrompt, Generic[T]):
+    role_to_annotate: TurnRole = TurnRole.SYSTEM
+    turn_to_annotate: TurnPosition = TurnPosition.FIRST
+    _registry: ClassVar[dict[str, type[Self]]] = {}
+
+
+@dt.dataclass(frozen=True)
+class BaseAnnotationPrompt(BasePrompt, Generic[T]):
+    _registry: ClassVar[dict[str, type[Self]]] = {}

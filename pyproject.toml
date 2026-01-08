@@ -8,7 +8,7 @@ dependencies = [
     "torch>=2.9.1",
     "click",
     "datasets<5",
-    "model2vec[distill,train]>=0.7.0",
+    "model2vec[train]>=0.7.0",
     "smart-open[s3]>=7.1.0",
     "msgspec",
     "backports-weakref>=1.0.post1",
@@ -17,7 +17,6 @@ dependencies = [
     "tqdm>=4.66.5",
     "tokenizers>=0.22.1",
     "plsfix>=0.1.8",
-    "tokenlearn>=0.2.1",
     "pyyaml>=6.0.3",
     "lazy-imports>=1.2.0",
 ]
@@ -46,7 +45,10 @@ annotate = [
     "platformdirs",
     "fastmcp",
     "pydantic<2.12.0",
-
+]
+distill = [
+    "model2vec[distill]>=0.7.0",
+    "tokenlearn>=0.2.1",
 ]
 
 [dependency-groups]

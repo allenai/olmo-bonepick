@@ -13,7 +13,6 @@ from typing import Callable, Generator, Self, TypeVar, Generic, ClassVar
 import uuid
 
 import jq
-import click
 import msgspec
 import smart_open
 from tqdm import tqdm
@@ -27,6 +26,11 @@ FILE_SUFFIXES = [
     for compr in (".zst", ".zstd", ".gz", ".gzip", "")
 ]
 DEFAULT_SUFFIX = ".jsonl.zst"
+
+
+def make_uuid() -> str:
+    """Platform-agnostic UUID generation. See https://stackoverflow.com/questions/2759644/python-multiprocessing-doesnt-play-nicely-with-uuid-uuid4 for more details."""
+    return str(uuid.UUID(bytes=os.urandom(16), version=4))
 
 
 def batch_save_hf_dataset(
@@ -118,13 +122,13 @@ def normalize_single_file(
 @dt.dataclass(frozen=True)
 class DatasetSplit:
     text: list[str]
-    label: list[str]
+    label: list[str | None]
 
     @classmethod
     def new(cls):
         return cls(text=[], label=[])
 
-    def __iter__(self) -> Generator[tuple[str, str], None, None]:
+    def __iter__(self) -> Generator[tuple[str, str | None], None, None]:
         for text, label in zip(self.text, self.label):
             yield text, label
 
@@ -142,7 +146,7 @@ class DatasetSplit:
     def signature(self) -> str:
         h = hashlib.sha256()
         for text, label in zip(self.text, self.label):
-            h.update(f"{text}\t{label}".encode())
+            h.update(f"{text}\t{label}".encode() if label is not None else text.encode())
         return h.hexdigest()
 
 
@@ -170,10 +174,14 @@ class DatasetTuple:
 def load_jsonl_dataset(
     dataset_dirs: Path | list[Path],
     train_split_name: str = "train",
-    val_split_name: str = "valid",
+    valid_split_name: str = "valid",
     test_split_name: str = "test",
     text_field_name: str = "text",
     label_field_name: str = "label",
+    train_split_required: bool = True,
+    valid_split_required: bool = False,
+    test_split_required: bool = True,
+    allow_missing_label: bool = False,
 ) -> DatasetTuple:
     """Load dataset from one or more directories.
 
@@ -188,9 +196,9 @@ def load_jsonl_dataset(
     decoder = msgspec.json.Decoder()
 
     for dataset_split, split_name, is_required in (
-        (dataset_tuple.train, train_split_name, True),
-        (dataset_tuple.valid, val_split_name, False),
-        (dataset_tuple.test, test_split_name, True),
+        (dataset_tuple.train, train_split_name, train_split_required),
+        (dataset_tuple.valid, valid_split_name, valid_split_required),
+        (dataset_tuple.test, test_split_name, test_split_required),
     ):
         all_files: list[Path] = []
 
@@ -217,7 +225,16 @@ def load_jsonl_dataset(
                 for line in f:
                     row = decoder.decode(line)
                     dataset_split.text.append(row[text_field_name])
-                    dataset_split.label.append(str(row[label_field_name]))
+
+                    label_value: str | None
+                    if allow_missing_label:
+                        label_value = str(row[label_field_name]) if label_field_name in row else None
+                    elif label_field_name in row:
+                        label_value = str(row[label_field_name])
+                    else:
+                        raise ValueError(f"Label field {label_field_name} not found in row {row}")
+
+                    dataset_split.label.append(label_value)
 
     return dataset_tuple
 

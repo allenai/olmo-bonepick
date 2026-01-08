@@ -1,4 +1,3 @@
-from bonepick.annotate import annotate_dataset
 from bonepick.cli import cli    # noqa: F401
 from bonepick.train.data_loop import (
     balance_dataset,
@@ -15,7 +14,6 @@ from bonepick.train.train_loop import (
 )
 
 __all__ = [
-    "annotate_dataset",
     "balance_dataset",
     "convert_to_fasttext",
     "import_hf_dataset",
