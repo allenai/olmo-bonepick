@@ -87,3 +87,49 @@ class PCADimTypeParamType(FloatOrIntParamType):
             return "auto"
 
         return super().convert(value, param, ctx)
+
+
+class ByteSizeParamType(click.ParamType):
+    name = "bytesize"
+
+    def convert(self, value, param, ctx):
+        if isinstance(value, int):
+            return value
+
+        if not isinstance(value, str):
+            raise self.fail(f"{value!r} is not a valid byte size", param, ctx)
+
+        # Parse string like "1GB", "500MB", "1.5KB", etc.
+        value = value.strip().upper()
+
+        # Extract number and unit
+        import re
+        match = re.match(r"^(\d+(?:\.\d+)?)\s*([KMGT]?B?)$", value)
+        if not match:
+            raise self.fail(
+                f"{value!r} is not a valid byte size. Use format like '1GB', '500MB', '1.5KB'",
+                param,
+                ctx,
+            )
+
+        num_str, unit = match.groups()
+        num = float(num_str)
+
+        # Convert to bytes
+        multipliers = {
+            "B": 1,
+            "": 1,
+            "KB": 1024,
+            "K": 1024,
+            "MB": 1024**2,
+            "M": 1024**2,
+            "GB": 1024**3,
+            "G": 1024**3,
+            "TB": 1024**4,
+            "T": 1024**4,
+        }
+
+        if unit not in multipliers:
+            raise self.fail(f"Unknown unit {unit!r}", param, ctx)
+
+        return int(num * multipliers[unit])

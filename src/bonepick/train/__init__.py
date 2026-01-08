@@ -4,6 +4,7 @@ from bonepick.train.data_loop import (
     convert_to_fasttext,
     import_hf_dataset,
     normalize_dataset,
+    sample_dataset,
     transform_dataset,
 )
 from bonepick.train.distill_loop import distill_model
@@ -18,6 +19,7 @@ __all__ = [
     "convert_to_fasttext",
     "import_hf_dataset",
     "normalize_dataset",
+    "sample_dataset",
     "transform_dataset",
     "distill_model",
     "eval_fasttext",

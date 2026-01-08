@@ -15,6 +15,7 @@ uv run bonepick --help
 uv run bonepick import-hf-dataset --help
 uv run bonepick transform-dataset --help
 uv run bonepick balance-dataset --help
+uv run bonepick sample-dataset --help
 uv run bonepick normalize-dataset --help
 uv run bonepick convert-to-fasttext --help
 uv run bonepick train-model2vec --help
@@ -33,8 +34,9 @@ This is a CLI tool for training efficient quality classifiers (Model2Vec and Fas
 1. **Import**: `import-hf-dataset` - Downloads HuggingFace datasets to local JSONL format with train/test splits
 2. **Transform**: `transform-dataset` - Applies jq expressions to reshape fields (e.g., binarize labels)
 3. **Balance**: `balance-dataset` - Balances datasets so each label has equal representation (supports multiple input directories)
-4. **Normalize**: `normalize-dataset` - Applies text normalization (whitespace, plsfix, tokenizer-based, ultrafine, potion)
-5. **Convert**: `convert-to-fasttext` - Converts JSONL to FastText format (`__label__<label> <text>`)
+4. **Sample**: `sample-dataset` - Creates a random sample of a dataset by sampling rate or target size (supports multiple input directories)
+5. **Normalize**: `normalize-dataset` - Applies text normalization (whitespace, plsfix, tokenizer-based, ultrafine, potion)
+6. **Convert**: `convert-to-fasttext` - Converts JSONL to FastText format (`__label__<label> <text>`)
 
 ### Training Methods
 
@@ -65,11 +67,11 @@ Key functions in `eval_loop.py`:
 - `train_loop.py`: Training CLI commands (`train-model2vec`, `train-contrastive`, `train-fasttext`)
 - `eval_loop.py`: Evaluation CLI commands (`eval-model2vec`, `eval-fasttext`) with detailed probability-based metrics
 - `model2vec_utils.py`: `HingeLossModelForClassification` - extends Model2Vec's `StaticModelForClassification` with contrastive training that clusters documents by semantic similarity, then trains with pairwise hinge loss
-- `data.py`: Dataset loading, transformation, balancing, and format conversion CLI commands
-- `data_utils.py`: Helper functions for file I/O, label counting, and sample reading; includes `load_jsonl_dataset()` and `load_fasttext_dataset()` with support for multiple dataset directories
+- `data_loop.py`: Dataset loading, transformation, balancing, sampling, and format conversion CLI commands
+- `data_utils.py`: Helper functions for file I/O, label counting, sample reading, and file sampling; includes `load_jsonl_dataset()` and `load_fasttext_dataset()` with support for multiple dataset directories; `sample_single_file()` for random sampling
 - `normalizers.py`: Text normalizer registry with implementations (whitespace, plsfix, tokenizer, ultrafine, ultrafine-plus, potion)
 - `fasttext_utils.py`: FastText binary detection and dataset signature utilities
-- `cli.py`: Click CLI setup and custom parameter types
+- `cli.py`: Click CLI setup and custom parameter types (PathParamType, FloatOrIntParamType, ByteSizeParamType)
 
 ### Data Format
 

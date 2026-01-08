@@ -344,6 +344,69 @@ def read_samples_from_file(
     return samples_by_label
 
 
+def sample_single_file(
+    source_path: Path,
+    destination_path: Path,
+    target_size: int,
+    seed: int = 42,
+):
+    """Sample a file to approximately target size in bytes.
+
+    Args:
+        source_path: Path to source file
+        destination_path: Path to destination file
+        target_size: Target size in bytes for the output file
+        seed: Random seed for reproducibility
+    """
+    import random
+
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Get file size
+    source_size = source_path.stat().st_size
+
+    # If file is already smaller or equal, just copy it
+    if source_size <= target_size:
+        import shutil
+        shutil.copy2(source_path, destination_path)
+        return
+
+    # Calculate sampling ratio
+    sampling_ratio = target_size / source_size
+    rng = random.Random(seed)
+
+    # Optimization: If sampling ratio is very low (<5%), use byte counting approach
+    # instead of probabilistic sampling to be more precise and efficient
+    MIN_SAMPLING_RATIO = 0.05
+
+    if sampling_ratio < MIN_SAMPLING_RATIO:
+        # Use byte counting approach: sample with higher ratio, stop when we reach target
+        # Use 5% sampling ratio to ensure we don't process the entire file
+        effective_sampling_ratio = MIN_SAMPLING_RATIO
+
+        with ExitStack() as stack:
+            source_file = stack.enter_context(smart_open.open(source_path, "rb"))  # pyright: ignore
+            destination_file = stack.enter_context(smart_open.open(destination_path, "wb"))  # pyright: ignore
+
+            bytes_written = 0
+            for line in source_file:
+                if bytes_written >= target_size:
+                    break
+
+                if rng.random() < effective_sampling_ratio:
+                    destination_file.write(line)
+                    bytes_written += len(line)
+    else:
+        # Normal probabilistic sampling for higher ratios (>=5%)
+        with ExitStack() as stack:
+            source_file = stack.enter_context(smart_open.open(source_path, "rb"))  # pyright: ignore
+            destination_file = stack.enter_context(smart_open.open(destination_path, "wb"))  # pyright: ignore
+
+            for line in source_file:
+                if rng.random() < sampling_ratio:
+                    destination_file.write(line)
+
+
 T = TypeVar("T")
 
 

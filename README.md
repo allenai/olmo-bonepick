@@ -90,6 +90,31 @@ uv run bonepick balance-dataset \
     --seed 42
 ```
 
+### 3a. Sample Dataset (Optional)
+
+Create a smaller random sample of a dataset. Useful for quick experiments or when you need a subset:
+
+```shell
+# Sample 10% of the dataset
+uv run bonepick sample-dataset \
+    -i data/fineweb-edu-binary \
+    -o data/fineweb-edu-sample \
+    --sampling-rate 0.1
+
+# Or specify a target size
+uv run bonepick sample-dataset \
+    -i data/fineweb-edu-binary \
+    -o data/fineweb-edu-sample \
+    --target-size 500MB
+
+# Supports multiple input directories
+uv run bonepick sample-dataset \
+    -i data/dataset1 \
+    -i data/dataset2 \
+    -o data/combined-sample \
+    --target-size 1GB
+```
+
 ### 4a. Normalize Text (for Model2Vec)
 
 Apply text normalization before training Model2Vec classifiers:
@@ -259,6 +284,7 @@ uv run bonepick <command> --help
 | `import-hf-dataset` | Download HuggingFace dataset to local JSONL |
 | `transform-dataset` | Apply jq transforms to reshape fields |
 | `balance-dataset` | Balance dataset so each label has equal representation |
+| `sample-dataset` | Create a random sample of a dataset by rate or target size |
 | `normalize-dataset` | Normalize text (for Model2Vec) |
 | `convert-to-fasttext` | Convert JSONL to FastText format |
 | `train-model2vec` | Train Model2Vec classifier |
