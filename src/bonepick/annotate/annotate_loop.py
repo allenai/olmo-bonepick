@@ -26,12 +26,7 @@ with try_import() as extra_dependencies:
     # extra imports; they won't fail here, but later when running the command they will
     from lm_deluge import LLMClient, Conversation, Message
     from lm_deluge.client import _LLMClient as LLMClientType
-
-    # from lm_deluge.cache import SqliteCache
-    # from lm_deluge.models import registry as lm_deluge_registry
-    # from lm_deluge.api_requests.base import APIResponse
     from platformdirs import user_cache_dir
-    from bonepick.annotate.deluge_utils import SqliteInvalidableCache
 
     # import here to register all the prompts
     from bonepick.annotate import prompt_collections  # noqa: F401
