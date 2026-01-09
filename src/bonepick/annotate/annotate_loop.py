@@ -302,7 +302,6 @@ def annotate_dataset(
                         batch_prompts_chunk,
                         service_tier=ServiceTier(service_tier).value if service_tier else None,
                         output_schema=task_prompt.schema,
-                        show_progress=False,
                     )
                 )
 
