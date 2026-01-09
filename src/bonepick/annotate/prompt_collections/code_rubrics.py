@@ -4,6 +4,7 @@ from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt
 
 
 @dt.dataclass(frozen=True)
+@BaseSystemPrompt.register
 class CodeSystemPrompt(BaseSystemPrompt[str]):
     name: str = "code_system"
     instructions: str = """You are a helpful coding assistant that excels in reviewing and assessing code."""
