@@ -374,8 +374,16 @@ def count_tokens_in_file(
             row = decoder.decode(line)
             transformed = transform_fn(row)
             batch.append(str(transformed))
-            encoded = tokenizer.encode(text, add_special_tokens=False)
-            total_tokens += len(encoded.ids)
+
+            if len(batch) >= batch_size:
+                encoded = tokenizer.encode_batch_fast(batch, add_special_tokens=False)
+                total_tokens += sum(len(encoded_text.ids) for encoded_text in encoded)
+                del encoded
+                batch = []
+
+    if batch:
+        encoded = tokenizer.encode_batch_fast(batch, add_special_tokens=False)
+        total_tokens += sum(len(encoded_text.ids) for encoded_text in encoded)
 
     return total_tokens
 
@@ -650,13 +658,11 @@ def load_fasttext_dataset(
 
 
 def pretty_size(size: int | float, precision: int = 2, unit: str = "B") -> str:
-    if size < 1024:
-        return f"{size} {unit}"
-    elif size < 1024**2:
-        return f"{size / 1024:.{precision}f} {unit}"
-    elif size < 1024**3:
-        return f"{size / 1024**2:.{precision}f} {unit}"
-    elif size < 1024**4:
-        return f"{size / 1024**3:.{precision}f} {unit}"
-    else:
-        return f"{size / 1024**4:.{precision}f} {unit}"
+    mappings = [unit, f"K{unit}", f"M{unit}", f"G{unit}", f"T{unit}", f"P{unit}"]
+    i = 0
+    while i < len(mappings):
+        if size < 1024**i:
+            break
+        i += 1
+
+    return f"{size / 1024**(i - 1):.{precision}f} {mappings[i - 1]}"
