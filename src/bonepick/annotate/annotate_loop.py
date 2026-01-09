@@ -232,7 +232,7 @@ def annotate_dataset(
         click.echo("No files found to annotate. Exiting.")
         return
     else:
-        click.echo(f"  Found {len(source_files):,} files")
+        click.echo(f"Found {len(source_files):,} files")
 
     # these are used to read from and to jsonl files
     encoder, decoder = msgspec.json.Encoder(), msgspec.json.Decoder()
@@ -246,10 +246,10 @@ def annotate_dataset(
 
         for source_file, destination_file in zip(source_files, destination_files):
             if limit_rows is not None and to_annotate_docs_cnt >= limit_rows:
-                click.echo(f"  Reached limit of {limit_rows:,} rows to annotate")
+                click.echo(f"\nReached limit of {limit_rows:,} rows to annotate\n")
                 break
 
-            click.echo(f"  Processing {source_file.name}")
+            click.echo(f"\nProcessing {source_file.name}\n")
             destination_file.parent.mkdir(parents=True, exist_ok=True)
             input_file = file_stack.enter_context(smart_open.open(source_file, "rb"))  # pyright: ignore
             output_file = file_stack.enter_context(smart_open.open(destination_file, "wb"))  # pyright: ignore
@@ -269,17 +269,17 @@ def annotate_dataset(
                 to_annotate_docs_cnt += 1
 
                 if limit_rows is not None and to_annotate_docs_cnt >= limit_rows:
-                    click.echo(f"  Reached limit of {limit_rows:,} rows to annotate")
+                    click.echo(f"\nReached limit of {limit_rows:,} rows to annotate\n")
                     break
 
             if not batch_input:
                 # nothing to annotate; move onto next file
                 files_pbar.update(1)
                 file_stack.pop_all()
-                click.echo(f"  Skipping {source_file.name} because it has no rows to annotate")
+                click.echo(f"\nSkipping {source_file.name} because it has no rows to annotate\n")
                 continue
 
-            click.echo(f"  Annotating {len(batch_input):,} rows from {source_file.name}")
+            click.echo(f"\nAnnotating {len(batch_input):,} rows from {source_file.name}\n")
             batch_prompts: list[Conversation] = []
             for row in batch_input:
                 #use JQ expression to extract the input value from the row
