@@ -2,9 +2,11 @@
 
 This is where I ([@soldni](https://soldaini.net)) keep track of my work on the project.
 
-## Step 1: manage data
+## General Quality
 
-### Step 1a: import FineWeb dataset
+### Step 1: manage data
+
+#### Step 1a: import FineWeb dataset
 
 ```shell
 uv run bonepick import-hf-dataset \
@@ -13,7 +15,7 @@ uv run bonepick import-hf-dataset \
     --test-split 10000
 ```
 
-### Step 1b: copy FineWeb++ annotations
+#### Step 1b: copy FineWeb++ annotations
 
 ```shell
 s5cmd cp -sp \
@@ -25,9 +27,9 @@ s5cmd cp -sp \
     tmp/data/fw_pp_ref
 ```
 
-## Step 2: binarized dataset
+### Step 2: binarized dataset
 
-### Step 2a: binarize fineweb
+#### Step 2a: binarize fineweb
 
 ```shell
 uv run bonepick transform-dataset \
@@ -36,7 +38,7 @@ uv run bonepick transform-dataset \
     --label-transform '{score: (if .score < 3 then "neg" else "pos" end)}'
 ```
 
-### Step 2b: binarize FineWeb++
+#### Step 2b: binarize FineWeb++
 
 ```shell
 uv run bonepick transform-dataset \
@@ -50,9 +52,9 @@ uv run bonepick transform-dataset \
     --label-transform '{score: (if .metadata."fw_pp_ref".score < 3 then "neg" else "pos" end)}'
 ```
 
-## Step 3: convert and normalize data
+### Step 3: convert and normalize data
 
-### Step 3a: FastText format, `ultrafine` normalizer
+#### Step 3a: FastText format, `ultrafine` normalizer
 
 ```shell
 uv run bonepick convert-to-fasttext \
@@ -71,7 +73,7 @@ uv run bonepick convert-to-fasttext \
     --normalization ultrafine
 ```
 
-### Step 3b: Model2Vec format, `potion` normalizer
+#### Step 3b: Model2Vec format, `potion` normalizer
 
 ```shell
 uv run bonepick normalize-dataset \
@@ -90,10 +92,10 @@ uv run bonepick normalize-dataset \
     -n potion
 ```
 
-## Step 4: train models
+### Step 4: train models
 
 
-### Step 4a: train FastText model (only fineweb)
+#### Step 4a: train FastText model (only fineweb)
 
 ```shell
 uv run bonepick train-fasttext \
@@ -101,7 +103,7 @@ uv run bonepick train-fasttext \
     --output-dir tmp/models/fasttext-fineweb-edu-llama3-annotations-binary-pos-neg-ultrafine
 ```
 
-### Step 4b: train a Model2vec model (only fineweb)
+#### Step 4b: train a Model2vec model (only fineweb)
 
 
 ```shell
@@ -110,7 +112,7 @@ uv run bonepick train-model2vec \
     --output-dir tmp/models/potion-32M-fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion
 ```
 
-### Step 4c: train a Model2Vec model with extra annotations
+#### Step 4c: train a Model2Vec model with extra annotations
 
 ```shell
 uv run bonepick train-model2vec \
@@ -121,9 +123,9 @@ uv run bonepick train-model2vec \
 
 ```
 
-## Step 5: eval models
+### Step 5: eval models
 
-### Step 5a: eval FastText model
+#### Step 5a: eval FastText model
 
 ```shell
 uv run bonepick eval-fasttext \
@@ -142,7 +144,7 @@ P@1     0.934
 R@1     0.934
 ```
 
-### Step 5b: eval Model2Vec model
+#### Step 5b: eval Model2Vec model
 
 
 ```shell
@@ -165,7 +167,7 @@ Evaluation results:
 weighted avg       0.93      0.94      0.92     10000
 ```
 
-### Step 5c: eval UltraFineWeb
+#### Step 5c: eval UltraFineWeb
 
 ```shell
 uv run --with=huggingface-hub \
@@ -194,7 +196,7 @@ R@1     0.737
 ```
 
 
-## Step 6: balance dataset
+### Step 6: balance dataset
 
 This ensures same number of positive and negative items
 
@@ -206,10 +208,34 @@ uv run bonepick balance-dataset \
     --output-dir tmp/data/fw-fw_pp-fw_pp_o4-posneg-normalized-potion-balanced
 ```
 
-## Step 7: train on balanced dataset
+### Step 7: train on balanced dataset
 
 ```shell
 uv run bonepick train-model2vec \
     --dataset-dir tmp/data/fw-fw_pp-fw_pp_o4-posneg-normalized-potion-balanced \
     --output-dir tmp/models/potion-32M-fw-fw_pp-fw_pp_o4-posneg-normalized-potion-balanced
+```
+
+## Code Quality
+
+### Step 1: Some test code
+
+```shell
+s5cmd cp -sp 's3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/Python/step_final/shard_000070*' ~/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/Python/step_final/
+
+# copy just one file to tmp
+mkdir -p tmp/data/spring2code_python/train
+cp ~/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/Python/step_final/shard_00007001.jsonl.zst tmp/data/spring2code_python/train/shard_00007001.jsonl.zst
+```
+
+### Step 2: lets run annotation pipeline
+
+```shell
+uv run --extra=annotate bonepick annotate-dataset \
+    --dataset-dir tmp/data/spring2code_python \
+    --output-dir tmp/data/spring2code_python-annotated \
+    --model-name gpt-5.2 \
+    --service-tier flex \
+    --annotation-task-prompt 'claude_rubric_code' \
+    --annotation-system-prompt 'code_system'
 ```

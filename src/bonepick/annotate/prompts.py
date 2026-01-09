@@ -54,7 +54,6 @@ class BasePrompt(Generic[T]):
     name: str = dt.field(default_factory=str)
     preamble: str = dt.field(default_factory=str)
     instructions: str = dt.field(default_factory=str)
-    output: list[str] = dt.field(default_factory=list)
     role_to_annotate: TurnRole = TurnRole.USER
     turn_to_annotate: TurnPosition = TurnPosition.LAST
     output_type: type[DataclassType] | None = dt.field(default=None)
@@ -152,6 +151,15 @@ class BasePrompt(Generic[T]):
         text = re.sub(r"\n{3,}", "\n\n", text).strip()
         return f"TEXT:\n{text}"
 
+    def format_instructions(self) -> str:
+        return f"INSTRUCTIONS:\n{self.instructions.strip()}"
+
+    def format_preamble(self) -> str:
+        return self.preamble.strip()
+
+    def separator(self) -> str:
+        return "\n\n\n"
+
     def apply(self, conversation_or_text: list[TurnDict] | str | None = None) -> str:
         if conversation_or_text is None:
             # this is for the case of system prompts
@@ -164,14 +172,8 @@ class BasePrompt(Generic[T]):
             else self.format_text(conversation_or_text)
         ).strip()
 
-        # add preamble if it exists
-        if preamble := self.preamble.strip():
-            content = f"{preamble}\n\n\n{content}"
-
-        # add instructions after content
-        content = f"{content}\n\n\nINSTRUCTIONS:\n{self.instructions.strip()}"
-
-        # return formatted content
+        # join preamble, content, and instructions with separator
+        content = self.separator().join([self.format_preamble(), content, self.format_instructions()]).strip()
         return content
 
 

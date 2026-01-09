@@ -206,12 +206,11 @@ def annotate_dataset(
     cache_location = Path(cache_location or user_cache_dir(__package__))
     cache_location.mkdir(parents=True, exist_ok=True)
 
-    # we need to disable the cache if we to reprocess rows that do not meet validation
-    cache = SqliteInvalidableCache(path=str(cache_location / f"{model_name}.db"), invalidate=reprocess_missing)
+    # # we need to disable the cache if we to reprocess rows that do not meet validation
+    # cache = SqliteInvalidableCache(path=str(cache_location / f"{model_name}.db"), invalidate=reprocess_missing)
 
     client = LLMClient(
         model_name,
-        cache=cache,
         max_requests_per_minute=max_requests_per_minute,
         max_tokens_per_minute=max_tokens_per_minute,
         max_concurrent_requests=max_concurrent_requests,
@@ -241,7 +240,7 @@ def annotate_dataset(
 
     with ExitStack() as stack:
         batch_input = stack.enter_context(ChunkedDataset())
-        batch_input.add_dataset([DatasetRow(text=text, label=None) for text in to_annotate_text])
+        batch_input.add_dataset([DatasetRow(text=text, label=None) for text in to_annotate_text], chunk_size=2000)
         batch_output = stack.enter_context(ChunkedDataset())
 
         pool_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
