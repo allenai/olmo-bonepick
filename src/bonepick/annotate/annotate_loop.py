@@ -3,33 +3,27 @@ import os
 from pathlib import Path
 from tqdm import tqdm
 from enum import Enum
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
-from functools import partial
-from typing import Literal, TypedDict, cast as typing_cast
+from typing import Literal, TypedDict
 
 import click
 from lazy_imports import try_import
+import smart_open
+import msgspec
 
-from bonepick.train.data_utils import (
-    load_jsonl_dataset,
-    DatasetSplit,
-    write_dataset,
-    DatasetTuple,
-)
+from bonepick.train.data_utils import compile_jq, FILE_SUFFIXES
 from bonepick.cli import PathParamType
 from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt
-from bonepick.train.data_utils import ChunkedDatasetPath, ChunkedDataset
 
 
 with try_import() as extra_dependencies:
     # extra imports; they won't fail here, but later when running the command they will
     from lm_deluge import LLMClient, Conversation, Message
-    from lm_deluge.client import _LLMClient as LLMClientType
     from platformdirs import user_cache_dir
 
     # import here to register all the prompts
     from bonepick.annotate import prompt_collections  # noqa: F401
+    from bonepick.annotate.deluge_utils import SqliteInvalidableCache
 
 
 def _update_model_definitions():
@@ -62,62 +56,6 @@ class ReasoningEffort(Enum):
     NONE = "none"
 
 
-def annotate_batch(
-    batch_input: ChunkedDatasetPath[DatasetRow],
-    batch_output: ChunkedDataset[DatasetRow],
-    client: LLMClientType,
-    annotation_task_prompt: str,
-    annotation_system_prompt: str | None,
-    service_tier: ServiceTier,
-    max_text_length: int | None,
-):
-    task_prompt = BaseAnnotationPrompt.get(annotation_task_prompt)
-    system_prompt = BaseSystemPrompt.get(annotation_system_prompt) if annotation_system_prompt else None
-    batch_prompts: list[Conversation] = []
-
-    for row in batch_input:
-        # build conversation
-        conversation = Conversation()
-        if system_prompt:
-            conversation.add(Message.system(system_prompt.apply()))
-        conversation.add(Message.user(task_prompt.apply(row["text"], max_text_length)))
-        batch_prompts.append(conversation)
-
-    responses = asyncio.run(
-        client.process_prompts_async(
-            batch_prompts,
-            service_tier=service_tier.value,
-            output_schema=task_prompt.schema,
-        )
-    )  # pyright: ignore
-
-    # responses = client.process_prompts_sync(
-    #     batch_prompts,
-    #     # service_tier=service_tier.value,
-    #     output_schema=task_prompt.schema,
-    #     # show_progress=False,
-    # )
-    failed_cnt = 0
-
-    output: list[DatasetRow] = []
-    for response, row in zip(responses, batch_input):
-        if response is None or response.completion is None:
-            failed_cnt += 1
-            continue
-
-        # TODO: properly support non-string outputs
-        result = typing_cast(str, task_prompt.parse(response.completion))
-        output.append(DatasetRow(text=row["text"], label=result))
-
-    click.echo(f"batch {batch_input.chunk_path.name}: failed to annotate {failed_cnt:,} rows")
-
-    breakpoint()
-
-    batch_output.add_chunk(output)
-
-    return len(output)
-
-
 @click.command()
 @click.option(
     "-d",
@@ -136,10 +74,10 @@ def annotate_batch(
 )
 @click.option(
     "-i",
-    "--input-field",
+    "--input-field-expression",
     type=str,
-    default="text",
-    help="Field in dataset to use as input for annotation",
+    default=".text",
+    help="Expression to extract the input text from the row",
 )
 @click.option(
     "-f",
@@ -184,9 +122,10 @@ def annotate_batch(
     help="service tier to use for openai",
 )
 @click.option(
-    "--num-proc",
-    default=os.cpu_count(),
-    help="number of processes to use for processing",
+    "--reprocess-all-rows/--process-missing-rows",
+    is_flag=True,
+    default=False,
+    help="Reprocess all rows or only missing rows",
 )
 @click.option(
     "--max-requests-per-minute",
@@ -195,12 +134,12 @@ def annotate_batch(
 )
 @click.option(
     "--max-tokens-per-minute",
-    default=10_000_000,
+    default=100_000_000,
     help="Maximum tokens per minute",
 )
 @click.option(
     "--max-concurrent-requests",
-    default=5_000,
+    default=10_000,
     help="Maximum concurrent requests",
 )
 @click.option(
@@ -231,8 +170,8 @@ def annotate_dataset(
     max_concurrent_requests: int,
     annotation_task_prompt: str,
     annotation_system_prompt: str | None,
-    num_proc: int,
-    input_field: str,
+    input_field_expression: str,
+    reprocess_all_rows: bool,
     input_field_format: str,
     cache_location: Path | str | None,
     reasoning_effort: str | None,
@@ -243,8 +182,21 @@ def annotate_dataset(
     # check if the extra dependencies are installed
     extra_dependencies.check()
 
+    # force using "low", "medium", or "high" reasoning efforts if model name starts with "gpt-5"
+    if (model_name.startswith("gpt-5") and reasoning_effort not in
+        {ReasoningEffort.LOW.value, ReasoningEffort.MEDIUM.value, ReasoningEffort.HIGH.value}
+    ):
+        raise click.ClickException(
+            f"Reasoning effort must be one of {ReasoningEffort.LOW.value}, {ReasoningEffort.MEDIUM.value}, "
+            f"or {ReasoningEffort.HIGH.value} for model {model_name}"
+        )
+
     # make sure the models available in the registry are updated
     _update_model_definitions()
+
+    # these are the prompts to use for annotation
+    task_prompt = BaseAnnotationPrompt.get(annotation_task_prompt)
+    system_prompt = BaseSystemPrompt.get(annotation_system_prompt) if annotation_system_prompt else None
 
     # only supporting text format for now
     if input_field_format != "text":
@@ -255,10 +207,20 @@ def annotate_dataset(
     cache_location.mkdir(parents=True, exist_ok=True)
 
     # # we need to disable the cache if we to reprocess rows that do not meet validation
-    # cache = SqliteInvalidableCache(path=str(cache_location / f"{model_name}.db"), invalidate=reprocess_missing)
+    cache = SqliteInvalidableCache(path=str(cache_location / f"{model_name}.db"), invalidate=reprocess_all_rows)
+
+    click.echo("Initializing LLM client...")
+    click.echo(f"  Model name:              {model_name}")
+    click.echo(f"  Reasoning effort:        {reasoning_effort}")
+    click.echo(f"  Service tier:            {service_tier}")
+    click.echo(f"  Max requests per minute: {max_requests_per_minute:,}")
+    click.echo(f"  Max tokens per minute:   {max_tokens_per_minute:,}")
+    click.echo(f"  Max concurrent requests: {max_concurrent_requests:,}")
+    click.echo(f"  Max new tokens:          {max_new_tokens:,}")
 
     client = LLMClient(
         model_name,
+        cache=cache,
         max_requests_per_minute=max_requests_per_minute,
         max_tokens_per_minute=max_tokens_per_minute,
         max_concurrent_requests=max_concurrent_requests,
@@ -266,93 +228,122 @@ def annotate_dataset(
         max_new_tokens=max_new_tokens,
     )
 
-    dataset = load_jsonl_dataset(
-        list(dataset_dir),
-        text_field_name=input_field,
-        label_field_name=annotation_task_prompt,
-        valid_split_required=False,
-        test_split_required=False,
-        allow_missing_label=True,
-    )
+    click.echo("LLM client initialized")
 
-    click.echo(f"Loaded {len(dataset.train):,} rows from {dataset_dir}")
+    # Step 1: Collect all files and their sizes
+    click.echo("\nCollecting files...")
+    source_files: list[Path] = []
+    destination_files: list[Path] = []
 
-    existing_text, existing_label, to_annotate_text = [], [], []
-    for i, (text, label) in enumerate(dataset.train):
-        if limit_rows is not None and i >= limit_rows:
-            break
+    for input_dir in dataset_dir:
+        for root, _, files in os.walk(input_dir):
+            for _fn in files:
+                fn = Path(root) / _fn
+                if "".join(fn.suffixes) not in FILE_SUFFIXES:
+                    continue
+                relative_path = fn.relative_to(input_dir)
+                source_files.append(fn)
+                destination_files.append(output_dir / relative_path)
 
-        if label is not None:
-            existing_text.append(text)
-            existing_label.append(label)
-        else:
-            to_annotate_text.append(text)
-    del dataset
+    if not source_files:
+        click.echo("No files found to annotate. Exiting.")
+        return
+    else:
+        click.echo(f"  Found {len(source_files):,} files")
 
-    click.echo(f"Found {len(existing_text):,} existing rows and {len(to_annotate_text):,} rows to annotate")
+    # these are used to read from and to jsonl files
+    encoder, decoder = msgspec.json.Encoder(), msgspec.json.Decoder()
+    input_field_selector = compile_jq(input_field_expression)
 
-    with ExitStack() as stack:
-        batch_input = stack.enter_context(ChunkedDataset())
-        batch_input.add_dataset([DatasetRow(text=text, label=None) for text in to_annotate_text], chunk_size=2000)
-        batch_output = stack.enter_context(ChunkedDataset())
+    with ExitStack() as pbar_stack, ExitStack() as file_stack:
+        files_pbar = pbar_stack.enter_context(tqdm(total=len(source_files), desc="Processing files", unit="file"))
+        docs_pbar = pbar_stack.enter_context(tqdm(desc="Processing documents", unit="doc"))
+        failed_docs_cnt = 0
+        to_annotate_docs_cnt = 0
 
-        pool_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
-        pool = stack.enter_context(pool_cls(max_workers=num_proc))
+        for source_file, destination_file in zip(source_files, destination_files):
+            if limit_rows is not None and to_annotate_docs_cnt >= limit_rows:
+                click.echo(f"  Reached limit of {limit_rows:,} rows to annotate")
+                break
 
-        process_fn = partial(
-            annotate_batch,
-            client=client,
-            annotation_task_prompt=annotation_task_prompt,
-            annotation_system_prompt=annotation_system_prompt,
-            service_tier=ServiceTier(service_tier) if service_tier else ServiceTier.NONE,
-            batch_output=batch_output,
-            max_text_length=max_text_length,
-        )
+            click.echo(f"  Processing {source_file.name}")
+            destination_file.parent.mkdir(parents=True, exist_ok=True)
+            input_file = file_stack.enter_context(smart_open.open(source_file, "rb"))  # pyright: ignore
+            output_file = file_stack.enter_context(smart_open.open(destination_file, "wb"))  # pyright: ignore
 
-        # we don't pass the number of processes to make sure we run this in single thread
-        annotate_pbar = stack.enter_context(
-            tqdm(total=len(to_annotate_text), desc="Annotating dataset", unit_scale=True)
-        )
-        futures = []
-        for batch_input_path in batch_input:
-            future = pool.submit(process_fn, batch_input=batch_input_path)
-            futures.append(future)
+            batch_input: list[dict] = []
+            for line in input_file:
+                row = decoder.decode(line)
 
-        for future in as_completed(futures):
-            try:
-                successful_cnt = future.result()
-                annotate_pbar.update(successful_cnt)
-            except Exception as e:
-                for future in futures:
-                    future.cancel()
-                raise e
-        annotate_pbar.close()
+                # already annotated; we skip and write to output file immediately
+                if not reprocess_all_rows and task_prompt.name in row:
+                    output_file.write(line)
+                    docs_pbar.update(1)
+                    continue
 
-        retrieve_pbar = stack.enter_context(
-            tqdm(
-                total=len(existing_text),
-                desc="Retrieving annotated dataset",
-                unit_scale=True,
-            )
-        )
-        for batch_output_path in batch_output:
-            for row in batch_output_path:
-                existing_text.append(row["text"])
-                existing_label.append(row["label"])
-                retrieve_pbar.update(1)
-        retrieve_pbar.close()
+                # to annotate; add to batch
+                batch_input.append(row)
+                to_annotate_docs_cnt += 1
 
-    dataset_split = DatasetSplit(text=existing_text, label=existing_label)
-    dataset = DatasetTuple(train=dataset_split, valid=DatasetSplit.new(), test=DatasetSplit.new())
-    write_dataset(
-        dataset,
-        output_dir,
-        text_field_name=input_field,
-        label_field_name=annotation_task_prompt,
-    )
+                if limit_rows is not None and to_annotate_docs_cnt >= limit_rows:
+                    click.echo(f"  Reached limit of {limit_rows:,} rows to annotate")
+                    break
 
-    # processed_dataset.push_to_hub(destination_path, private=keep_private)
-    # print("Dataset pushed to https://huggingface.co/datasets/" + destination_path)
+            if not batch_input:
+                # nothing to annotate; move onto next file
+                files_pbar.update(1)
+                file_stack.pop_all()
+                click.echo(f"  Skipping {source_file.name} because it has no rows to annotate")
+                continue
+
+            click.echo(f"  Annotating {len(batch_input):,} rows from {source_file.name}")
+            batch_prompts: list[Conversation] = []
+            for row in batch_input:
+                #use JQ expression to extract the input value from the row
+                #(e.g., ".text" -> will extract the value of the "text" field)
+                content = input_field_selector(row)
+                assert isinstance(content, (str, list)), f"Expected str or list[TurnDict], got {type(content)}"
+
+                # build conversation
+                conversation = Conversation()
+                if system_prompt:
+                    conversation.add(Message.system(system_prompt.apply()))
+                conversation.add(Message.user(task_prompt.apply(content, max_text_length)))
+                batch_prompts.append(conversation)
+
+            # annotate batches in chunk on 2000 rows at the time
+            for i in range(0, len(batch_prompts), 2000):
+                batch_prompts_chunk = batch_prompts[i:i+2000]
+                responses = asyncio.run(
+                    client.process_prompts_async(
+                        batch_prompts_chunk,
+                        service_tier=ServiceTier(service_tier).value if service_tier else None,
+                        output_schema=task_prompt.schema,
+                    )
+                )
+
+                # write responses to output file
+                for response, row in zip(responses, batch_input):
+                    if response is None or response.completion is None:
+                        failed_docs_cnt += 1
+                        docs_pbar.set_postfix(failed=failed_docs_cnt)
+                        continue
+
+                    parsed_response = task_prompt.parse(response.completion)
+                    output_file.write(encoder.encode({**row, task_prompt.name: parsed_response}) + b"\n")
+                    docs_pbar.update(1)
+
+            click.echo(f"  Wrote {len(batch_input):,} rows to {destination_file.name}")
+            files_pbar.update(1)
+
+        pbar_stack.close()
+        file_stack.close()
+
+    click.echo("\nSummary:")
+    click.echo(f"  Processed {len(source_files):,} files")
+    click.echo(f"  Annotated {to_annotate_docs_cnt:,} rows")
+    click.echo(f"  Failed {failed_docs_cnt:,} rows")
+
 
 
 @click.command()

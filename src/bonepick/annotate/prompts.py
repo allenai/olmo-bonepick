@@ -76,6 +76,13 @@ class BasePrompt(Generic[T]):
     def postprocess(self, text: str) -> T:
         return typing_cast(T, text.strip("'").strip('"').strip())
 
+    def sanitize_text(self, text: str) -> str:
+        for special_token in SPECIAL_TOKENS:
+            if special_token in text:
+                replacement = " ".join(re.split(r"\b", special_token))
+                text = text.replace(special_token, replacement)
+        return text.strip()
+
     def clean_turn(self, turn: TurnDict) -> TurnDict:
         if turn["role"] == TurnRole.ASSISTANT.value:
             start_loc = turn["content"].find(THINK_START)
@@ -90,10 +97,8 @@ class BasePrompt(Generic[T]):
             elif end_loc >= 0:
                 turn["content"] = turn["content"].replace(THINK_END, "")
 
-        for special_token in SPECIAL_TOKENS:
-            if special_token in turn["content"]:
-                replacement = " ".join(re.split(r"\b", special_token))
-                turn["content"] = turn["content"].replace(special_token, replacement)
+        # remove special tokens
+        turn["content"] = self.sanitize_text(turn["content"])
 
         # removes excessive newlines
         turn["content"] = re.sub(r"\n{3,}", "\n\n", turn["content"]).strip()
@@ -184,7 +189,9 @@ class BasePrompt(Generic[T]):
         ).strip()
 
         # join preamble, content, and instructions with separator
-        content = self.separator().join([self.format_preamble(), content, self.format_instructions()]).strip()
+        content = self.separator().join(
+            [self.format_preamble(), self.sanitize_text(content), self.format_instructions()]
+        ).strip()
         return content
 
 
