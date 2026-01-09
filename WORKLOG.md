@@ -221,12 +221,20 @@ uv run bonepick train-model2vec \
 ### Step 1: Some test code
 
 ```shell
-s5cmd cp -sp 's3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/Python/step_final/shard_000070*' ~/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/Python/step_final/
-
-# copy just one file to tmp
-mkdir -p tmp/data/spring2code_python/train
-cp ~/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/Python/step_final/shard_00007001.jsonl.zst tmp/data/spring2code_python/train/shard_00007001.jsonl.zst
+s5cmd cp -sp \
+    's3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/*/step_final/shard_00000*' \
+    "$HOME/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/"
 ```
+
+### Step 2: sample about 5GB of data
+
+```shell
+uv run bonepick sample-dataset \
+    --dataset-dir "${HOME}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/" \
+    --output-dir "${HOME}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2_5GB_sample_to_annotate" \
+    --target-size 5GB
+```
+
 
 ### Step 2: lets run annotation pipeline
 

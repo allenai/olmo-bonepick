@@ -112,3 +112,128 @@ Respond in a json format with the following keys:
 }}
 """
     output_type: type[DataclassType] = ClaudeCodeRubricOutput
+
+
+
+class ClaudeProgressiveRubricCodePrompt(BaseCodePrompt):
+    name: str = "claude_progressive_rubric_code"
+    instructions: str = """
+The following rubric is used to score the code snippet above between 1 and 5 (inclusive). It assesses whether the code is of high quality and could be useful for teaching coding concepts, algorithms, libraries, best practices, etc. Scoring guide:
+
+- Scores are cumulative: you must earn all prior levels to claim the next.
+- Each level has blockers (any one disqualifies) and criteria (must meet at least 3 of 5).
+- If reviewing an incomplete extract, cap the score at 3 unless the excerpt shows the file's structure clearly.
+
+## Level 1 (Functional Code)
+
+The code must be functional and not fundamentally broken or empty.
+
+Blockers:
+- Syntax errors or corrupted text making the code non-functional.
+- Mostly boilerplate, config, or data with minimal logic.
+- Embedded data/blobs dominate (>25% of the file).
+
+Criteria (≥3 must be true):
+- Contains valid, executable code that could plausibly run.
+- Dead or commented-out code is minimal (doesn't dominate).
+- No stray debug artifacts (e.g., print("here"), console.log(1)) scattered throughout.
+- Purpose is inferable: you can guess what this file does from reading it.
+- File is not mostly empty, placeholder, or stub code.
+
+
+## Level 2 (Readable Code)
+
+The code is easy to follow and free of glaring issues.
+
+Blockers:
+- Naming is systematically cryptic (mostly single letters or meaningless names) in non-trivial logic.
+- Hardcoded secrets or credentials visible in the code.
+- Obvious security vulnerabilities (e.g., SQL injection via string concat, eval of user input).
+
+Criteria (≥3 must be true):
+- Most identifiers (variables, functions, classes) have descriptive names.
+- Consistent formatting and indentation throughout.
+- Nesting is shallow: no deep pyramids of conditionals or loops.
+- Lines and functions are reasonable lengths (no 500-line functions).
+- No large blocks of dead, commented-out, or copy-pasted code.
+
+
+## Level 3 (Structured Code)
+
+The code handles errors and uses appropriate abstractions.
+
+Blockers:
+- Silent error swallowing in multiple places (e.g., empty catch, except: pass).
+- Copy-paste repetition of significant logic (same block repeated 3+ times).
+
+Criteria (≥3 must be true):
+- Code is decomposed into functions/classes of coherent purpose.
+- Errors are handled with meaningful messages or recovery, not ignored.
+- Magic numbers/strings are replaced with named constants where it matters.
+- Resource handling is correct (files/connections closed properly).
+- Public interface is distinguishable from internal helpers.
+
+
+## Level 4 (Well-Engineered Code)
+
+The code is robust, efficient, and thoughtfully designed.
+
+Blockers:
+- Key assumptions or invariants in complex logic are completely undocumented.
+- Obvious inefficiencies in core paths (e.g., O(n²) when O(n) is trivial, repeated expensive operations in loops).
+
+Criteria (≥3 must be true):
+- Core logic is testable: can be exercised without elaborate setup or mocking.
+- Side effects are contained and predictable (I/O at edges, not scattered).
+- Complex sections have brief explanatory comments.
+- Consistent conventions throughout (naming, error handling, structure).
+- Preconditions or edge cases are checked or documented.
+
+
+## Level 5 (Excellent Code)
+
+The code is exemplary—suitable as a teaching reference.
+
+Blockers:
+- Any resource leaks in core paths (unclosed handles, connections).
+- Observable bugs in core logic.
+
+Criteria (≥3 must be true):
+- Docstrings or comments explain "what" and "why" for public interfaces.
+- Edge cases, failure modes, or limitations are documented.
+- Code is idiomatic for its language—uses standard patterns well.
+- A skilled developer could confidently use this as a reference.
+- Logic flows clearly enough that it could be used to teach the concepts it implements.
+
+
+# Output format
+
+Respond in a json format with the following keys:
+{{
+    "levels": {{
+        "functional_code": {{
+            "explanation": "...",   # explain how the code meets basic checks (or why not!)
+            "is_pass": bool
+        }},
+        "readable_code": {{
+            "explanation": "...",   # explain what makes the code readable or unreadable
+            "is_pass": bool
+        }},
+        "structured_code": {{
+            "explanation": "...",   # explain how code manages errors and handles abstractions
+            "is_pass": bool
+        }},
+        "well_engineered_code": {{
+            "explanation": "...",   # explain how
+            "is_pass": bool
+        }},
+        "excellent_code": {{
+            "explanation": "...",   # explain how the code meets basic checks (or why not!)
+            "is_pass": bool
+        }}
+    }},
+    "overall_assessment": "...",    # a final explanation of the overall assessment of the code
+    "score": int                    # the final score between 1 and 5 (inclusive); count # of "pass" values that are True
+}}
+
+"""
