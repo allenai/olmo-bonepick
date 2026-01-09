@@ -139,6 +139,44 @@ uv run bonepick convert-to-fasttext \
     -n ultrafine
 ```
 
+### 5. Count Tokens (Optional)
+
+Count the total number of tokens in a dataset using a specified tokenizer. Useful for understanding dataset size and token distribution:
+
+```shell
+# Count tokens using default tokenizer (allenai/dolma2-tokenizer)
+uv run bonepick count-tokens \
+    -d data/fineweb-edu-binary
+
+# Use a custom tokenizer
+uv run bonepick count-tokens \
+    -d data/fineweb-edu-binary \
+    -t microsoft/deberta-base
+
+# Custom field extraction with JQ expression
+uv run bonepick count-tokens \
+    -d data/custom-dataset \
+    -i ".content"
+
+# Count tokens across multiple datasets
+uv run bonepick count-tokens \
+    -d data/dataset1 \
+    -d data/dataset2 \
+    -d data/dataset3
+
+# Use more processes for faster counting
+uv run bonepick count-tokens \
+    -d data/large-dataset \
+    -p 16
+```
+
+The command outputs:
+- Total files processed
+- Total token count
+- Total dataset size in bytes
+- Average tokens per file
+- Average tokens per byte
+
 ## Training
 
 ### Model2Vec Classifier
@@ -345,6 +383,7 @@ uv run bonepick <command> --help
 | `sample-dataset` | Create a random sample of a dataset by rate or target size |
 | `normalize-dataset` | Normalize text (for Model2Vec) |
 | `convert-to-fasttext` | Convert JSONL to FastText format |
+| `count-tokens` | Count tokens in dataset directories using a tokenizer |
 
 ### Training Commands
 

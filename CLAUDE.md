@@ -20,6 +20,7 @@ uv run bonepick balance-dataset --help
 uv run bonepick sample-dataset --help
 uv run bonepick normalize-dataset --help
 uv run bonepick convert-to-fasttext --help
+uv run bonepick count-tokens --help
 
 # Training
 uv run bonepick train-model2vec --help
@@ -50,6 +51,7 @@ This is a CLI tool for training efficient quality classifiers (Model2Vec and Fas
 4. **Sample**: `sample-dataset` - Creates a random sample of a dataset by sampling rate or target size (supports multiple input directories)
 5. **Normalize**: `normalize-dataset` - Applies text normalization (whitespace, plsfix, tokenizer-based, ultrafine, potion)
 6. **Convert**: `convert-to-fasttext` - Converts JSONL to FastText format (`__label__<label> <text>`)
+7. **Count Tokens**: `count-tokens` - Counts total tokens in dataset directories using a specified tokenizer (supports multiple input directories, parallel processing)
 
 ### Training Methods
 
@@ -89,8 +91,8 @@ Requires `uv sync --extra annotate` to enable. Uses `lm-deluge` library for asyn
 - `train/train_loop.py`: Training CLI commands (`train-model2vec`, `train-fasttext`)
 - `train/distill_loop.py`: Model distillation command (`distill-model`)
 - `train/eval_loop.py`: Evaluation CLI commands (`eval-model2vec`, `eval-fasttext`) with detailed probability-based metrics
-- `train/data_loop.py`: Dataset loading, transformation, balancing, sampling, and format conversion CLI commands
-- `train/data_utils.py`: Helper functions for file I/O, label counting, sample reading, and file sampling; includes `load_jsonl_dataset()` and `load_fasttext_dataset()` with support for multiple dataset directories; `sample_single_file()` for random sampling
+- `train/data_loop.py`: Dataset loading, transformation, balancing, sampling, format conversion, and token counting CLI commands
+- `train/data_utils.py`: Helper functions for file I/O, label counting, sample reading, file sampling, and token counting; includes `load_jsonl_dataset()` and `load_fasttext_dataset()` with support for multiple dataset directories; `sample_single_file()` for random sampling; `count_tokens_in_file()` for parallel token counting; `pretty_size()` for human-readable size formatting
 - `train/normalizers.py`: Text normalizer registry with implementations (whitespace, plsfix, tokenizer, ultrafine, ultrafine-plus, potion)
 - `train/fasttext_utils.py`: FastText binary detection and dataset signature utilities
 
@@ -154,6 +156,7 @@ Available text normalizers (used with `normalize-dataset` and `convert-to-fastte
 3. **Sampling for experiments**: import → sample → normalize → train → eval
 4. **Distilling custom embeddings**: distill-model from Sentence Transformer → use in train-model2vec
 5. **LLM annotation pipeline**: import → annotate-dataset → balance → normalize → train → eval
+6. **Token analysis**: count-tokens on dataset(s) to understand size and token distribution before training
 
 ### Tips
 

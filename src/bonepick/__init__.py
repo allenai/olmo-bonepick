@@ -13,6 +13,7 @@ from bonepick.version import __version__
 from bonepick.train import (
     balance_dataset,
     convert_to_fasttext,
+    count_tokens,
     distill_model,
     eval_fasttext,
     eval_model2vec,
@@ -39,6 +40,7 @@ init_logger()
 
 cli.add_command(balance_dataset)
 cli.add_command(convert_to_fasttext)
+cli.add_command(count_tokens)
 cli.add_command(distill_model)
 cli.add_command(eval_fasttext)
 cli.add_command(eval_model2vec)

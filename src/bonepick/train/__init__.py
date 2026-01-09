@@ -2,6 +2,7 @@ from bonepick.cli import cli  # noqa: F401
 from bonepick.train.data_loop import (
     balance_dataset,
     convert_to_fasttext,
+    count_tokens,
     import_hf_dataset,
     normalize_dataset,
     sample_dataset,
@@ -17,6 +18,7 @@ from bonepick.train.train_loop import (
 __all__ = [
     "balance_dataset",
     "convert_to_fasttext",
+    "count_tokens",
     "import_hf_dataset",
     "normalize_dataset",
     "sample_dataset",

@@ -344,6 +344,42 @@ def read_samples_from_file(
     return samples_by_label
 
 
+def count_tokens_in_file(
+    source_path: Path,
+    tokenizer_json: str,
+    input_field_expression: str,
+    batch_size: int = 2000,
+) -> int:
+    """Count tokens in a single file.
+
+    Args:
+        source_path: Path to source file
+        tokenizer_json: Serialized tokenizer JSON string
+        input_field_expression: JQ expression to extract text field
+        batch_size: Process in batches of this size
+
+    Returns:
+        Total token count for the file
+    """
+    from tokenizers import Tokenizer
+
+    decoder = msgspec.json.Decoder()
+    tokenizer = Tokenizer.from_str(tokenizer_json)
+    transform_fn = compile_jq(input_field_expression)
+
+    total_tokens = 0
+    batch: list[str] = []
+    with smart_open.open(source_path, "rb") as f:  # pyright: ignore
+        for line in f:
+            row = decoder.decode(line)
+            transformed = transform_fn(row)
+            batch.append(str(transformed))
+            encoded = tokenizer.encode(text, add_special_tokens=False)
+            total_tokens += len(encoded.ids)
+
+    return total_tokens
+
+
 def sample_single_file(
     source_path: Path,
     destination_path: Path,
@@ -611,3 +647,16 @@ def load_fasttext_dataset(
         valid=valid_split if len(valid_split := collected_splits.get("valid", [])) > 0 else None,
         tempdir=tempdir,
     )
+
+
+def pretty_size(size: int | float, precision: int = 2, unit: str = "B") -> str:
+    if size < 1024:
+        return f"{size} {unit}"
+    elif size < 1024**2:
+        return f"{size / 1024:.{precision}f} {unit}"
+    elif size < 1024**3:
+        return f"{size / 1024**2:.{precision}f} {unit}"
+    elif size < 1024**4:
+        return f"{size / 1024**3:.{precision}f} {unit}"
+    else:
+        return f"{size / 1024**4:.{precision}f} {unit}"

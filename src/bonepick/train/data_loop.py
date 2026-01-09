@@ -17,17 +17,20 @@ from bonepick.train.data_utils import (
     DatasetTuple,
     batch_save_hf_dataset,
     convert_single_file_to_fasttext,
+    count_tokens_in_file,
     normalize_single_file,
     sample_single_file,
     write_dataset,
     FILE_SUFFIXES,
     transform_single_file,
+    pretty_size,
 )
 from bonepick.train.normalizers import list_normalizers
 
 
 __all__ = [
     "balance_dataset",
+    "count_tokens",
     "import_hf_dataset",
     "sample_dataset",
 ]
@@ -553,3 +556,120 @@ def sample_dataset(
     click.echo(f"  Output size: {final_size:,} bytes ({final_size / (1024**3):.2f} GB)")
     click.echo(f"  Actual sampling rate: {final_size / total_size:.2%}")
     click.echo(f"  Written to: {output_dir}")
+
+
+@click.command()
+@click.option(
+    "-d",
+    "--dataset-dir",
+    type=PathParamType(exists=True, is_dir=True),
+    required=True,
+    multiple=True,
+    help="Input dataset directory (can be specified multiple times)",
+)
+@click.option(
+    "-t",
+    "--tokenizer-name-or-path",
+    type=str,
+    default="allenai/dolma2-tokenizer",
+    help="Tokenizer name or path (HuggingFace tokenizer identifier or local path)",
+)
+@click.option(
+    "-i",
+    "--input-field-expression",
+    type=str,
+    default=".text",
+    help="JQ expression to extract text field (default: '.text')",
+)
+@click.option(
+    "-p",
+    "--num-proc",
+    type=int,
+    default=os.cpu_count(),
+    help="Number of processes for parallel processing",
+)
+def count_tokens(
+    dataset_dir: tuple[Path, ...],
+    tokenizer_name_or_path: str,
+    input_field_expression: str,
+    num_proc: int,
+):
+    """Count tokens in one or more dataset directories using parallel processing.
+
+    This command counts the total number of tokens in the specified dataset directories
+    using a specified tokenizer. It processes files in parallel for efficiency.
+    """
+    from tokenizers import Tokenizer
+
+    click.echo("Starting token counting...")
+    click.echo(f"  Dataset directories: {', '.join(str(d) for d in dataset_dir)}")
+    click.echo(f"  Tokenizer: {tokenizer_name_or_path}")
+    click.echo(f"  Input field expression: {input_field_expression}")
+    click.echo(f"  Num processes: {num_proc}")
+
+    # Load and serialize tokenizer once
+    click.echo("\nLoading tokenizer...")
+    try:
+        tokenizer_obj = Tokenizer.from_pretrained(tokenizer_name_or_path)
+    except Exception:
+        # Try loading from local path
+        tokenizer_obj = Tokenizer.from_file(tokenizer_name_or_path)
+    tokenizer_json = tokenizer_obj.to_str()
+    click.echo("  Tokenizer loaded successfully")
+
+    # Collect all files from all dataset directories
+    click.echo("\nCollecting files...")
+    all_files: list[Path] = []
+    file_sizes: list[int] = []
+    for input_dir in dataset_dir:
+        for root, _, files in os.walk(input_dir):
+            for _fn in files:
+                fn = Path(root) / _fn
+                if "".join(fn.suffixes) not in FILE_SUFFIXES:
+                    continue
+                all_files.append(fn)
+                file_sizes.append(fn.stat().st_size)
+
+    if not all_files:
+        click.echo("No files found to process. Exiting.")
+        return
+
+    click.echo(f"  Found {len(all_files):,} files")
+    click.echo(f"  Total size: {pretty_size(sum(file_sizes))}")
+    # Process files in parallel
+    click.echo(f"\nCounting tokens using {num_proc} processes...")
+
+    executor_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
+
+    with executor_cls(max_workers=num_proc) as pool:
+        futures = []
+        for file_path in all_files:
+            future = pool.submit(
+                count_tokens_in_file,
+                source_path=file_path,
+                tokenizer_json=tokenizer_json,
+                input_field_expression=input_field_expression,
+            )
+            futures.append(future)
+
+        total_tokens = 0
+        pbar = tqdm(total=len(futures), desc="Processing files", unit="file")
+        for future in as_completed(futures):
+            try:
+                file_token_count = future.result()
+                total_tokens += file_token_count
+                pbar.set_postfix(total_tokens=pretty_size(total_tokens, unit="T", precision=1))
+            except Exception as e:
+                for future in futures:
+                    future.cancel()
+                raise e
+            pbar.update(1)
+
+        pbar.close()
+
+    click.echo("\nToken counting complete!")
+    click.echo(f"  Total files processed: {len(all_files):,}")
+    click.echo(f"  Total tokens: {total_tokens:,}")
+    click.echo(f"  Total size: {pretty_size(sum(file_sizes))}")
+    click.echo(f"  Average tokens per file: {total_tokens / len(all_files):.2f}")
+    click.echo(f"  Average tokens per byte: {total_tokens / sum(file_sizes):.2f}")
