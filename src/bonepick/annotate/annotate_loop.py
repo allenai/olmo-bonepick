@@ -297,6 +297,8 @@ def annotate_dataset(
             # annotate batches in chunk on 2000 rows at the time
             for i in range(0, len(batch_prompts), 2000):
                 batch_prompts_chunk = batch_prompts[i:i+2000]
+
+                # we have to use the async cuz the sync APIs don't support service tier
                 responses = asyncio.run(
                     client.process_prompts_async(
                         batch_prompts_chunk,
