@@ -23,15 +23,7 @@ with try_import() as extra_dependencies:
 
     # import here to register all the prompts
     from bonepick.annotate import prompt_collections  # noqa: F401
-    from bonepick.annotate.deluge_utils import SqliteInvalidableCache
-
-
-def _update_model_definitions():
-    from lm_deluge.models import registry
-
-    # json support is mistakenly disabled for some gpt-5 models
-    for model_name in (m for m in registry if m.startswith("gpt-5-")):
-        registry[model_name].supports_json = True
+    from bonepick.annotate.deluge_utils import SqliteInvalidableCache, lm_deluge_monkey_patch
 
 
 class DatasetRow(TypedDict):
@@ -182,17 +174,8 @@ def annotate_dataset(
     # check if the extra dependencies are installed
     extra_dependencies.check()
 
-    # force using "low", "medium", or "high" reasoning efforts if model name starts with "gpt-5"
-    if (model_name.startswith("gpt-5") and reasoning_effort not in
-        {ReasoningEffort.LOW.value, ReasoningEffort.MEDIUM.value, ReasoningEffort.HIGH.value}
-    ):
-        raise click.ClickException(
-            f"Reasoning effort must be one of {ReasoningEffort.LOW.value}, {ReasoningEffort.MEDIUM.value}, "
-            f"or {ReasoningEffort.HIGH.value} for model {model_name}"
-        )
-
     # make sure the models available in the registry are updated
-    _update_model_definitions()
+    lm_deluge_monkey_patch()
 
     # these are the prompts to use for annotation
     task_prompt = BaseAnnotationPrompt.get(annotation_task_prompt)
@@ -319,6 +302,7 @@ def annotate_dataset(
                         batch_prompts_chunk,
                         service_tier=ServiceTier(service_tier).value if service_tier else None,
                         output_schema=task_prompt.schema,
+                        show_progress=False,
                     )
                 )
 

@@ -1,6 +1,9 @@
+import re
+
 from lm_deluge.cache import SqliteCache
 from lm_deluge import Conversation
-from lm_deluge.api_requests.base import APIResponse
+from lm_deluge.api_requests.base import APIResponse, RequestContext
+from lm_deluge.models import APIModel
 
 
 class SqliteInvalidableCache(SqliteCache):
@@ -12,3 +15,48 @@ class SqliteInvalidableCache(SqliteCache):
         if self.invalidate:
             return None
         return super().get(prompt)
+
+
+
+def _update_gpt5_model_definitions():
+    from lm_deluge.models import registry
+
+    # json support is mistakenly disabled for some gpt-5 models
+    for model_name in (m for m in registry if m.startswith("gpt-5-")):
+        registry[model_name].supports_json = True
+
+
+
+def _fix_gpt5_effort_override_chat_api():
+    import lm_deluge.api_requests.openai as openai_api_requests
+
+    _build_oa_chat_request_old = openai_api_requests._build_oa_chat_request
+
+    # monkey patch because gpt-5.1 models don't support "minimal" reasoning effort, they support "none" instead
+    # but the library doesn't support "none" yet, so we need to monkey patch it to use "none" instead
+    async def _build_oa_chat_request_new(model: APIModel, context: RequestContext) -> dict:
+        request = await _build_oa_chat_request_old(model, context)
+        if re.match(r"gpt-5\.\d+", request.get("model", "")) and request['reasoning_effort'] == "minimal":
+            request['reasoning_effort'] = "none"
+        return request
+
+    openai_api_requests._build_oa_chat_request = _build_oa_chat_request_new
+
+
+def _fix_gpt5_effort_override_responses_api():
+    import lm_deluge.api_requests.openai as openai_api_requests
+
+    _build_oa_responses_request_old = openai_api_requests._build_oa_responses_request
+    async def _build_oa_responses_request_new(model: APIModel, context: RequestContext) -> dict:
+        request = await _build_oa_responses_request_old(model, context)
+        if re.match(r"gpt-5\.\d+", request.get("model", "")) and request['reasoning_effort'] == "minimal":
+            request['reasoning_effort'] = "none"
+        return request
+
+    openai_api_requests._build_oa_responses_request = _build_oa_responses_request_new
+
+
+def lm_deluge_monkey_patch():
+    _update_gpt5_model_definitions()
+    _fix_gpt5_effort_override_chat_api()
+    _fix_gpt5_effort_override_responses_api()
