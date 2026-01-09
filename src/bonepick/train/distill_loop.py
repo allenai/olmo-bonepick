@@ -3,9 +3,13 @@ from typing import Literal
 
 import click
 import smart_open
-from model2vec.distill import distill
-
+from lazy_imports import try_import
 from bonepick.cli import PathParamType, PCADimTypeParamType
+
+with try_import() as extra_dependencies:
+    from model2vec.distill import distill
+
+
 
 
 @click.command()
@@ -46,6 +50,9 @@ def distill_model(
     vocabulary_quantization: int | None = None,
     pooling: str = "mean",
 ):
+    # check if the extra dependencies are installed
+    extra_dependencies.check()
+
     click.echo("Starting model distillation...")
 
     # load vocabulary if provided

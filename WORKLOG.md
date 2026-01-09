@@ -221,15 +221,15 @@ uv run bonepick train-model2vec \
 ### Step 1: Some test code
 
 ```shell
+BASE_DIR="/mnt/raid0/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard"
 s5cmd cp -sp \
     's3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/*/step_final/shard_00000*' \
-    "$HOME/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/"
+    "${BASE_DIR}/"
 ```
 
-### Step 2: sample about 5GB of data
+### Step 2: sample about 1GB of data per PL
 
 ```shell
-BASE_DIR="${HOME}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard"
 for pl in $(ls --color=never ${BASE_DIR}); do
     echo "Processing ${pl}..."
     uv run bonepick sample-dataset \
@@ -243,7 +243,6 @@ done
 ### Step 3: lets run annotation pipeline
 
 ```shell
-BASE_DIR="${HOME}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard"
 RUBRIC_PROMPT="claude_rubric_code"
 
 for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
