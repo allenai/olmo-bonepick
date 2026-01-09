@@ -131,7 +131,7 @@ class ReasoningEffort(Enum):
 )
 @click.option(
     "--max-concurrent-requests",
-    default=10_000,
+    default=1_000,
     help="Maximum concurrent requests",
 )
 @click.option(
@@ -152,6 +152,12 @@ class ReasoningEffort(Enum):
     type=int,
     help="Maximum number of rows to annotate",
 )
+@click.option(
+    "--annotation-batch-size",
+    default=2_000,
+    type=int,
+    help="Batch size to use for annotation",
+)
 def annotate_dataset(
     dataset_dir: tuple[Path, ...],
     output_dir: Path,
@@ -170,12 +176,20 @@ def annotate_dataset(
     max_text_length: int | None,
     max_new_tokens: int,
     limit_rows: int | None,
+    annotation_batch_size: int,
 ):
     # check if the extra dependencies are installed
     extra_dependencies.check()
 
     # make sure the models available in the registry are updated
     lm_deluge_monkey_patch()
+
+    click.echo("Annotation task")
+    click.echo(f"  Prompt: {annotation_task_prompt}")
+    click.echo(f"  System prompt: {annotation_system_prompt}")
+    click.echo(f"  Input field expression: {input_field_expression}")
+    click.echo(f"  Input field format: {input_field_format}")
+    click.echo()
 
     # these are the prompts to use for annotation
     task_prompt = BaseAnnotationPrompt.get(annotation_task_prompt)
@@ -200,6 +214,7 @@ def annotate_dataset(
     click.echo(f"  Max tokens per minute:   {max_tokens_per_minute:,}")
     click.echo(f"  Max concurrent requests: {max_concurrent_requests:,}")
     click.echo(f"  Max new tokens:          {max_new_tokens:,}")
+    click.echo()
 
     client = LLMClient(
         model_name,
@@ -294,9 +309,9 @@ def annotate_dataset(
                 conversation.add(Message.user(task_prompt.apply(content, max_text_length)))
                 batch_prompts.append(conversation)
 
-            # annotate batches in chunk on 2000 rows at the time
-            for i in range(0, len(batch_prompts), 2000):
-                batch_prompts_chunk = batch_prompts[i:i+2000]
+            # annotate batches in chunk on `annotation_batch_size`` rows at the time
+            for i in range(0, len(batch_prompts), annotation_batch_size):
+                batch_prompts_chunk = batch_prompts[i:i+annotation_batch_size]
 
                 # we have to use the async cuz the sync APIs don't support service tier
                 responses = asyncio.run(

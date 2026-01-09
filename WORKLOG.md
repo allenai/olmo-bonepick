@@ -229,24 +229,38 @@ s5cmd cp -sp \
 ### Step 2: sample about 5GB of data
 
 ```shell
-uv run bonepick sample-dataset \
-    --dataset-dir "${HOME}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/" \
-    --output-dir "${HOME}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2_5GB_sample_to_annotate" \
-    --target-size 5GB
+BASE_DIR="${HOME}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard"
+for pl in $(ls --color=never ${BASE_DIR}); do
+    echo "Processing ${pl}..."
+    uv run bonepick sample-dataset \
+        --dataset-dir "${BASE_DIR}/${pl}/step_final" \
+        --output-dir "${BASE_DIR}_1GB_sample_to_annotate/${pl}" \
+        --target-size 1GB
+done
 ```
 
 
-### Step 2: lets run annotation pipeline
+### Step 3: lets run annotation pipeline
 
 ```shell
-uv run --extra=annotate bonepick annotate-dataset \
-    --dataset-dir tmp/data/spring2code_python \
-    --output-dir tmp/data/spring2code_python-annotated \
-    --model-name gpt-5-mini \
-    --service-tier flex \
-    --annotation-task-prompt 'claude_rubric_code' \
-    --annotation-system-prompt 'code_system' \
-    --num-proc 1 \
-    --reasoning-effort low \
-    --max-text-length 30000
+BASE_DIR="${HOME}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard"
+RUBRIC_PROMPT="claude_rubric_code"
+
+for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
+    # skip markdown files, they need custom prompts
+    if [[ "${pl}" == *.md ]]; then
+        echo "Skipping ${pl}..."
+        continue
+    fi
+
+    echo "Processing ${pl}..."
+    uv run --extra=annotate bonepick annotate-dataset \
+        --dataset-dir "${BASE_DIR}_1GB_sample_to_annotate/${pl}" \
+        --output-dir "${BASE_DIR}_1GB_sample_annotated_${RUBRIC_PROMPT}/${pl}" \
+        --model-name gpt-5-mini \
+        --service-tier flex \
+        --annotation-task-prompt "${RUBRIC_PROMPT}" \
+        --annotation-system-prompt 'code_system' \
+        --reasoning-effort minimal
+done
 ```
