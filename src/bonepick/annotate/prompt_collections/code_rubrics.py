@@ -1,6 +1,6 @@
 import dataclasses as dt
 
-from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt
+from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt, DataclassType
 
 
 @dt.dataclass(frozen=True)
@@ -18,11 +18,37 @@ Your task is to score the quality of a code snippet shown below, according to th
 - The code snippet is enclosed between the markers "===== BEGIN CODE SNIPPET =====" and "===== END CODE SNIPPET ====="
 - The rubric is enclosed between the markers "===== BEGIN RUBRIC =====" and "===== END RUBRIC ====="
 """
-    def format_text(self, text: str) -> str:
+
+    def format_text(self, text: str, max_text_length: int | None = None) -> str:
+        text = text.strip()
+        if max_text_length is not None and len(text) > max_text_length:
+            text = text[:max_text_length]
         return f"===== BEGIN CODE SNIPPET =====\n{text}\n===== END CODE SNIPPET =====\n"
 
     def format_instructions(self) -> str:
         return f"===== BEGIN RUBRIC =====\n{self.instructions.strip()}\n===== END RUBRIC =====\n"
+
+
+@dt.dataclass(frozen=True)
+class ClaudeCodeRubricCriterionOutput:
+    explanation: str
+    is_pass: bool
+
+
+@dt.dataclass(frozen=True)
+class ClaudeCodeRubricCriteriaOutput:
+    functional_code: ClaudeCodeRubricCriterionOutput
+    no_red_flags: ClaudeCodeRubricCriterionOutput
+    readable: ClaudeCodeRubricCriterionOutput
+    well_structured: ClaudeCodeRubricCriterionOutput
+    exemplary_quality: ClaudeCodeRubricCriterionOutput
+
+
+@dt.dataclass(frozen=True)
+class ClaudeCodeRubricOutput:
+    criteria: ClaudeCodeRubricCriteriaOutput
+    overall_assessment: str
+    score: int
 
 
 @dt.dataclass(frozen=True)
@@ -62,26 +88,27 @@ Respond in a json format with the following keys:
     "criteria": {{
         "functional_code": {{
             "explanation": "...",   # explain why the code can be considered functional (or why not!)
-            "pass": bool
+            "is_pass": bool
         }},
         "no_red_flags": {{
             "explanation": "...",   # list (if any) of red flags that are present in the code
-            "pass": bool
+            "is_pass": bool
         }},
         "readable": {{
             "explanation": "...",   # describe what makes the code readable or not
-            "pass": bool
+            "is_pass": bool
         }},
         "well_structured": {{
             "explanation": "...",   # explain why the code structure is good (or why not)
-            "pass": bool
+            "is_pass": bool
         }},
         "exemplary_quality": {{
             "explanation": "...",   # list what makes the code exemplary (or what is missing)
-            "pass": bool
+            "is_pass": bool
         }}
     }},
     "overall_assessment": "...",    # a final explanation of the overall assessment of the code
     "score": int                    # the final score between 1 and 5 (inclusive); count # of "pass" values that are True
 }}
 """
+    output_type: type[DataclassType] = ClaudeCodeRubricOutput

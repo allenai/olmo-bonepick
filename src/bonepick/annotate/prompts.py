@@ -140,14 +140,23 @@ class BasePrompt(Generic[T]):
     def prompts(cls) -> list[str]:
         return [prompt.name for prompt in cls._registry.values()]
 
-    def format_conversation(self, messages: list[TurnDict]) -> str:
+    def format_conversation(self, messages: list[TurnDict], max_text_length: int | None = None) -> str:
         messages = self.filter(messages)
         formatted_messages = ""
         for turn in messages:
             formatted_messages += f"ROLE:{turn['role']}\nCONTENT:{self.clean_turn(turn)['content']}\n\n\n"
+
+        if max_text_length is not None and len(formatted_messages) > max_text_length:
+            if self.turn_to_annotate == TurnPosition.LAST:
+                formatted_messages = formatted_messages[:max_text_length]
+            else:
+                formatted_messages = formatted_messages[-max_text_length:]
+
         return f"CONVERSATION:\n{formatted_messages.strip()}"
 
-    def format_text(self, text: str) -> str:
+    def format_text(self, text: str, max_text_length: int | None = None) -> str:
+        if max_text_length is not None and len(text) > max_text_length:
+            text = text[:max_text_length]
         text = re.sub(r"\n{3,}", "\n\n", text).strip()
         return f"TEXT:\n{text}"
 
@@ -160,16 +169,18 @@ class BasePrompt(Generic[T]):
     def separator(self) -> str:
         return "\n\n\n"
 
-    def apply(self, conversation_or_text: list[TurnDict] | str | None = None) -> str:
+    def apply(
+        self, conversation_or_text: list[TurnDict] | str | None = None, max_text_length: int | None = None
+    ) -> str:
         if conversation_or_text is None:
             # this is for the case of system prompts
             return self.instructions.strip()
 
         # format conversation or text
         content = (
-            self.format_conversation(conversation_or_text)
+            self.format_conversation(messages=conversation_or_text, max_text_length=max_text_length)
             if isinstance(conversation_or_text, list)
-            else self.format_text(conversation_or_text)
+            else self.format_text(text=conversation_or_text, max_text_length=max_text_length)
         ).strip()
 
         # join preamble, content, and instructions with separator

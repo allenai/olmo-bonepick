@@ -495,7 +495,9 @@ def sample_dataset(
             subset_sampling_rate = 1.0
 
         click.echo(f"  Selected {len(selected_files)} files (out of {len(file_info)})")
-        click.echo(f"  Selected files total size: {accumulated_size:,} bytes ({accumulated_size / (1024**3):.2f} GB)")
+        click.echo(
+            f"  Selected files total size: {accumulated_size:,} bytes ({accumulated_size / (1024**3):.2f} GB)"
+        )
         click.echo(f"  Per-file sampling rate: {subset_sampling_rate:.2%}")
 
         # Create tasks with the subset sampling rate

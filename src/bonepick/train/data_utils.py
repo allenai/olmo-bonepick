@@ -368,6 +368,7 @@ def sample_single_file(
     # If file is already smaller or equal, just copy it
     if source_size <= target_size:
         import shutil
+
         shutil.copy2(source_path, destination_path)
         return
 

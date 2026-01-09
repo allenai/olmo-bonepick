@@ -234,8 +234,11 @@ cp ~/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_ann
 uv run --extra=annotate bonepick annotate-dataset \
     --dataset-dir tmp/data/spring2code_python \
     --output-dir tmp/data/spring2code_python-annotated \
-    --model-name gpt-5.2 \
+    --model-name gpt-5-mini \
     --service-tier flex \
     --annotation-task-prompt 'claude_rubric_code' \
-    --annotation-system-prompt 'code_system'
+    --annotation-system-prompt 'code_system' \
+    --num-proc 1 \
+    --reasoning-effort low \
+    --max-text-length 30000
 ```

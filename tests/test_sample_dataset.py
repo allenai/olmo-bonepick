@@ -29,14 +29,20 @@ def test_data_dir(tmp_path):
     train_file = train_dir / "data.jsonl"
     with smart_open.open(train_file, "wb") as f:
         for i in range(100):
-            sample = {"text": f"This is training sample number {i} with some extra text", "score": "pos" if i % 2 == 0 else "neg"}
+            sample = {
+                "text": f"This is training sample number {i} with some extra text",
+                "score": "pos" if i % 2 == 0 else "neg",
+            }
             f.write(encoder.encode(sample) + b"\n")
 
     # Test data: 50 samples
     test_file = test_dir / "data.jsonl"
     with smart_open.open(test_file, "wb") as f:
         for i in range(50):
-            sample = {"text": f"This is test sample number {i} with some extra text", "score": "pos" if i % 3 == 0 else "neg"}
+            sample = {
+                "text": f"This is test sample number {i} with some extra text",
+                "score": "pos" if i % 3 == 0 else "neg",
+            }
             f.write(encoder.encode(sample) + b"\n")
 
     return data_dir
@@ -321,7 +327,10 @@ class TestSampleSingleFile:
         # Create larger file for better size testing
         with smart_open.open(source, "wb") as f:
             for i in range(2000):
-                f.write(encoder.encode({"text": f"sample {i} with some extra padding text here", "score": "pos"}) + b"\n")
+                f.write(
+                    encoder.encode({"text": f"sample {i} with some extra padding text here", "score": "pos"})
+                    + b"\n"
+                )
 
         source_size = source.stat().st_size
         target_size = int(source_size * 0.5)
@@ -332,7 +341,9 @@ class TestSampleSingleFile:
 
         # Compressed files can have compression overhead, so output might be larger
         # Just verify it's not the full original file
-        assert dest_size < source_size * 1.5, f"Output ({dest_size}) should not be much larger than source ({source_size})"
+        assert dest_size < source_size * 1.5, (
+            f"Output ({dest_size}) should not be much larger than source ({source_size})"
+        )
         assert dest_size > 0, "Output should contain some data"
 
 

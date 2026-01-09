@@ -104,6 +104,7 @@ class ByteSizeParamType(click.ParamType):
 
         # Extract number and unit
         import re
+
         match = re.match(r"^(\d+(?:\.\d+)?)\s*([KMGT]?B?)$", value)
         if not match:
             raise self.fail(

@@ -32,6 +32,14 @@ with try_import() as extra_dependencies:
     from bonepick.annotate import prompt_collections  # noqa: F401
 
 
+def _update_model_definitions():
+    from lm_deluge.models import registry
+
+    # json support is mistakenly disabled for some gpt-5 models
+    for model_name in (m for m in registry if m.startswith("gpt-5-")):
+        registry[model_name].supports_json = True
+
+
 class DatasetRow(TypedDict):
     text: str
     label: str | None
@@ -45,6 +53,15 @@ class ServiceTier(Enum):
     NONE = None
 
 
+class ReasoningEffort(Enum):
+    MINIMAL = "minimal"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    XHIGH = "xhigh"
+    NONE = "none"
+
+
 def annotate_batch(
     batch_input: ChunkedDatasetPath[DatasetRow],
     batch_output: ChunkedDataset[DatasetRow],
@@ -52,6 +69,7 @@ def annotate_batch(
     annotation_task_prompt: str,
     annotation_system_prompt: str | None,
     service_tier: ServiceTier,
+    max_text_length: int | None,
 ):
     task_prompt = BaseAnnotationPrompt.get(annotation_task_prompt)
     system_prompt = BaseSystemPrompt.get(annotation_system_prompt) if annotation_system_prompt else None
@@ -62,7 +80,7 @@ def annotate_batch(
         conversation = Conversation()
         if system_prompt:
             conversation.add(Message.system(system_prompt.apply()))
-        conversation.add(Message.user(task_prompt.apply(row["text"])))
+        conversation.add(Message.user(task_prompt.apply(row["text"], max_text_length)))
         batch_prompts.append(conversation)
 
     responses = asyncio.run(
@@ -72,6 +90,13 @@ def annotate_batch(
             output_schema=task_prompt.schema,
         )
     )  # pyright: ignore
+
+    # responses = client.process_prompts_sync(
+    #     batch_prompts,
+    #     # service_tier=service_tier.value,
+    #     output_schema=task_prompt.schema,
+    #     # show_progress=False,
+    # )
     failed_cnt = 0
 
     output: list[DatasetRow] = []
@@ -85,6 +110,8 @@ def annotate_batch(
         output.append(DatasetRow(text=row["text"], label=result))
 
     click.echo(f"batch {batch_input.chunk_path.name}: failed to annotate {failed_cnt:,} rows")
+
+    breakpoint()
 
     batch_output.add_chunk(output)
 
@@ -122,6 +149,13 @@ def annotate_batch(
     help="Format of the input: `text` is a string, `conversation` is a list of messages in OpenAI chat format.",
 )
 @click.option(
+    "-r",
+    "--reasoning-effort",
+    type=click.Choice([effort.value for effort in ReasoningEffort]),
+    default=None,
+    help="Reasoning effort to use for annotation",
+)
+@click.option(
     "-c",
     "--cache-location",
     default=None,
@@ -145,19 +179,14 @@ def annotate_batch(
 @click.option(
     "-e",
     "--service-tier",
-    default=None,
+    type=click.Choice([tier.value for tier in ServiceTier]),
+    default=ServiceTier.NONE.value,
     help="service tier to use for openai",
-    type=str,
 )
 @click.option(
     "--num-proc",
     default=os.cpu_count(),
     help="number of processes to use for processing",
-)
-@click.option(
-    "--reprocess-missing/--process-all",
-    default=False,
-    help="Whether to reprocess missing/invalid rows",
 )
 @click.option(
     "--max-requests-per-minute",
@@ -174,6 +203,24 @@ def annotate_batch(
     default=5_000,
     help="Maximum concurrent requests",
 )
+@click.option(
+    "--max-text-length",
+    default=100_000,
+    type=int,
+    help="Maximum text length",
+)
+@click.option(
+    "--max-new-tokens",
+    default=16_384,
+    type=int,
+    help="Maximum new tokens",
+)
+@click.option(
+    "--limit-rows",
+    default=None,
+    type=int,
+    help="Maximum number of rows to annotate",
+)
 def annotate_dataset(
     dataset_dir: tuple[Path, ...],
     output_dir: Path,
@@ -188,10 +235,16 @@ def annotate_dataset(
     input_field: str,
     input_field_format: str,
     cache_location: Path | str | None,
-    reprocess_missing: bool,
+    reasoning_effort: str | None,
+    max_text_length: int | None,
+    max_new_tokens: int,
+    limit_rows: int | None,
 ):
     # check if the extra dependencies are installed
     extra_dependencies.check()
+
+    # make sure the models available in the registry are updated
+    _update_model_definitions()
 
     # only supporting text format for now
     if input_field_format != "text":
@@ -209,6 +262,8 @@ def annotate_dataset(
         max_requests_per_minute=max_requests_per_minute,
         max_tokens_per_minute=max_tokens_per_minute,
         max_concurrent_requests=max_concurrent_requests,
+        reasoning_effort=ReasoningEffort(reasoning_effort).value if reasoning_effort else None,
+        max_new_tokens=max_new_tokens,
     )
 
     dataset = load_jsonl_dataset(
@@ -223,7 +278,10 @@ def annotate_dataset(
     click.echo(f"Loaded {len(dataset.train):,} rows from {dataset_dir}")
 
     existing_text, existing_label, to_annotate_text = [], [], []
-    for text, label in dataset.train:
+    for i, (text, label) in enumerate(dataset.train):
+        if limit_rows is not None and i >= limit_rows:
+            break
+
         if label is not None:
             existing_text.append(text)
             existing_label.append(label)
@@ -248,6 +306,7 @@ def annotate_dataset(
             annotation_system_prompt=annotation_system_prompt,
             service_tier=ServiceTier(service_tier) if service_tier else ServiceTier.NONE,
             batch_output=batch_output,
+            max_text_length=max_text_length,
         )
 
         # we don't pass the number of processes to make sure we run this in single thread
