@@ -23,7 +23,7 @@ The `annotate` extra provides tools for using LLM APIs to label data:
 uv sync --extra annotate
 ```
 
-**Note:** Support for the `annotate` feature is coming soon. This will include tools to classify and label text data using various LLM providers (OpenAI, Anthropic, etc.).
+This enables the `annotate-dataset` and `list-prompts` commands for automated data annotation using LLM providers via the `lm-deluge` library.
 
 ## Data Format
 
@@ -126,7 +126,7 @@ uv run bonepick normalize-dataset \
     -n plsfix
 ```
 
-Available normalizers: `whitespace`, `plsfix`, `tokenizer`, `ultrafine`, `ultrafine-plus`
+Available normalizers: `whitespace`, `plsfix`, `tokenizer`, `ultrafine`, `ultrafine-plus`, `potion`
 
 ### 4b. Convert to FastText Format (for FastText)
 
@@ -151,17 +151,6 @@ uv run bonepick train-model2vec \
     -o models/model2vec-classifier
 ```
 
-### Model2Vec with Contrastive Loss
-
-Clusters documents by semantic similarity, then trains using pairwise hinge loss within clusters. Better for ranking/quality scoring:
-
-```shell
-uv run bonepick train-contrastive \
-    --dataset-dir data/fineweb-edu-binary-normalized \
-    --output-dir models/contrastive-classifier \
-    --n-clusters 100
-```
-
 ### FastText Classifier
 
 Trains a FastText classifier (requires `fasttext` binary in PATH):
@@ -178,7 +167,7 @@ All training commands support combining data from multiple directories using rep
 
 ```shell
 # Combine multiple datasets for training
-uv run bonepick train-contrastive \
+uv run bonepick train-model2vec \
     -d data/dataset1-normalized \
     -d data/dataset2-normalized \
     -d data/dataset3-normalized \
@@ -230,7 +219,7 @@ Results are saved as YAML files in the model directory with the naming pattern `
 ```yaml
 dataset_dir:
   - data/fineweb-edu-binary-normalized
-model_dir: models/contrastive-classifier
+model_dir: models/model2vec-classifier
 overall_results:
   macro_precision: 0.8734
   macro_recall: 0.8621
@@ -272,12 +261,81 @@ uv run bonepick eval-model2vec \
     --label-field quality_score
 ```
 
+## Data Annotation (Optional)
+
+The annotation features require the `annotate` extra dependencies (`uv sync --extra annotate`).
+
+### List Available Prompts
+
+```shell
+# List available task prompts
+uv run bonepick list-prompts task
+
+# List available system prompts
+uv run bonepick list-prompts system
+```
+
+### Annotate Dataset with LLM
+
+Use LLM APIs to automatically label or annotate your dataset:
+
+```shell
+uv run bonepick annotate-dataset \
+    -d data/unlabeled-dataset \
+    -o data/annotated-dataset \
+    -m gpt-5.2 \
+    -T <task-prompt-name> \
+    -i ".text" \
+    --max-requests-per-minute 100
+```
+
+Key options:
+- `-d/--dataset-dir`: Input dataset directory (can specify multiple)
+- `-o/--output-dir`: Output directory for annotated data
+- `-m/--model-name`: Model to use (default: gpt-5.2)
+- `-T/--annotation-task-prompt`: Name of annotation task prompt (required)
+- `-S/--annotation-system-prompt`: Name of system prompt (optional)
+- `-i/--input-field-expression`: jq expression to extract input text (default: `.text`)
+- `-f/--input-field-format`: Input format: `text` or `conversation` (default: text)
+- `-r/--reasoning-effort`: Reasoning effort level: `minimal`, `low`, `medium`, `high`, `xhigh`, `none`
+- `-c/--cache-location`: Cache location for LLM responses
+- `--reprocess-all-rows/--process-missing-rows`: Reprocess behavior
+- `--max-requests-per-minute`, `--max-tokens-per-minute`, `--max-concurrent-requests`: Rate limiting
+- `--max-text-length`, `--max-new-tokens`: Length constraints
+- `--limit-rows`: Maximum rows to annotate
+
+## Model Distillation
+
+Distill a Sentence Transformer model to a lightweight Model2Vec static embedding model:
+
+```shell
+uv run bonepick distill-model \
+    -m sentence-transformers/all-MiniLM-L6-v2 \
+    -o models/distilled-model \
+    -d 256 \
+    --quantize-to float16
+```
+
+Key options:
+- `-m/--model-name-or-path`: HuggingFace model name or local path (required)
+- `-o/--output-dir`: Output directory (required)
+- `-v/--vocabulary-path`: Custom vocabulary file (one token per line)
+- `-d/--pca-dims`: PCA dimensions for dimensionality reduction (default: 256)
+- `-s/--sif-coefficient`: SIF (Smooth Inverse Frequency) coefficient (default: 1e-4)
+- `-t/--token-remove-pattern`: Regex pattern for tokens to remove (default: `\[unused\d+\]`)
+- `-r/--trust-remote-code`: Allow remote code execution
+- `-q/--quantize-to`: Quantization type: `float16`, `float32`, `float64`, `int8` (default: float16)
+- `-k/--vocabulary-quantization`: Vocabulary quantization factor
+- `-p/--pooling`: Pooling strategy: `mean`, `last`, `first`, `pooler` (default: mean)
+
 ## CLI Reference
 
 ```shell
 uv run bonepick --help
 uv run bonepick <command> --help
 ```
+
+### Data Pipeline Commands
 
 | Command | Description |
 |---------|-------------|
@@ -287,11 +345,34 @@ uv run bonepick <command> --help
 | `sample-dataset` | Create a random sample of a dataset by rate or target size |
 | `normalize-dataset` | Normalize text (for Model2Vec) |
 | `convert-to-fasttext` | Convert JSONL to FastText format |
+
+### Training Commands
+
+| Command | Description |
+|---------|-------------|
 | `train-model2vec` | Train Model2Vec classifier |
-| `train-contrastive` | Train Model2Vec with contrastive/hinge loss |
 | `train-fasttext` | Train FastText classifier |
+| `distill-model` | Distill Sentence Transformer to Model2Vec |
+
+### Evaluation Commands
+
+| Command | Description |
+|---------|-------------|
 | `eval-model2vec` | Evaluate Model2Vec classifier |
 | `eval-fasttext` | Evaluate FastText classifier |
+
+### Annotation Commands (Requires `annotate` extra)
+
+| Command | Description |
+|---------|-------------|
+| `annotate-dataset` | Annotate dataset using LLM APIs |
+| `list-prompts` | List available annotation prompts |
+
+### Utility Commands
+
+| Command | Description |
+|---------|-------------|
+| `version` | Print package version |
 
 [1]: https://github.com/MinishLab/model2vec
 [2]: https://fasttext.cc
