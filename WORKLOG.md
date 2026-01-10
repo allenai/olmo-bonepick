@@ -283,3 +283,9 @@ for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
         --cache-location ${CACHE_LOCATION}
 done
 ```
+
+### Step 5: upload the annotated data to S3
+
+```shell
+s5cmd cp -sp '/mnt/raid0/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_gpt-5-mini_claude_rubric_code_32000/*' 's3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_gpt-5-mini_claude_rubric_code_32000/'
+```
