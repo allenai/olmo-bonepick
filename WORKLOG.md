@@ -244,6 +244,8 @@ done
 
 ```shell
 RUBRIC_PROMPT="claude_rubric_code"
+MODEL_NAME="gpt-5-mini"
+MAX_LENGTH=32000
 
 for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
     # skip markdown files, they need custom prompts
@@ -255,11 +257,13 @@ for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
     echo "Processing ${pl}..."
     uv run --extra=annotate bonepick annotate-dataset \
         --dataset-dir "${BASE_DIR}_1GB_sample_to_annotate/${pl}" \
-        --output-dir "${BASE_DIR}_1GB_sample_annotated_${RUBRIC_PROMPT}/${pl}" \
-        --model-name gpt-5-mini \
+        --output-dir "${BASE_DIR}_1GB_sample_annotated_${MODEL_NAME}_${RUBRIC_PROMPT}_${MAX_LENGTH}/${pl}" \
+        --model-name "${MODEL_NAME}" \
         --service-tier flex \
         --annotation-task-prompt "${RUBRIC_PROMPT}" \
+        --max-concurrent-requests 2000 \
+        --max-new-tokens 2048 \
         --annotation-system-prompt 'code_system' \
-        --reasoning-effort minimal
+        --max-text-length ${MAX_LENGTH}
 done
 ```

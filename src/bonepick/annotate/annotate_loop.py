@@ -158,6 +158,18 @@ class ReasoningEffort(Enum):
     type=int,
     help="Batch size to use for annotation",
 )
+@click.option(
+    "--show-progress/--show-no-progress",
+    is_flag=True,
+    default=True,
+    help="Show progress bar",
+)
+@click.option(
+    "--disable-cache/--enable-cache",
+    is_flag=True,
+    default=False,
+    help="Disable cache",
+)
 def annotate_dataset(
     dataset_dir: tuple[Path, ...],
     output_dir: Path,
@@ -177,6 +189,8 @@ def annotate_dataset(
     max_new_tokens: int,
     limit_rows: int | None,
     annotation_batch_size: int,
+    show_progress: bool,
+    disable_cache: bool,
 ):
     # check if the extra dependencies are installed
     extra_dependencies.check()
@@ -204,7 +218,10 @@ def annotate_dataset(
     cache_location.mkdir(parents=True, exist_ok=True)
 
     # # we need to disable the cache if we to reprocess rows that do not meet validation
-    cache = SqliteInvalidableCache(path=str(cache_location / f"{model_name}.db"), invalidate=reprocess_all_rows)
+    if disable_cache:
+        cache = None
+    else:
+        cache = SqliteInvalidableCache(path=str(cache_location / f"{model_name}.db"), invalidate=reprocess_all_rows)
 
     click.echo("Initializing LLM client...")
     click.echo(f"  Model name:              {model_name}")
@@ -258,6 +275,11 @@ def annotate_dataset(
         docs_pbar = pbar_stack.enter_context(tqdm(desc="Processing documents", unit="doc"))
         failed_docs_cnt = 0
         to_annotate_docs_cnt = 0
+
+        if not show_progress:
+            # disable the progress bars if the user requested it
+            files_pbar.disable = True
+            docs_pbar.disable = True
 
         for source_file, destination_file in zip(source_files, destination_files):
             if limit_rows is not None and to_annotate_docs_cnt >= limit_rows:
@@ -319,6 +341,7 @@ def annotate_dataset(
                         batch_prompts_chunk,
                         service_tier=ServiceTier(service_tier).value if service_tier else None,
                         output_schema=task_prompt.schema,
+                        show_progress=show_progress,
                     )
                 )
 
