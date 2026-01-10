@@ -24,7 +24,7 @@ from bonepick.train import (
     train_model2vec,
     transform_dataset,
 )
-from bonepick.annotate import annotate_dataset, list_prompts
+from bonepick.annotate import annotate_dataset, list_prompts, annotation_agreement
 
 
 from bonepick.cli import cli  # noqa: E402
@@ -52,6 +52,7 @@ cli.add_command(train_model2vec)
 cli.add_command(transform_dataset)
 cli.add_command(annotate_dataset)
 cli.add_command(list_prompts)
+cli.add_command(annotation_agreement)
 
 
 @cli.command()

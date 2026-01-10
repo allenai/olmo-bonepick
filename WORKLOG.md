@@ -221,9 +221,9 @@ uv run bonepick train-model2vec \
 ### Step 1: Some test code
 
 ```shell
-BASE_DIR="/mnt/raid0/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard"
+BASE_DIR="/mnt/raid0/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned"
 s5cmd cp -sp \
-    's3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/*/step_final/shard_00000*' \
+    's3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned/*/step_final/shard_00000*' \
     "${BASE_DIR}/"
 ```
 
@@ -246,6 +246,8 @@ done
 RUBRIC_PROMPT="claude_rubric_code"
 MODEL_NAME="gpt-5-mini"
 MAX_LENGTH=32000
+LIMIT_ROWS=100000
+CACHE_LOCATION="/mnt/raid0/bonepick.annotate"
 
 for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
     # skip markdown files, they need custom prompts
@@ -265,6 +267,7 @@ for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
         --max-new-tokens 2048 \
         --annotation-system-prompt 'code_system' \
         --max-text-length ${MAX_LENGTH} \
-        --limit-rows 500000
+        --limit-rows ${LIMIT_ROWS} \
+        --cache-location ${CACHE_LOCATION}
 done
 ```

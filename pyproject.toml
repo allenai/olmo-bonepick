@@ -45,6 +45,8 @@ annotate = [
     "platformdirs",
     "fastmcp",
     "pydantic<2.12.0",
+    "rich>=13.0.0",
+    "scikit-learn>=1.3.0",
 ]
 distill = [
     "model2vec[distill]>=0.7.0",
