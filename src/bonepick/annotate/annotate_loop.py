@@ -270,10 +270,9 @@ def annotate_dataset(
     encoder, decoder = msgspec.json.Encoder(), msgspec.json.Decoder()
     input_field_selector = compile_jq(input_field_expression)
 
-    with ExitStack() as pbar_stack, ExitStack() as file_stack:
-        files_pbar = pbar_stack.enter_context(tqdm(total=len(source_files), desc="Processing files", unit="file"))
-        docs_pbar = pbar_stack.enter_context(tqdm(desc="Processing documents", unit="doc"))
-        failed_docs_cnt = 0
+    with tqdm(total=len(source_files), desc="Processing files", unit="file") as pbar, \
+            ExitStack() as file_stack:
+        failed_docs_cnt = successful_docs_cnt = 0
         to_annotate_docs_cnt = 0
 
         if not show_progress:
@@ -298,7 +297,7 @@ def annotate_dataset(
                 # already annotated; we skip and write to output file immediately
                 if not reprocess_all_rows and task_prompt.name in row:
                     output_file.write(line)
-                    docs_pbar.update(1)
+                    successful_docs_cnt += 1
                     continue
 
                 # to annotate; add to batch
@@ -309,9 +308,12 @@ def annotate_dataset(
                     click.echo(f"\nReached limit of {limit_rows:,} rows to annotate\n")
                     break
 
+            # keep track of the progress
+            pbar.set_postfix(successful=successful_docs_cnt, failed=failed_docs_cnt)
+
             if not batch_input:
                 # nothing to annotate; move onto next file
-                files_pbar.update(1)
+                pbar.update(1)
                 file_stack.pop_all()
                 click.echo(f"\nSkipping {source_file.name} because it has no rows to annotate\n")
                 continue
@@ -349,17 +351,16 @@ def annotate_dataset(
                 for response, row in zip(responses, batch_input):
                     if response is None or response.completion is None:
                         failed_docs_cnt += 1
-                        docs_pbar.set_postfix(failed=failed_docs_cnt)
                         continue
 
                     parsed_response = task_prompt.parse(response.completion)
                     output_file.write(encoder.encode({**row, task_prompt.name: parsed_response}) + b"\n")
-                    docs_pbar.update(1)
+                    successful_docs_cnt += 1
 
             click.echo(f"  Wrote {len(batch_input):,} rows to {destination_file.name}")
-            files_pbar.update(1)
+            pbar.update(1)
 
-        pbar_stack.close()
+        pbar.close()
         file_stack.close()
 
     click.echo("\nSummary:")
