@@ -89,7 +89,7 @@ class ReasoningEffort(Enum):
     "-c",
     "--cache-location",
     default=None,
-    type=PathParamType(is_dir=True, optional=True),
+    type=PathParamType(is_dir=True, mkdir=True, optional=True),
     help="location to cache data (if not set, will use default cache location)",
 )
 @click.option(
@@ -277,8 +277,7 @@ def annotate_dataset(
 
         if not show_progress:
             # disable the progress bars if the user requested it
-            files_pbar.disable = True
-            docs_pbar.disable = True
+            pbar.disable = True
 
         for source_file, destination_file in zip(source_files, destination_files):
             if limit_rows is not None and to_annotate_docs_cnt >= limit_rows:
