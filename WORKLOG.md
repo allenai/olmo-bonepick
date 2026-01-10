@@ -264,6 +264,7 @@ for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
         --max-concurrent-requests 2000 \
         --max-new-tokens 2048 \
         --annotation-system-prompt 'code_system' \
-        --max-text-length ${MAX_LENGTH}
+        --max-text-length ${MAX_LENGTH} \
+        --limit-rows 500000
 done
 ```
