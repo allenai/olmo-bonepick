@@ -223,7 +223,7 @@ uv run bonepick train-model2vec \
 ```shell
 BASE_DIR="/mnt/raid0/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned"
 s5cmd cp -sp \
-    's3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned/*/step_final/shard_00000*' \
+    's3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned/*/step_final/sorted_chunk_0000*' \
     "${BASE_DIR}/"
 ```
 
