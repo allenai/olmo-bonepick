@@ -227,20 +227,32 @@ s5cmd cp -sp \
     "${BASE_DIR}/"
 ```
 
-### Step 2: sample about 1GB of data per PL
+
+### Step 2: reshard the sampled data
 
 ```shell
 for pl in $(ls --color=never ${BASE_DIR}); do
     echo "Processing ${pl}..."
+    uv run bonepick reshard-dataset \
+        --dataset-dir "${BASE_DIR}/${pl}" \
+        --output-dir "${BASE_DIR}_resharded/${pl}" \
+        --num-files 32
+done
+```
+
+### Step 3: sample about 1GB of data per PL
+
+```shell
+for pl in $(ls --color=never ${BASE_DIR}_resharded); do
+    echo "Processing ${pl}..."
     uv run bonepick sample-dataset \
-        --dataset-dir "${BASE_DIR}/${pl}/step_final" \
+        --dataset-dir "${BASE_DIR}_resharded/${pl}" \
         --output-dir "${BASE_DIR}_1GB_sample_to_annotate/${pl}" \
         --target-size 1GB
 done
 ```
 
-
-### Step 3: lets run annotation pipeline
+### Step 4: lets run annotation pipeline
 
 ```shell
 RUBRIC_PROMPT="claude_rubric_code"
