@@ -5,6 +5,7 @@ from bonepick.train.data_loop import (
     count_tokens,
     import_hf_dataset,
     normalize_dataset,
+    reshard_dataset,
     sample_dataset,
     transform_dataset,
 )
@@ -21,6 +22,7 @@ __all__ = [
     "count_tokens",
     "import_hf_dataset",
     "normalize_dataset",
+    "reshard_dataset",
     "sample_dataset",
     "transform_dataset",
     "distill_model",

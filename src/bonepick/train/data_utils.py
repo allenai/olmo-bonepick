@@ -666,3 +666,34 @@ def pretty_size(size: int | float, precision: int = 2, unit: str = "B") -> str:
         i += 1
 
     return f"{size / 1024**(i - 1):.{precision}f} {mappings[i - 1]}"
+
+
+def reshard_single_output(
+    source_files: list[Path],
+    destination_path: Path,
+    shard_index: int,
+) -> tuple[int, int]:
+    """Combine multiple source files into a single destination file.
+
+    Args:
+        source_files: List of source file paths to combine
+        destination_path: Path to destination file
+        shard_index: Index of this shard (for logging)
+
+    Returns:
+        Tuple of (total_rows, total_bytes) processed
+    """
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+
+    total_rows = 0
+    total_bytes = 0
+
+    with smart_open.open(destination_path, "wb") as dest_file:  # pyright: ignore
+        for source_file in source_files:
+            with smart_open.open(source_file, "rb") as src_file:  # pyright: ignore
+                for line in src_file:
+                    dest_file.write(line)
+                    total_rows += 1
+                    total_bytes += len(line)
+
+    return total_rows, total_bytes

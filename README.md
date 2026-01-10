@@ -115,6 +115,33 @@ uv run bonepick sample-dataset \
     --target-size 1GB
 ```
 
+### 3b. Reshard Dataset (Optional)
+
+Combine multiple small files into a specified number of larger files with roughly equal sizes. Useful for reducing I/O overhead and creating evenly-sized shards:
+
+```shell
+# Reshard train split into 10 files
+uv run bonepick reshard-dataset \
+    -i data/fineweb-edu-binary/train \
+    -o data/fineweb-edu-resharded/train \
+    -n 10
+
+# Reshard test split into 2 files
+uv run bonepick reshard-dataset \
+    -i data/fineweb-edu-binary/test \
+    -o data/fineweb-edu-resharded/test \
+    -n 2
+
+# Use more processes for faster resharding
+uv run bonepick reshard-dataset \
+    -i data/large-dataset/train \
+    -o data/resharded/train \
+    -n 20 \
+    -p 8
+```
+
+The command uses a greedy bin packing algorithm to ensure output files have roughly equal sizes. It processes all files in the input directory and subdirectories, so call it separately for train and test splits if you need to maintain split separation.
+
 ### 4a. Normalize Text (for Model2Vec)
 
 Apply text normalization before training Model2Vec classifiers:
@@ -381,6 +408,7 @@ uv run bonepick <command> --help
 | `transform-dataset` | Apply jq transforms to reshape fields |
 | `balance-dataset` | Balance dataset so each label has equal representation |
 | `sample-dataset` | Create a random sample of a dataset by rate or target size |
+| `reshard-dataset` | Combine multiple files into specified number of evenly-sized files |
 | `normalize-dataset` | Normalize text (for Model2Vec) |
 | `convert-to-fasttext` | Convert JSONL to FastText format |
 | `count-tokens` | Count tokens in dataset directories using a tokenizer |

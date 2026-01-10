@@ -19,6 +19,7 @@ from bonepick.train import (
     eval_model2vec,
     import_hf_dataset,
     normalize_dataset,
+    reshard_dataset,
     sample_dataset,
     train_fasttext,
     train_model2vec,
@@ -46,6 +47,7 @@ cli.add_command(eval_fasttext)
 cli.add_command(eval_model2vec)
 cli.add_command(import_hf_dataset)
 cli.add_command(normalize_dataset)
+cli.add_command(reshard_dataset)
 cli.add_command(sample_dataset)
 cli.add_command(train_fasttext)
 cli.add_command(train_model2vec)

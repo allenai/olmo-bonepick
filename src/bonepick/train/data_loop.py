@@ -24,6 +24,7 @@ from bonepick.train.data_utils import (
     FILE_SUFFIXES,
     transform_single_file,
     pretty_size,
+    reshard_single_output,
 )
 from bonepick.train.normalizers import list_normalizers
 
@@ -33,6 +34,7 @@ __all__ = [
     "count_tokens",
     "import_hf_dataset",
     "sample_dataset",
+    "reshard_dataset",
 ]
 
 
@@ -673,3 +675,147 @@ def count_tokens(
     click.echo(f"  Total size: {pretty_size(sum(file_sizes))}")
     click.echo(f"  Average tokens per file: {total_tokens / len(all_files):.2f}")
     click.echo(f"  Average tokens per byte: {total_tokens / sum(file_sizes):.2f}")
+
+
+@click.command()
+@click.option(
+    "-i",
+    "--dataset-dir",
+    type=PathParamType(exists=True, is_dir=True),
+    required=True,
+    help="Input directory containing dataset files (all files in directory and subdirectories will be resharded)",
+)
+@click.option(
+    "-o",
+    "--output-dir",
+    type=PathParamType(mkdir=True, is_dir=True),
+    required=True,
+    help="Output directory for resharded dataset",
+)
+@click.option(
+    "-n",
+    "--num-files",
+    type=int,
+    required=True,
+    help="Target number of output files",
+)
+@click.option(
+    "-p",
+    "--num-proc",
+    type=int,
+    default=os.cpu_count(),
+    help="Number of processes for parallel processing",
+)
+def reshard_dataset(
+    dataset_dir: Path,
+    output_dir: Path,
+    num_files: int,
+    num_proc: int,
+):
+    """Reshard a dataset by combining multiple files into exactly num-files output files.
+
+    This command redistributes the data from multiple small files into a specified number
+    of larger files, with output files being roughly equal in size. All files in the input
+    directory and its subdirectories will be combined.
+
+    Useful for:
+    - Reducing the number of small files for more efficient I/O
+    - Creating evenly-sized shards for distributed processing
+    - Preparing data for systems that work better with fewer, larger files
+
+    Note: Call this command separately for train/ and test/ directories if you need to
+    maintain split separation.
+    """
+    if num_files <= 0:
+        raise click.BadParameter("--num-files must be greater than 0")
+
+    click.echo("Starting dataset resharding...")
+    click.echo(f"  Input directory: {dataset_dir}")
+    click.echo(f"  Output directory: {output_dir}")
+    click.echo(f"  Target output files: {num_files}")
+    click.echo(f"  Num processes: {num_proc}")
+
+    # Step 1: Collect all input files and their sizes
+    click.echo("\nCollecting files...")
+    input_files: list[tuple[Path, int]] = []
+    for root, _, files in os.walk(dataset_dir):
+        for _fn in files:
+            fn = Path(root) / _fn
+            if "".join(fn.suffixes) not in FILE_SUFFIXES:
+                continue
+            input_files.append((fn, fn.stat().st_size))
+
+    if not input_files:
+        click.echo("  No files found, exiting...")
+        return
+
+    total_size = sum(size for _, size in input_files)
+    click.echo(f"  Input files: {len(input_files):,}")
+    click.echo(f"  Total size: {pretty_size(total_size)}")
+
+    # Step 2: Sort files by size (largest first) for better distribution
+    input_files.sort(key=lambda x: x[1], reverse=True)
+
+    # Step 3: Distribute files into output shards using greedy bin packing
+    # This ensures output files are roughly equal in size
+    target_size_per_shard = total_size / num_files
+    click.echo(f"  Target size per output file: {pretty_size(target_size_per_shard)}")
+
+    # Initialize shards with empty lists and size tracking
+    shards: list[tuple[list[Path], int]] = [([], 0) for _ in range(num_files)]
+
+    # Greedy bin packing: assign each file to the shard with smallest current size
+    for file_path, file_size in input_files:
+        # Find shard with smallest current size
+        min_shard_idx = min(range(num_files), key=lambda i: shards[i][1])
+        shards[min_shard_idx][0].append(file_path)
+        shards[min_shard_idx] = (shards[min_shard_idx][0], shards[min_shard_idx][1] + file_size)
+
+    # Step 4: Display distribution statistics
+    shard_sizes = [size for _, size in shards]
+    click.echo(f"  Output file size range: {pretty_size(min(shard_sizes))} - {pretty_size(max(shard_sizes))}")
+    click.echo(f"  Size standard deviation: {pretty_size(sum((s - target_size_per_shard)**2 for s in shard_sizes) ** 0.5 / num_files)}")
+
+    # Step 5: Process shards in parallel
+    click.echo(f"\nResharding using {num_proc} processes...")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    executor_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
+
+    with executor_cls(max_workers=num_proc) as pool:
+        futures = []
+        for shard_idx, (shard_files, _) in enumerate(shards):
+            if not shard_files:
+                continue
+
+            dest_path = output_dir / f"shard_{shard_idx:05d}{'.jsonl.zst'}"
+            future = pool.submit(
+                reshard_single_output,
+                source_files=shard_files,
+                destination_path=dest_path,
+                shard_index=shard_idx,
+            )
+            futures.append(future)
+
+        total_rows = 0
+        total_bytes = 0
+        pbar = tqdm(total=len(futures), desc="Resharding files", unit="file")
+        for future in as_completed(futures):
+            try:
+                rows, bytes_written = future.result()
+                total_rows += rows
+                total_bytes += bytes_written
+                pbar.set_postfix(rows=f"{total_rows:,}", size=pretty_size(total_bytes))
+            except Exception as e:
+                for future in futures:
+                    future.cancel()
+                raise e
+            pbar.update(1)
+
+        pbar.close()
+
+    click.echo("\nResharding complete!")
+    click.echo(f"  Output files: {len(futures)}")
+    click.echo(f"  Total rows: {total_rows:,}")
+    click.echo(f"  Total size: {pretty_size(total_bytes)}")
+    click.echo(f"  Output written to: {output_dir}")
