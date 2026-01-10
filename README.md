@@ -369,6 +369,51 @@ Key options:
 - `--max-text-length`, `--max-new-tokens`: Length constraints
 - `--limit-rows`: Maximum rows to annotate
 
+### Compare Annotation Agreement
+
+Compare annotations between two datasets to measure inter-annotator agreement:
+
+```shell
+uv run bonepick annotation-agreement \
+    --dataset1 data/annotator1 \
+    --dataset2 data/annotator2 \
+    --label-expression '.label' \
+    --key-expression '.id'
+```
+
+This command computes agreement metrics between two annotation datasets, useful for:
+- Measuring inter-annotator reliability between human annotators
+- Comparing human annotations vs LLM annotations
+- Validating annotation quality across different annotation rounds
+
+Key options:
+- `--dataset1`, `--dataset2`: Paths to the two dataset directories (required)
+- `--label-expression`: JQ expression to extract the label/annotation (e.g., `.label`, `.annotation.category`)
+- `--key-expression`: JQ expression to extract a unique identifier (e.g., `.id`, `.text`)
+- `--show-confusion-matrix/--no-confusion-matrix`: Show confusion matrix (default: true)
+- `--show-disagreements/--no-disagreements`: Show examples where annotators disagreed (default: false)
+- `--max-disagreements`: Maximum disagreement examples to show (default: 10)
+
+Example with nested fields:
+
+```shell
+uv run bonepick annotation-agreement \
+    --dataset1 data/human-annotations \
+    --dataset2 data/llm-annotations \
+    --label-expression '.annotation.quality_score' \
+    --key-expression '.metadata.document_id' \
+    --show-disagreements \
+    --max-disagreements 20
+```
+
+The command outputs:
+- **Dataset coverage**: Samples in each dataset, common samples, unique samples
+- **Agreement rate**: Percentage of matching labels
+- **Cohen's Kappa**: Accounts for chance agreement (0.00-0.20: slight, 0.21-0.40: fair, 0.41-0.60: moderate, 0.61-0.80: substantial, 0.81-1.00: almost perfect)
+- **Label distribution**: Comparison of label frequencies between datasets
+- **Confusion matrix**: Shows which labels are confused with each other
+- **Disagreement examples**: Optional display of specific cases where annotators disagreed
+
 ## Model Distillation
 
 Distill a Sentence Transformer model to a lightweight Model2Vec static embedding model:
@@ -434,6 +479,7 @@ uv run bonepick <command> --help
 |---------|-------------|
 | `annotate-dataset` | Annotate dataset using LLM APIs |
 | `list-prompts` | List available annotation prompts |
+| `annotation-agreement` | Compare annotations between two datasets and compute agreement metrics |
 
 ### Utility Commands
 
