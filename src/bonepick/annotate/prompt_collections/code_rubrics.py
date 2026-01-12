@@ -114,7 +114,30 @@ Respond in a json format with the following keys:
     output_type: type[DataclassType] = ClaudeCodeRubricOutput
 
 
+@dt.dataclass(frozen=True)
+class ClaudeProgressiveCodeRubricLevelOutput:
+    explanation: str
+    is_pass: bool
 
+
+@dt.dataclass(frozen=True)
+class ClaudeProgressiveCodeRubricLevelsOutput:
+    functional_code: ClaudeProgressiveCodeRubricLevelOutput
+    readable_code: ClaudeProgressiveCodeRubricLevelOutput
+    structured_code: ClaudeProgressiveCodeRubricLevelOutput
+    well_engineered_code: ClaudeProgressiveCodeRubricLevelOutput
+    excellent_code: ClaudeProgressiveCodeRubricLevelOutput
+
+
+@dt.dataclass(frozen=True)
+class ClaudeProgressiveCodeRubricOutput:
+    levels: ClaudeProgressiveCodeRubricLevelsOutput
+    overall_assessment: str
+    score: int
+
+
+@dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
 class ClaudeProgressiveRubricCodePrompt(BaseCodePrompt):
     name: str = "claude_progressive_rubric_code"
     instructions: str = """
@@ -237,3 +260,4 @@ Respond in a json format with the following keys:
 }}
 
 """
+    output_type: type[DataclassType] = ClaudeProgressiveCodeRubricOutput
