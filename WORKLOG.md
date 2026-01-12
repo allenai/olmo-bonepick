@@ -840,10 +840,11 @@ Confusion Matrix:
 Going from 57.6% to 62.9% agreement!
 
 
-### Prompt: claude_progressive_rubric_code_v2
+### Prompt: simplified_code_rubric
 
 ```shell
-export RUBRIC_PROMPT="claude_progressive_rubric_code_v2"
+export RUBRIC_PROMPT="simplified_code_rubric"
+export MAX_TEXT_LENGTH=10000
 
 models=(
     "gpt-5.2/"
@@ -856,7 +857,7 @@ for model in "${models[@]}"; do
     model_name=$(echo "${model}" | cut -d '/' -f 1)
     effort_name=$(echo "${model}" | cut -d '/' -f 2)
 
-    destination_dir="tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-${model_name}"
+    destination_dir="tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-${model_name}-${MAX_TEXT_LENGTH}"
 
     ## check if effort name is empty string, if not, set effort_flag="--reasoning-effort ${effort_name}"
     if [[ -z "${effort_name}" ]]; then
@@ -881,6 +882,7 @@ for model in "${models[@]}"; do
         --max-concurrent-requests 1_000 \
         --max-requests-per-minute 5_000 \
         --limit-rows 5_000 \
+        --max-text-length ${MAX_TEXT_LENGTH} \
         --cache-location "${cache_dir}"
 done
 ```
@@ -894,4 +896,8 @@ uv run bonepick annotation-agreement \
     --dataset2 tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5-mini \
     --label-expression ".${RUBRIC_PROMPT}.score" \
     --key-expression '.text'
+```
+
+
+```text
 ```

@@ -7,7 +7,7 @@ from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt, Da
 @BaseSystemPrompt.register
 class CodeSystemPrompt(BaseSystemPrompt[str]):
     name: str = "code_system"
-    instructions: str = """You are a helpful coding assistant that excels in reviewing and assessing code."""
+    instructions: str = """You are a helpful coding assistant that excels in reviewing and assessing code and documentation."""
 
 
 @dt.dataclass(frozen=True)
@@ -474,3 +474,158 @@ After examining the extract, respond with a JSON object with the following forma
         return self.instructions.strip()
 
     output_type: type[DataclassType] = StackEduOutput
+
+
+
+@dt.dataclass(frozen=True)
+class SimplifiedCodeLevelCriterionOutput:
+    explanation: str
+    is_pass: bool
+
+
+@dt.dataclass(frozen=True)
+class SimplifiedCodeLevelsOutput:
+    functional_snippet: SimplifiedCodeLevelCriterionOutput
+    readable_snippet: SimplifiedCodeLevelCriterionOutput
+    well_structured_snippet: SimplifiedCodeLevelCriterionOutput
+    exemplary_snippet: SimplifiedCodeLevelCriterionOutput
+
+@dt.dataclass(frozen=True)
+class SimplifiedCodeOutput:
+    programming_language: str
+    purpose: str
+    levels: SimplifiedCodeLevelsOutput
+    overall_assessment: str
+    score: int
+
+
+@dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
+class SimplifiedCodeRubricPrompt(BetterTruncationCodePrompt):
+    name: str = "simplified_code_rubric"
+    instructions: str = """
+This scoring rubric is used to score the code or documentation snippet above.
+
+It is designed according to the following principles:
+- It ranks code/documentation snippets from 0 (lowest quality; incomplete, invalid, indecipherable, etc.) to 4 (highest quality; so good it can be used as reference material).
+- Scores are cumulative: you must earn all prior levels to claim the next.
+- Each level has blockers (any one disqualifies) and criteria (must meet at least 3 of 5).
+- Snippets might be truncated; do not penalize truncated code UNLESS a significant portion of the code is missing.
+
+To apply the rubric, do the following:
+
+1. Identify the programming language (python, javascript, etc.) the code is written in (this will help understand whether the code is following language-specific best practices) If it is a documentation snippet, identify the language it refers to.
+2. Briefly describe the function of the code or documentation snippet. If the purpose is not clear, it might be a sign of low quality.
+3. Finally, grade the snippet based on the level guidelines defined below.
+
+
+# Level Guidelines
+
+## Level 1 (Functional Snippet)
+
+The code/documentation snippet must be minimally functional and useful; it is not fundamentally broken, incomplete, or empty.
+
+Blockers:
+- Syntax errors or corrupted text making the code non-functional.
+- Mostly boilerplate, config, or data with minimal logic.
+- Embedded data/blobs dominate (>25% of the file).
+
+Criteria (≥3 must be true):
+- The snippet contains valid executable code or intelligible documentation.
+- Dead or commented-out code is minimal (doesn't dominate).
+- No stray debug artifacts (e.g., print("here"), console.log(1), breakpoints, etc.) scattered throughout.
+- Purpose is inferable: you can guess what this file does from reading it.
+- File is not mostly empty, placeholder, or stub code.
+
+
+## Level 2 (Readable Snippet)
+
+The code/documentation snippet is easy to follow, well written, and free of glaring issues.
+
+Blockers:
+- Naming is systematically cryptic (mostly single letters or meaningless names) in non-trivial logic.
+- Hardcoded secrets or credentials visible in the code.
+- Documentation is written in poor style or grammar.
+- Obvious security vulnerabilities (e.g., SQL injection via string concat, eval of user input).
+- Code is procedurally generated via templates or similar mechanisms.
+
+Criteria (≥3 must be true):
+- Most identifiers (variables, functions, classes) have descriptive names.
+- Consistent formatting and indentation throughout.
+- Nesting is shallow: no deep pyramids of conditionals or loops.
+- Lines and functions are reasonable lengths (no 500-line functions).
+- No large blocks of dead, commented-out, or copy-pasted code.
+
+
+## Level 3 (Well-structured Snippet)
+
+Code snippet is well-structured, handles errors correctly, and uses appropriate abstractions; documentation snippet is well-organized and comprehensive.
+
+Blockers:
+- Abundant silent error swallowing (e.g., empty catch, except: pass).
+- Copy-paste repetition of significant logic or text (e.g, same block repeated 3+ times).
+- Code or documentation is procedurally generated via templates or similar mechanisms.
+- Glaring inefficiencies in core paths (e.g., O(n²) when O(n) is trivial, repeated expensive operations in loops).
+- Key assumptions in complex logic are completely undocumented (code) or missing (documentation).
+
+Criteria (≥3 must be true):
+- Code is decomposed into functions/classes of coherent purpose.
+- When appropriate, error/exception handling logic is present; meaningful messages or recovery are provided.
+- Resource handling is correct (files/connections are closed properly).
+- Side effects are contained and predictable.
+- Complex sections are at least minimally explained via comments (code) or prose (documentation).
+
+
+## Level 4 (Exemplary Snippet)
+
+Any code is robust, efficient, and thoughtfully designed; any documentation is well-written, clear, and comprehensive.
+The snippet is suitable as a teaching reference.
+
+Blockers:
+- Resource leaks (unclosed handles, connections) in code.
+- Core logic cannot be tested; documentation is not properly.
+- Documentation, if present, must be comprehensive and cover all key concepts.
+- Obvious inefficiencies in core paths (e.g., O(n²) when O(n) is trivial, repeated expensive operations in loops).
+
+Criteria (≥3 must be true):
+- Error/exception handling logic is robust; meaningful messages or recovery are provided.
+- Docstrings or comments explain "what" and "why" for public interfaces.
+- Code is idiomatic for its language—uses standard patterns well.
+- Logic flows clearly enough that it could be used to teach the concepts it implements.
+- Side effects are contained and predictable (I/O at edges, not scattered).
+
+
+# Output Format
+
+Return a JSON object in the following format:
+
+```json
+{{
+    "programming_language": "...",   # the programming language the snippet is written in (code) or is about (documentation), all in lowercase.
+    "purpose": "...",           # a brief description of the purpose of the snippet.
+    "levels": {{
+        "functional_snippet": {{
+            "explanation": "...",   # briefly explain how the snippet meets basic checks (or why not!).
+            "is_pass": bool
+        }},
+        "readable_snippet": {{
+            "explanation": "...",   # briefly explain what makes the snippet readable or unreadable.
+            "is_pass": bool
+        }},
+        "well_structured_snippet": {{
+            "explanation": "...",   # briefly explain how the is snippet is structured, (if code) how it handles errors and uses appropriate abstractions, (if documentation) its comprehensiveness.
+            "is_pass": bool
+        }},
+        "exemplary_snippet": {{
+            "explanation": "...",   # briefly explain how the code is robust, efficient, and thoughtfully designed
+            "is_pass": bool
+        }},
+    }},
+    "overall_assessment": "...",    # a final brief explanation of the overall assessment of the snippet.
+    "score": int                    # the final score between 0 and 4 (both inclusive); counts the number of "is_pass" values that are true.
+}}
+```
+
+Keep all explanations brief, under 100 characters or less.
+"""
+    output_type: type[DataclassType] = SimplifiedCodeOutput
