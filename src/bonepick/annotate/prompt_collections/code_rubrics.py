@@ -678,6 +678,8 @@ Keep all explanations brief, under 100 characters or less.
 @BaseAnnotationPrompt.register
 class InverseSimplifiedCodeRubricPrompt(BaseCodeDocumentationPrompt):
     name: str = "inv_simplified_code_rubric"
+    rubric_marker_open: str = ""
+    rubric_marker_close: str = ""
     preamble: str = """
 Your task is to score the quality of a code or documentation snippet shown below, according to the rubric provided. The snippet is enclosed between the markers "{snippet_marker_open}" and "{snippet_marker_close}".
 
@@ -770,7 +772,7 @@ Criteria (≥3 must be true):
 - Side effects are contained and predictable (I/O at edges, not scattered).
 """
 
-    output_format: str = """
+    instructions: str = """
 # Output Format
 
 Return a JSON object in the following format:
