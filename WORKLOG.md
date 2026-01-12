@@ -291,16 +291,16 @@ done
 s5cmd cp -sp "${ROOT_DIR}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_gpt-5-mini_claude_rubric_code_32000/"* "s3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_gpt-5-mini_claude_rubric_code_32000/"
 ```
 
-
+------------------------------------------------------------------------------------------------
 
 ## Comparing different annotation prompts
 
 
 Copy the one python file we have been using for testing
 
-```
+```shell
 s5cmd cp -sp 's3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/Python/step_final/shard_00007001.jsonl.zst' "tmp/data/spring2code_python/train/shard_00007001.jsonl.zst"
-
+```
 
 ### Prompt: claude_rubric_code
 
@@ -492,6 +492,74 @@ Confusion Matrix:
 └───────────────────────┴────┴─────┴─────┴─────┴─────┴───┘
 ```
 
+Let's compare against non medium:
+
+
+```text
+Annotation Agreement Analysis
+
+Dataset 1: tmp/data/spring2code_python-annotated-gpt-5.2
+Dataset 2: tmp/data/spring2code_python-annotated-gpt-5-mini
+Label expression: .claude_rubric_code.score
+Key expression: .text
+
+Loading annotations from dataset 1...
+Loaded 2,000 annotations from dataset 1
+
+Loading annotations from dataset 2...
+Loaded 2,000 annotations from dataset 2
+
+Dataset Coverage:
+┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Metric               ┃ Count ┃
+┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ Samples in dataset 1 │ 2,000 │
+│ Samples in dataset 2 │ 2,000 │
+│ Common samples       │ 2,000 │
+│ Only in dataset 1    │     0 │
+│ Only in dataset 2    │     0 │
+└──────────────────────┴───────┘
+
+Computing agreement metrics...
+
+╭──── Agreement Metrics ─────╮
+│ Agreement Rate: 57.60%     │
+│ Cohen's Kappa: 0.4017      │
+│ Agreements: 1,152 / 2,000  │
+│ Disagreements: 848 / 2,000 │
+╰────────────────────────────╯
+
+Cohen's Kappa interpretation: Moderate
+
+Label Distribution:
+┏━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Label ┃   Dataset 1 ┃   Dataset 2 ┃
+┡━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ 0     │   30 (1.5%) │   14 (0.7%) │
+│ 1     │ 318 (15.9%) │  171 (8.6%) │
+│ 2     │ 669 (33.5%) │ 532 (26.6%) │
+│ 3     │ 725 (36.2%) │ 916 (45.8%) │
+│ 4     │ 252 (12.6%) │ 359 (17.9%) │
+│ 5     │    6 (0.3%) │    8 (0.4%) │
+└───────┴─────────────┴─────────────┘
+
+Confusion Matrix:
+(rows=dataset1, columns=dataset2)
+
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━┳━━━━━┳━━━━━┳━━━━━┳━━━━━┳━━━┓
+┃ Dataset 1 \ Dataset 2 ┃ 0 ┃   1 ┃   2 ┃   3 ┃   4 ┃ 5 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━╇━━━━━╇━━━━━╇━━━━━╇━━━━━╇━━━┩
+│ 0                     │ 7 │  12 │   9 │   1 │   1 │ 0 │
+│ 1                     │ 6 │ 120 │ 122 │  67 │   3 │ 0 │
+│ 2                     │ 1 │  35 │ 322 │ 271 │  39 │ 1 │
+│ 3                     │ 0 │   4 │  75 │ 516 │ 129 │ 1 │
+│ 4                     │ 0 │   0 │   4 │  61 │ 184 │ 3 │
+│ 5                     │ 0 │   0 │   0 │   0 │   3 │ 3 │
+└───────────────────────┴───┴─────┴─────┴─────┴─────┴───┘
+```
+
+
+
 Now we compare gpt 5.2 and gpt 5.2 medium (full scores agreement):
 
 ```shell
@@ -659,56 +727,171 @@ We are gonna test annotating with v2 of the claude prompt and compare GPT-5.2, G
 
 export RUBRIC_PROMPT="claude_progressive_rubric_code"
 
-uv run --extra=annotate bonepick annotate-dataset \
-    --dataset-dir tmp/data/spring2code_python \
-    --output-dir tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5.2 \
-    --model-name gpt-5.2 \
-    --service-tier flex \
-    --annotation-task-prompt "${RUBRIC_PROMPT}" \
-    --annotation-system-prompt 'code_system' \
-    --max-concurrent-requests 1000 \
-    --max-requests-per-minute 3_000 \
-    --limit-rows 5000 \
-    --cache-location /tmp/bonepick/gpt-5.2
+models=(
+    "gpt-5.2/"
+    "gpt-5-mini/"
+    "gpt-5.2/medium"
+    "gpt-5.2/minimal"
+)
 
-# 5 mini
-uv run --extra=annotate bonepick annotate-dataset \
-    --dataset-dir tmp/data/spring2code_python \
-    --output-dir tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5-mini \
-    --model-name gpt-5-mini \
-    --service-tier flex \
-    --annotation-task-prompt "${RUBRIC_PROMPT}" \
-    --annotation-system-prompt 'code_system' \
-    --max-concurrent-requests 1000 \
-    --max-requests-per-minute 3_000 \
-    --limit-rows 5000 \
-    --cache-location /tmp/bonepick/gpt-5-mini
+for model in "${models[@]}"; do
+    model_name=$(echo "${model}" | cut -d '/' -f 1)
+    effort_name=$(echo "${model}" | cut -d '/' -f 2)
 
-# 5.2 medium
-uv run --extra=annotate bonepick annotate-dataset \
-    --dataset-dir tmp/data/spring2code_python \
-    --output-dir tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5.2-medium \
-    --model-name gpt-5.2-medium \
-    --service-tier flex \
-    --annotation-task-prompt "${RUBRIC_PROMPT}" \
-    --annotation-system-prompt 'code_system' \
-    --max-concurrent-requests 1000 \
-    --max-requests-per-minute 3_000 \
-    --reasoning-effort medium \
-    --limit-rows 5000 \
-    --cache-location /tmp/bonepick/gpt-5.2-medium
+    ## check if effort name is empty string, if not, set effort_flag="--reasoning-effort ${effort_name}"
+    if [[ -z "${effort_name}" ]]; then
+        effort_flag=""
+    else
+        effort_flag="--reasoning-effort ${effort_name}"
+    fi
+
+    destination_dir="tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-${model}"
+    cache_dir="tmp/cache/${model}"
+
+    echo "Annotating ${model_name} with reasoning effort: ${effort_flag}"
+
+    uv run --extra=annotate bonepick annotate-dataset \
+        --dataset-dir tmp/data/spring2code_python \
+        --output-dir "${destination_dir}" \
+        --model-name "${model_name}" \
+        --service-tier default \
+        --annotation-task-prompt "${RUBRIC_PROMPT}" \
+        --annotation-system-prompt 'code_system' \
+        ${effort_flag} \
+        --max-concurrent-requests 1_000 \
+        --max-requests-per-minute 5_000 \
+        --limit-rows 5_000 \
+        --cache-location
+done
+```
 
 
-# 5.2 twice
-uv run --extra=annotate bonepick annotate-dataset \
-    --dataset-dir tmp/data/spring2code_python \
-    --output-dir tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5.2-twice \
-    --model-name gpt-5.2 \
-    --service-tier flex \
-    --annotation-task-prompt "${RUBRIC_PROMPT}" \
-    --annotation-system-prompt 'code_system' \
-    --max-concurrent-requests 1000 \
-    --max-requests-per-minute 3_000 \
-    --limit-rows 5000 \
-    --cache-location /tmp/bonepick/gpt-5.2-twice
+Calculate agreement between 5.2 and 5-mini:
+
+```shell
+uv run bonepick annotation-agreement \
+    --dataset1 tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5.2 \
+    --dataset2 tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5-mini \
+    --label-expression ".${RUBRIC_PROMPT}.score" \
+    --key-expression '.text'
+```
+
+```text
+Annotation Agreement Analysis
+
+Dataset 1: tmp/data/spring2code_python-annotated-claude_progressive_rubric_code-gpt-5.2
+Dataset 2: tmp/data/spring2code_python-annotated-claude_progressive_rubric_code-gpt-5-mini
+Label expression: .claude_progressive_rubric_code.score
+Key expression: .text
+
+Loading annotations from dataset 1...
+Loaded 2,000 annotations from dataset 1
+
+Loading annotations from dataset 2...
+Loaded 2,000 annotations from dataset 2
+
+Dataset Coverage:
+┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Metric               ┃ Count ┃
+┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ Samples in dataset 1 │ 2,000 │
+│ Samples in dataset 2 │ 2,000 │
+│ Common samples       │ 2,000 │
+│ Only in dataset 1    │     0 │
+│ Only in dataset 2    │     0 │
+└──────────────────────┴───────┘
+
+Computing agreement metrics...
+
+╭──── Agreement Metrics ─────╮
+│ Agreement Rate: 62.95%     │
+│ Cohen's Kappa: 0.3664      │
+│ Agreements: 1,259 / 2,000  │
+│ Disagreements: 741 / 2,000 │
+╰────────────────────────────╯
+
+Cohen's Kappa interpretation: Fair
+
+Label Distribution:
+┏━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ Label ┃     Dataset 1 ┃     Dataset 2 ┃
+┡━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ 0     │     50 (2.5%) │     37 (1.8%) │
+│ 1     │   491 (24.6%) │   208 (10.4%) │
+│ 2     │ 1,163 (58.1%) │ 1,226 (61.3%) │
+│ 3     │   262 (13.1%) │   497 (24.9%) │
+│ 4     │     34 (1.7%) │     32 (1.6%) │
+└───────┴───────────────┴───────────────┘
+
+Confusion Matrix:
+(rows=dataset1, columns=dataset2)
+
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━┳━━━━━┳━━━━━┳━━━━━┳━━━━┓
+┃ Dataset 1 \ Dataset 2 ┃  0 ┃   1 ┃   2 ┃   3 ┃  4 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━╇━━━━━╇━━━━━╇━━━━━╇━━━━┩
+│ 0                     │  2 │   5 │  28 │  15 │  0 │
+│ 1                     │ 32 │ 166 │ 236 │  57 │  0 │
+│ 2                     │  3 │  37 │ 894 │ 222 │  7 │
+│ 3                     │  0 │   0 │  68 │ 183 │ 11 │
+│ 4                     │  0 │   0 │   0 │  20 │ 14 │
+└───────────────────────┴────┴─────┴─────┴─────┴────┘
+```
+
+Going from 57.6% to 62.9% agreement!
+
+
+### Prompt: claude_progressive_rubric_code_v2
+
+```shell
+export RUBRIC_PROMPT="claude_progressive_rubric_code_v2"
+
+models=(
+    "gpt-5.2/"
+    "gpt-5-mini/"
+    "gpt-5.2/medium"
+    "gpt-5.2/minimal"
+)
+
+for model in "${models[@]}"; do
+    model_name=$(echo "${model}" | cut -d '/' -f 1)
+    effort_name=$(echo "${model}" | cut -d '/' -f 2)
+
+    destination_dir="tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-${model_name}"
+
+    ## check if effort name is empty string, if not, set effort_flag="--reasoning-effort ${effort_name}"
+    if [[ -z "${effort_name}" ]]; then
+        effort_flag=""
+    else
+        effort_flag="--reasoning-effort ${effort_name}"
+        destination_dir="${destination_dir}-${effort_name}"
+    fi
+
+    cache_dir="tmp/cache/${model}"
+
+    echo "Annotating ${model_name} with reasoning effort: ${effort_flag}"
+
+    uv run --extra=annotate bonepick annotate-dataset \
+        --dataset-dir tmp/data/spring2code_python \
+        --output-dir "${destination_dir}" \
+        --model-name "${model_name}" \
+        --service-tier default \
+        --annotation-task-prompt "${RUBRIC_PROMPT}" \
+        --annotation-system-prompt 'code_system' \
+        ${effort_flag} \
+        --max-concurrent-requests 1_000 \
+        --max-requests-per-minute 5_000 \
+        --limit-rows 5_000 \
+        --cache-location "${cache_dir}"
+done
+```
+
+
+Compare agreement between 5.2 and 5-mini:
+
+```shell
+uv run bonepick annotation-agreement \
+    --dataset1 tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5.2 \
+    --dataset2 tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5-mini \
+    --label-expression ".${RUBRIC_PROMPT}.score" \
+    --key-expression '.text'
 ```
