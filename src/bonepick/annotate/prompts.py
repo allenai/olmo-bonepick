@@ -49,14 +49,20 @@ THINK_START = "<think>"
 THINK_END = "</think>"
 
 
+class ContentOrder(Enum):
+    INSTRUCTIONS_CONTENT = "instructions_content"
+    CONTENT_INSTRUCTIONS = "content_instructions"
+
+
 @dt.dataclass(frozen=True)
 class BasePrompt(Generic[T]):
     name: str = dt.field(default_factory=str)
     preamble: str = dt.field(default_factory=str)
     instructions: str = dt.field(default_factory=str)
-    role_to_annotate: TurnRole = TurnRole.USER
-    turn_to_annotate: TurnPosition = TurnPosition.LAST
+    role_to_annotate: TurnRole = dt.field(default=TurnRole.USER)
+    turn_to_annotate: TurnPosition = dt.field(default=TurnPosition.LAST)
     output_type: type[DataclassType] | None = dt.field(default=None)
+    content_order: ContentOrder = dt.field(default=ContentOrder.CONTENT_INSTRUCTIONS)
 
     _registry: ClassVar[dict[str, type[Self]]]
 
@@ -175,7 +181,9 @@ class BasePrompt(Generic[T]):
         return "\n\n\n"
 
     def apply(
-        self, conversation_or_text: list[TurnDict] | str | None = None, max_text_length: int | None = None
+        self,
+        conversation_or_text: list[TurnDict] | str | None = None,
+        max_text_length: int | None = None,
     ) -> str:
         if conversation_or_text is None:
             # this is for the case of system prompts
@@ -187,14 +195,17 @@ class BasePrompt(Generic[T]):
             if isinstance(conversation_or_text, list)
             else self.format_text(text=conversation_or_text, max_text_length=max_text_length)
         ).strip()
+        sanitized_content = self.sanitize_text(content)
 
-        # join preamble, content, and instructions with separator
-        content = (
-            self.separator()
-            .join([self.format_preamble(), self.sanitize_text(content), self.format_instructions()])
-            .strip()
-        )
-        return content
+        if self.content_order == ContentOrder.INSTRUCTIONS_CONTENT:
+            formatted_content = self.separator().join([sanitized_content, self.format_instructions()])
+        elif self.content_order == ContentOrder.CONTENT_INSTRUCTIONS:
+            formatted_content = self.separator().join([self.format_instructions(), sanitized_content])
+
+        if (preamble_text := self.format_preamble()) and preamble_text.strip():
+            formatted_content = self.separator().join([preamble_text, formatted_content])
+
+        return formatted_content.strip()
 
 
 @dt.dataclass(frozen=True)
