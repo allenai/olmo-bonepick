@@ -189,9 +189,11 @@ class BasePrompt(Generic[T]):
         ).strip()
 
         # join preamble, content, and instructions with separator
-        content = self.separator().join(
-            [self.format_preamble(), self.sanitize_text(content), self.format_instructions()]
-        ).strip()
+        content = (
+            self.separator()
+            .join([self.format_preamble(), self.sanitize_text(content), self.format_instructions()])
+            .strip()
+        )
         return content
 
 

@@ -221,7 +221,9 @@ def annotate_dataset(
     if disable_cache:
         cache = None
     else:
-        cache = SqliteInvalidableCache(path=str(cache_location / f"{model_name}.db"), invalidate=reprocess_all_rows)
+        cache = SqliteInvalidableCache(
+            path=str(cache_location / f"{model_name}.db"), invalidate=reprocess_all_rows
+        )
 
     click.echo("Initializing LLM client...")
     click.echo(f"  Model name:              {model_name}")
@@ -270,8 +272,7 @@ def annotate_dataset(
     encoder, decoder = msgspec.json.Encoder(), msgspec.json.Decoder()
     input_field_selector = compile_jq(input_field_expression)
 
-    with tqdm(total=len(source_files), desc="Processing files", unit="file") as pbar, \
-            ExitStack() as file_stack:
+    with tqdm(total=len(source_files), desc="Processing files", unit="file") as pbar, ExitStack() as file_stack:
         failed_docs_cnt = successful_docs_cnt = 0
         to_annotate_docs_cnt = 0
 
@@ -320,8 +321,8 @@ def annotate_dataset(
             click.echo(f"\nAnnotating {len(batch_input):,} rows from {source_file.name}\n")
             batch_prompts: list[Conversation] = []
             for row in batch_input:
-                #use JQ expression to extract the input value from the row
-                #(e.g., ".text" -> will extract the value of the "text" field)
+                # use JQ expression to extract the input value from the row
+                # (e.g., ".text" -> will extract the value of the "text" field)
                 content = input_field_selector(row)
                 assert isinstance(content, (str, list)), f"Expected str or list[TurnDict], got {type(content)}"
 
@@ -334,7 +335,7 @@ def annotate_dataset(
 
             # annotate batches in chunk on `annotation_batch_size`` rows at the time
             for i in range(0, len(batch_prompts), annotation_batch_size):
-                batch_prompts_chunk = batch_prompts[i:i+annotation_batch_size]
+                batch_prompts_chunk = batch_prompts[i : i + annotation_batch_size]
 
                 # we have to use the async cuz the sync APIs don't support service tier
                 responses = asyncio.run(
@@ -370,7 +371,6 @@ def annotate_dataset(
     click.echo(f"  Processed {len(source_files):,} files")
     click.echo(f"  Annotated {to_annotate_docs_cnt:,} rows")
     click.echo(f"  Failed {failed_docs_cnt:,} rows")
-
 
 
 @click.command()

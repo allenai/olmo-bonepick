@@ -665,7 +665,7 @@ def pretty_size(size: int | float, precision: int = 2, unit: str = "B") -> str:
             break
         i += 1
 
-    return f"{size / 1024**(i - 1):.{precision}f} {mappings[i - 1]}"
+    return f"{size / 1024 ** (i - 1):.{precision}f} {mappings[i - 1]}"
 
 
 def reshard_single_output(

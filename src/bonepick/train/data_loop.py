@@ -774,7 +774,9 @@ def reshard_dataset(
     # Step 4: Display distribution statistics
     shard_sizes = [size for _, size in shards]
     click.echo(f"  Output file size range: {pretty_size(min(shard_sizes))} - {pretty_size(max(shard_sizes))}")
-    click.echo(f"  Size standard deviation: {pretty_size(sum((s - target_size_per_shard)**2 for s in shard_sizes) ** 0.5 / num_files)}")
+    click.echo(
+        f"  Size standard deviation: {pretty_size(sum((s - target_size_per_shard) ** 2 for s in shard_sizes) ** 0.5 / num_files)}"
+    )
 
     # Step 5: Process shards in parallel
     click.echo(f"\nResharding using {num_proc} processes...")

@@ -226,18 +226,20 @@ def annotation_agreement(
     metrics = compute_agreement_metrics(labels1, labels2)
 
     # Display metrics
-    console.print(Panel.fit(
-        f"[bold green]Agreement Rate:[/bold green] {metrics['agreement_rate']:.2%}\n"
-        f"[bold green]Cohen's Kappa:[/bold green] {metrics['cohen_kappa']:.4f}\n"
-        f"[bold]Agreements:[/bold] {metrics['agreements']:,} / {metrics['total_samples']:,}\n"
-        f"[bold]Disagreements:[/bold] {metrics['disagreements']:,} / {metrics['total_samples']:,}",
-        title="[bold cyan]Agreement Metrics[/bold cyan]",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel.fit(
+            f"[bold green]Agreement Rate:[/bold green] {metrics['agreement_rate']:.2%}\n"
+            f"[bold green]Cohen's Kappa:[/bold green] {metrics['cohen_kappa']:.4f}\n"
+            f"[bold]Agreements:[/bold] {metrics['agreements']:,} / {metrics['total_samples']:,}\n"
+            f"[bold]Disagreements:[/bold] {metrics['disagreements']:,} / {metrics['total_samples']:,}",
+            title="[bold cyan]Agreement Metrics[/bold cyan]",
+            border_style="cyan",
+        )
+    )
     console.print()
 
     # Interpretation of Cohen's Kappa
-    kappa = metrics['cohen_kappa']
+    kappa = metrics["cohen_kappa"]
     if kappa < 0:
         interpretation = "Poor (less than chance)"
     elif kappa < 0.20:
@@ -321,7 +323,7 @@ def annotation_agreement(
 
         if disagreements:
             for i, (key, label1, label2) in enumerate(disagreements[:max_disagreements]):
-                console.print(f"[cyan]Example {i+1}:[/cyan]")
+                console.print(f"[cyan]Example {i + 1}:[/cyan]")
                 console.print(f"  Key hash: {key[:16]}...")
                 console.print(f"  Dataset 1: [magenta]{label1}[/magenta]")
                 console.print(f"  Dataset 2: [blue]{label2}[/blue]")

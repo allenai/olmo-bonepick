@@ -10,8 +10,6 @@ with try_import() as extra_dependencies:
     from model2vec.distill import distill
 
 
-
-
 @click.command()
 @click.option("-m", "--model-name-or-path", type=str, required=True)
 @click.option(

@@ -35,11 +35,11 @@ def _fix_gpt5_effort_override_chat_api():
     async def _build_oa_chat_request_new(model: APIModel, context: RequestContext):
         request = await _build_oa_chat_request_old(model, context)
         if (
-            re.match(r"gpt-5\.\d+", request.get("model", "")) and
-            "reasoning_effort" in request and
-            request['reasoning_effort'] == "minimal"
+            re.match(r"gpt-5\.\d+", request.get("model", ""))
+            and "reasoning_effort" in request
+            and request["reasoning_effort"] == "minimal"
         ):
-            request['reasoning_effort'] = "none"
+            request["reasoning_effort"] = "none"
         return request
 
     openai_api_requests._build_oa_chat_request = _build_oa_chat_request_new
@@ -49,14 +49,15 @@ def _fix_gpt5_effort_override_responses_api():
     import lm_deluge.api_requests.openai as openai_api_requests
 
     _build_oa_responses_request_old = openai_api_requests._build_oa_responses_request
+
     async def _build_oa_responses_request_new(model: APIModel, context: RequestContext):
         request = await _build_oa_responses_request_old(model, context)
         if (
-            re.match(r"gpt-5\.\d+", request.get("model", "")) and
-            "reasoning_effort" in request and
-            request['reasoning_effort'] == "minimal"
+            re.match(r"gpt-5\.\d+", request.get("model", ""))
+            and "reasoning_effort" in request
+            and request["reasoning_effort"] == "minimal"
         ):
-            request['reasoning_effort'] = "none"
+            request["reasoning_effort"] = "none"
         return request
 
     openai_api_requests._build_oa_responses_request = _build_oa_responses_request_new
