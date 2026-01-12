@@ -351,8 +351,12 @@ def annotate_dataset(
                     if response is None or response.completion is None:
                         failed_docs_cnt += 1
                         continue
+                    try:
+                        parsed_response = task_prompt.parse(response.completion)
+                    except Exception:
+                        failed_docs_cnt += 1
+                        continue
 
-                    parsed_response = task_prompt.parse(response.completion)
                     output_file.write(encoder.encode({**row, task_prompt.name: parsed_response}) + b"\n")
                     successful_docs_cnt += 1
 
