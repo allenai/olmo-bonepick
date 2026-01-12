@@ -296,6 +296,12 @@ s5cmd cp -sp "${ROOT_DIR}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2c
 ## Comparing different annotation prompts
 
 
+Copy the one python file we have been using for testing
+
+```
+s5cmd cp -sp 's3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/Python/step_final/shard_00007001.jsonl.zst' "tmp/data/spring2code_python/train/shard_00007001.jsonl.zst"
+
+
 ### Prompt: claude_rubric_code
 
 
