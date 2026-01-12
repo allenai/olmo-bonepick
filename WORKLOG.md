@@ -337,6 +337,7 @@ uv run --extra=annotate bonepick annotate-dataset \
     --annotation-task-prompt 'claude_rubric_code' \
     --annotation-system-prompt 'code_system' \
     --max-concurrent-requests 1000 \
+    --reasoning-effort medium \
     --max-requests-per-minute 3_000 \
     --limit-rows 5000 \
     --cache-location /tmp/bonepick/gpt-5.2-medium
@@ -687,6 +688,7 @@ uv run --extra=annotate bonepick annotate-dataset \
     --annotation-system-prompt 'code_system' \
     --max-concurrent-requests 1000 \
     --max-requests-per-minute 3_000 \
+    --reasoning-effort medium \
     --limit-rows 5000 \
     --cache-location /tmp/bonepick/gpt-5.2-medium
 
