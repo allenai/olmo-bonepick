@@ -195,15 +195,13 @@ class BasePrompt(Generic[T]):
             if isinstance(conversation_or_text, list)
             else self.format_text(text=conversation_or_text, max_text_length=max_text_length)
         ).strip()
-        sanitized_content = self.sanitize_text(content)
 
-        if self.content_order == ContentOrder.INSTRUCTIONS_CONTENT:
-            formatted_content = self.separator().join([sanitized_content, self.format_instructions()])
-        elif self.content_order == ContentOrder.CONTENT_INSTRUCTIONS:
-            formatted_content = self.separator().join([self.format_instructions(), sanitized_content])
+        # sanitize and concatenate content and instructions
+        sanitized_content = self.sanitize_text(content)
+        formatted_content = self.separator().join([sanitized_content, self.format_instructions()])
 
         if (preamble_text := self.format_preamble()) and preamble_text.strip():
-            formatted_content = self.separator().join([preamble_text, formatted_content])
+            formatted_content = self.separator().join([preamble_text.strip(), formatted_content.strip()])
 
         return formatted_content.strip()
 

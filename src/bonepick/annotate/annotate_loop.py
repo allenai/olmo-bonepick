@@ -333,6 +333,8 @@ def annotate_dataset(
                 conversation.add(Message.user(task_prompt.apply(content, max_text_length)))
                 batch_prompts.append(conversation)
 
+                breakpoint()
+
             # annotate batches in chunk on `annotation_batch_size`` rows at the time
             for i in range(0, len(batch_prompts), annotation_batch_size):
                 batch_prompts_chunk = batch_prompts[i : i + annotation_batch_size]
