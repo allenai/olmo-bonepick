@@ -203,6 +203,7 @@ def annotate_dataset(
     click.echo(f"  System prompt: {annotation_system_prompt}")
     click.echo(f"  Input field expression: {input_field_expression}")
     click.echo(f"  Input field format: {input_field_format}")
+    click.echo(f"  Max text length: {max_text_length:,}")
     click.echo()
 
     # these are the prompts to use for annotation
