@@ -430,8 +430,15 @@ Keep all explanations brief, under 100 characters or less.
     output_type: type[DataclassType] = ClaudeProgressiveCodeRubricOutput
 
 
+@dt.dataclass(frozen=True)
+class StackEduOutput:
+    justification: str
+    score: int
 
-class StackEduPrompt(BetterTruncationCodePrompt):
+
+@dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
+class StackEduPythonPrompt(BetterTruncationCodePrompt):
     name: str = "stack_edu_python"
     preamble: str = """
 Below is an extract from a Python program. Evaluate whether it has a high educational value and could help teach coding. Use
@@ -467,3 +474,5 @@ After examining the extract, respond with a JSON object with the following keys:
 
     def format_instructions(self) -> str:
         return self.instructions.strip()
+
+    output_type: type[DataclassType] = StackEduOutput
