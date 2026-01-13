@@ -1128,13 +1128,13 @@ export CLAUDE_RUBRIC_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/claude_rubr
 export VERY_SIMPLE_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/inv_codedoc_verysimple/gpt-5-mini/10k_trimmed"
 ```
 
-### Gotta binarize the data. We usee >3 as the threshold.
+### Step 2: Gotta binarize the data. We usee >3 as the threshold.
 
 ```shell
-export LABEL_NAME="inv_codedoc_verysimple/gpt-5-mini/10k_trimmed"
+export RUBRIC_PROMPT="inv_codedoc_verysimple"
+export LABEL_NAME="${RUBRIC_PROMPT}/gpt-5-mini/10k_trimmed"
 export VERY_SIMPLE_DIR_UNSPLIT="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/${LABEL_NAME}"
 export VERY_SIMPLE_DIR_SPLIT="${LOCAL_BASE_DIR}/data-train_test_split/${BASE_NAME_PREFIX}/${LABEL_NAME}"
-
 for pl in $(ls --color=never ${VERY_SIMPLE_DIR_UNSPLIT}); do
     echo "Processing ${pl}..."
     uv run bonepick reshard-dataset \
@@ -1145,22 +1145,56 @@ for pl in $(ls --color=never ${VERY_SIMPLE_DIR_UNSPLIT}); do
 done
 
 export VERY_SIMPLE_DIR_JSONL="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/jsonl"
-
 for pl in $(ls --color=never ${VERY_SIMPLE_DIR_SPLIT}); do
     echo "Processing ${pl}..."
     uv run bonepick transform-dataset \
         --input-dir "${VERY_SIMPLE_DIR_SPLIT}/${pl}" \
         --output-dir "${VERY_SIMPLE_DIR_JSONL}/${pl}" \
-        --label-transform '{score: (if .score > 3 then "pos" else "neg" end)}'
+        --label-transform "{score: (if .${RUBRIC_PROMPT}.score > 3 then \"pos\" else \"neg\" end)}"
 done
 
 export VERY_SIMPLE_DIR_JSONL_FASTTEXT="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/fasttext"
-
 for pl in $(ls --color=never ${VERY_SIMPLE_DIR_JSONL}); do
     echo "Processing ${pl}..."
     uv run bonepick convert-to-fasttext \
         --input-dir "${VERY_SIMPLE_DIR_JSONL}/${pl}" \
         --output-dir "${VERY_SIMPLE_DIR_JSONL_FASTTEXT}/${pl}" \
         --normalization ultrafine-plus
+done
+
+export VERY_SIMPLE_DIR_JSONL_MODEL2VEC="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/model2vec"
+for pl in $(ls --color=never ${VERY_SIMPLE_DIR_JSONL}); do
+    echo "Processing ${pl}..."
+    uv run bonepick normalize-dataset \
+        --input-dir "${VERY_SIMPLE_DIR_JSONL}/${pl}" \
+        --output-dir "${VERY_SIMPLE_DIR_JSONL_MODEL2VEC}/${pl}" \
+        --normalization plsfix
+done
+```
+
+### Step 3: Train a model
+
+```shell
+export MODEL_DIR="${LOCAL_BASE_DIR}/models"
+
+model_paths=(
+    "minishlab/potion-base-32M"
+    "tmp/models/Qwen3-Embedding-4B"
+)
+
+loss_class_weights="sqrt"
+
+for model_path in "${model_paths[@]}"; do
+    model_name=$(echo "${model_path}" | cut -d '/' -f 1)
+    dataset_name=$(echo "${VERY_SIMPLE_DIR_JSONL_MODEL2VEC#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
+    output_dir="${MODEL_DIR}/${model_name}-${dataset_name}-${loss_class_weights}"
+
+    echo "Training ${model_name} on ${dataset_name}... (output: ${output_dir})"
+
+    uv run bonepick train-model2vec \
+        --dataset-dir ${VERY_SIMPLE_DIR_JSONL_MODEL2VEC} \
+        --model-name "${model_path}" \
+        --output-dir "${output_dir}" \
+        --loss-class-weight "${loss_class_weights}"
 done
 ```
