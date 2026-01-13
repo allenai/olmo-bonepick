@@ -1039,14 +1039,14 @@ You should output the rubric as a JSON object.
             "is_pass": bool
         }},
     }},
-    "overall_assessment": "...",    // a final brief summary of key issues of the snippet.
+    "overall_assessment": "...",    // a final brief summary of key issues of the snippet justifying the level reached.
     "score": int                    // the final score between 0 and 4 (both inclusive); counts the number of "is_pass" values that are true.
 }}
 ```
 
 ## Output Guidelines
 
-- **Keep explanations brief**: Under 100 characters or less.
+- **Keep explanations brief**: Under 100 characters or less, or 1-2 sentences at most.
 - **Boolean flag per level**: `is_pass` should be true if the snippet meets the criteria for the level, false otherwise.
 """
 
