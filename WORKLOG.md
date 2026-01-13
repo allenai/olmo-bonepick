@@ -1085,8 +1085,52 @@ Confusion Matrix:
 ```
 
 
-### Data storing
+## Data storing
 
 ```shell
  s5cmd cp -sp 'tmp/data/*' 's3://ai2-lucas/annotations-code-bonepick-diff-prompts/'
  ```
+
+
+## Let's train models on Python/Markdown data
+
+### Step 0: Let's first store data in a proper location (one time operation)
+
+```shell
+export LOCAL_BASE_DIR='/mnt/raid0'
+export S3_BASE_DIR='s3://ai2-llm/classifiers/code-quality'
+
+export BASE_SRC_DIR="${LOCAL_BASE_DIR}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample"
+export BASE_DST_DIR="${S3_BASE_DIR}/data/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB"
+
+export SRC_TO_ANNOTATE_DIR="${BASE_SRC_DIR}_to_annotate"
+export DST_ANNOTATED_DIR="${BASE_DST_DIR}/raw"
+export SRC_CLAUDE_RUBRIC_DIR="${BASE_SRC_DIR}_annotated_gpt-5-mini_claude_rubric_code_32000"
+export DST_CLAUDE_RUBRIC_DIR="${BASE_DST_DIR}/claude_rubric_code/gpt-5-mini/32k_trimmed"
+export SRC_VERY_SIMPLE_DIR="${BASE_SRC_DIR}_annotated_gpt-5-mini_inv_codedoc_verysimple_10_000"
+export DST_VERY_SIMPLE_DIR="${BASE_DST_DIR}/inv_codedoc_verysimple/gpt-5-mini/10k_trimmed"
+
+s5cmd cp -sp "${SRC_TO_ANNOTATE_DIR}/*" "${DST_ANNOTATED_DIR}/"
+s5cmd cp -sp "${SRC_CLAUDE_RUBRIC_DIR}/*" "${DST_CLAUDE_RUBRIC_DIR}/"
+s5cmd cp -sp "${SRC_VERY_SIMPLE_DIR}/*" "${DST_VERY_SIMPLE_DIR}/"
+```
+
+### Step 1: Copy down the data from S3
+
+```shell
+export LOCAL_BASE_DIR="${HOME}/ai2-llm/classifiers/code-quality"
+export S3_BASE_DIR='s3://ai2-llm/classifiers/code-quality'
+
+s5cmd cp -sp "${S3_BASE_DIR}/*" "${LOCAL_BASE_DIR}/"
+
+export CLAUDE_RUBRIC_DIR="${LOCAL_BASE_DIR}/data/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/claude_rubric_code/gpt-5-mini/32k_trimmed"
+export VERY_SIMPLE_DIR="${LOCAL_BASE_DIR}/data/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/inv_codedoc_verysimple/gpt-5-mini/10k_trimmed"
+```
+
+### Gotta binarize the data. We usee >3 as the threshold.
+
+```shell
+uv run bonepick transform-dataset \
+    --input-dir $VERY_SIMPLE_DIR \
+    --output-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg \
+    --label-transform '{score: (if .score > 3 then "pos" else "neg" end)}'
