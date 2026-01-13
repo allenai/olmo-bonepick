@@ -814,6 +814,17 @@ Keep all explanations brief, under 100 characters or less.
 
 
 
+@dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
+class InverseSimplifiedCodeRubricV4Output(InverseSimplifiedCodeRubricPrompt):
+    name: str = "inv_simple_codedoc_v4"
+    preamble: str = """
+# Code & Documentation Quality Scoring Rubric
+
+This rubric scores code or documentation snippets from 0 (lowest) to 4 (highest). The snippet is enclosed between the markers "{snippet_marker_open}" and "{snippet_marker_close}".
+"""
+
+
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
@@ -1529,4 +1540,191 @@ Return JSON only (no markdown, no extra text).
 - Keep purpose / each explanation concise (prefer ≤1 sentence).
 - If a higher level fails, lower levels may still pass (cumulative applies to the final score, not the booleans themselves).
 - `score` must match the booleans exactly (count trues).
+"""
+
+@dt.dataclass(frozen=True)
+class InverseCodeRubricVerySimpleCriterionExplanationOutput:
+    explanation: str
+    is_pass: bool
+
+
+@dt.dataclass(frozen=True)
+class InverseCodeRubricVerySimpleCriteriaOutput:
+    functional_snippet: InverseCodeRubricVerySimpleCriterionExplanationOutput
+    no_red_flags: InverseCodeRubricVerySimpleCriterionExplanationOutput
+    readable_snippet: InverseCodeRubricVerySimpleCriterionExplanationOutput
+    well_structured_snippet: InverseCodeRubricVerySimpleCriterionExplanationOutput
+    exemplary_quality_snippet: InverseCodeRubricVerySimpleCriterionExplanationOutput
+
+
+@dt.dataclass(frozen=True)
+class InverseCodeRubricVerySimpleOutput:
+    programming_language: str
+    snippet_purpose: str
+    criteria: InverseCodeRubricVerySimpleCriteriaOutput
+    overall_assessment: str
+    score: int
+
+
+@dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
+class InverseCodeRubricVerySimplePrompt(InverseSimplifiedCodeRubricV2Prompt):
+    name: str = "inv_codedoc_verysimple"
+    rubric_marker_open: str = ""
+    rubric_marker_close: str = ""
+
+    def format_text(self, text: str, max_text_length: int | None = None) -> str:
+        # save 40 characters for the info about chopped text
+        max_text_length = max_text_length - 80 if max_text_length is not None else None
+
+        if max_text_length is not None and len(text) > max_text_length:
+            # find the closest "\n" before the max_text_length
+            closest_newline = p if (p := text.rfind("\n", 0, max_text_length)) > -1 else max_text_length
+            text = text[:closest_newline]
+            remaining_text = text[closest_newline:]
+
+            remaining_chars = len(remaining_text)
+            remaining_lines = remaining_text.count("\n")
+            text = f"{text.strip()}\n<<< truncated {remaining_chars:,} characters, {remaining_lines:,} lines >>>"
+
+        return f"===== BEGIN CODE SNIPPET =====\n{text}\n===== END CODE SNIPPET =====\n"
+
+    preamble: str = """
+This rubric scores code or documentation snippets from 0 (lowest, non-functional code or illegible documentation) to 5 (highest, code or documentation so good that it can be used to teach concepts or as reference material). The snippet is enclosed between the markers "{snippet_marker_open}" and "{snippet_marker_close}".
+
+Award one point for each criterion that is met:
+
+* Criterion 1 - **functional snippet**: Award if the snippet contains executable logic that serves a real purpose or valid documentation. Examples:
+    - Yes: Function or class that processes input and returns a result, even if it's part of a larger system.
+    - Yes: Simple script that performs a clear task.
+    - Yes: Minimal documentation that explains a concept, API, or workflow.
+    - Yes: README with an example, usage or setup instructions.
+    - No: Config file with variable assignments but no logic.
+    - No: Incomplete snippet (excluding explicit truncation indicated with <<< ... >>> markers)
+    - No: Syntax errors or corrupted text.
+    - No: Documentation with placeholder text or TODO statements.
+
+* Criterion 2 - **no red flags**: award unless the snippet has glaring issues that would immediately concern a reviewer: hardcoded secrets, obvious security holes, resource leaks, or egregiously wasteful operations. Examples:
+    - Yes: Code that opens a file using a context manager, or code that simply doesn't deal with external resources.
+    - Yes: Code has proper error handling and logging.
+    - Yes: Documentation is factually correct or even includes references to other sources.
+    - No: Hardcoded secrets, API keys, or credentials visible.
+    - No: Opening database connections in a loop without closing them.
+    - No: Text or code contains scams, misinformation, or is otherwise factually incorrect.
+
+* Criterion 3 - **readable snippet**: award if the snippet is easy to follow: clear naming, consistent style, reasonable lengths, shallow nesting, and free of clutter like dead code or excessive comments. Examples:
+    - Yes: Most identifiers have descriptive names like `user_email` and `CalculateTax`.
+    - Yes: Well-formatted code with consistent indentation and spacing.
+    - Yes: Documentation uses proper Markdown, grammar, and spelling.
+    - No: Cryptic variable names, inconsistent indentation.
+    - No: Overly long functions and methods with long lines and/or unclear purpose.
+    - No: Snippet has large blocks of dead, commented-out, or copy-pasted content.
+    - No: Documentation or comments with poor grammar or many spelling errors.
+
+* Criterion 4 - **well-structured snippet**: award if the snippet has coherent organization, uses appropriate abstractions (constants, helper functions), avoids repetition, and handles errors and edge cases rather than ignoring them. Examples:
+    - Yes: Repeated logic extracted into a function; errors caught and handled meaningfully.
+    - Yes: Code is decomposed into functions/classes with coherent, single responsibilities.
+    - Yes: Documentation is organized into sections covering distinct topics.
+    - No: The same code block copy-pasted with small tweaks.
+    - No: Bare except: pass hiding failures.
+    - No: Egregious algorithmic inefficiencies (e.g., O(n²) when O(n) is trivial).
+
+* Criterion 5 - **exemplary-quality snippet**: award if the snippet is robust, efficient, and thoughtfully designed. Examples:
+    - Yes: Code is idiomatic for its language—uses standard patterns, conventions, and terminology appropriately.
+    - Yes: Comprehensive documentation that covers full scope of the topic without major gaps.
+    - Yes: README that walks through concepts, APIs, and workflows in a clear and pedagogic manner.
+    - No: Obvious inefficiencies remain in code or are described in documentation.
+    - No: Contains outdated or deprecated approaches without acknowledgment.
+    - No: Core logic is untestable (e.g., deeply coupled to global state, no separation of concerns).
+    - No: Documentation misses key core concepts, APIs, or workflows.
+
+Award **0 points** if the snippet contains broken code, empty, or unintelligible documentation. Examples:
+    - Syntax errors rendering code non-executable.
+    - Corrupted, garbled or near-empty snippet.
+    - Binary data, base64 blobs, or similar dominate the snippet (>25% of lines).
+    - Indecipherable purpose.
+"""
+
+    instructions: str = """
+Respond in JSON format with the following keys:
+
+```
+{{
+    "programming_language": "...",   // language the snippet is written in (code) or is about (documentation), in lowercase.
+    "snippet_purpose": "...",        // description of the purpose of the snippet.
+    "criteria": {{
+        "functional_snippet": {{
+            "explanation": "...",   // explain why the snippet can be considered functional (or why not!)
+            "is_pass": bool
+        }},
+        "no_red_flags": {{
+            "explanation": "...",   // list (if any) of red flags that are present in the snippet
+            "is_pass": bool
+        }},
+        "readable_snippet": {{
+            "explanation": "...",   // describe what makes the snippet readable or not
+            "is_pass": bool
+        }},
+        "well_structured_snippet": {{
+            "explanation": "...",   // explain why the snippet structure is good (or why not)
+            "is_pass": bool
+        }},
+        "exemplary_quality_snippet": {{
+            "explanation": "...",   // list what makes the snippet exemplary (or what is missing)
+            "is_pass": bool
+        }}
+    }},
+    "overall_assessment": "...",    // a final explanation of the overall assessment of the code
+    "score": int                    // the final score between 0 and 5 (inclusive); count # of "pass" values that are true
+}}
+```
+"""
+
+    def format_instructions(self) -> str:
+        return f"\n\n{self.instructions.strip()}"
+
+    output_type: type[DataclassType] = InverseCodeRubricVerySimpleOutput
+
+
+
+@dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
+class InverseCodeRubricVerySimpleShortOutputPrompt(InverseCodeRubricVerySimplePrompt):
+    name: str = "inv_codedoc_verysimple_shortout"
+
+    instructions: str = """
+Respond with a JSON object with the following format:
+
+```
+{{
+    "programming_language": "...",   // language of the snippet in lowercase.
+    "snippet_purpose": "...",        // description of the purpose of the snippet.
+    "criteria": {{
+        "functional_snippet": {{
+            "explanation": "...",   // explain whether the snippet can be considered functional
+            "is_pass": bool
+        }},
+        "no_red_flags": {{
+            "explanation": "...",   // list any of red flags that are present in the snippet
+            "is_pass": bool
+        }},
+        "readable_snippet": {{
+            "explanation": "...",   // describe what makes the snippet readable or not
+            "is_pass": bool
+        }},
+        "well_structured_snippet": {{
+            "explanation": "...",   // list reasons why the snippet structure is good or not
+            "is_pass": bool
+        }},
+        "exemplary_quality_snippet": {{
+            "explanation": "...",   // summarize what makes the snippet exemplary, or what is missing
+            "is_pass": bool
+        }}
+    }},
+    "overall_assessment": "...",    // a final explanation of the overall assessment of the code
+    "score": int                    // the final score between 0 and 5 (inclusive); counts number of `is_pass` values that are true
+}}
+```
+
+Keep `snippet_purpose`, `overall_assessment` and `explanation` brief: under 100 characters, or 1-2 sentences at most.
 """
