@@ -1,7 +1,6 @@
-from __future__ import annotations
-
 import logging
 import os
+from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from functools import partial
 from typing import cast
@@ -125,3 +124,20 @@ class BetterStaticModelForClassification(StaticModelForClassification):
                 dtype=torch.long,
             )
         return TextDataset(tokenized, labels_tensor)
+
+
+def monkey_patch_get_latest_model_path():
+    from model2vec import hf_utils
+
+    old_get_latest_model_path = hf_utils._get_latest_model_path
+
+    def new_get_latest_model_path(model_id: str) -> Path | None:
+        # get around the fact that the cache name might be too long for some filesystems
+        if Path(model_id).exists() and Path(model_id).is_dir():
+            return Path(model_id)
+        return old_get_latest_model_path(model_id)
+
+    hf_utils._get_latest_model_path = new_get_latest_model_path
+
+
+monkey_patch_get_latest_model_path()

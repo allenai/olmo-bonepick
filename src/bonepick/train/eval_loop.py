@@ -1,7 +1,7 @@
 import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import cast
+from typing import cast as typing_cast
 
 import click
 import yaml
@@ -29,7 +29,7 @@ def _compute_metrics_from_predictions(
     y_pred = np.argmax(y_proba, axis=1)
 
     # Calculate per-class metrics
-    precision, recall, f1, support = cast(
+    precision, recall, f1, support = typing_cast(
         tuple[np.ndarray, ...],
         precision_recall_fscore_support(y_true, y_pred, labels=encoded_classes),
     )
@@ -90,10 +90,10 @@ def compute_detailed_metrics(pipeline: StaticModelPipeline, texts: list[str], la
     """
     # Encode labels
     label_encoder = LabelEncoder()
-    y_true = cast(np.ndarray, label_encoder.fit_transform(labels))
+    y_true = typing_cast(np.ndarray, label_encoder.fit_transform(labels))
 
-    plain_classes = cast(list[str], label_encoder.classes_)
-    encoded_classes = cast(np.ndarray, label_encoder.transform(plain_classes)).flatten()
+    plain_classes = typing_cast(list[str], label_encoder.classes_)
+    encoded_classes = typing_cast(np.ndarray, label_encoder.transform(plain_classes)).flatten()
 
     # Get probability predictions
     y_proba = pipeline.predict_proba(texts)
@@ -124,11 +124,11 @@ def compute_detailed_metrics_fasttext(
 
     # Encode labels
     label_encoder = LabelEncoder()
-    y_true = cast(np.ndarray, label_encoder.fit_transform(gold_labels))
+    y_true = typing_cast(np.ndarray, label_encoder.fit_transform(gold_labels))
 
     # Get names of classes
-    plain_classes = cast(list[str], label_encoder.classes_)
-    encoded_classes = cast(np.ndarray, label_encoder.transform(plain_classes)).flatten()
+    plain_classes = typing_cast(list[str], label_encoder.classes_)
+    encoded_classes = typing_cast(np.ndarray, label_encoder.transform(plain_classes)).flatten()
 
     # Run fasttext predict with probabilities (k=-1 means all classes)
     predict_cmd = [
@@ -234,7 +234,8 @@ def eval_model2vec(
     click.echo(f"  Test samples: {len(dt.test.text)}")
 
     click.echo("\nEvaluating model on test data...")
-    results = compute_detailed_metrics(pipeline, dt.test.text, dt.test.label)
+    assert dt.test.label is not None, "Test labels are required"
+    results = compute_detailed_metrics(pipeline, dt.test.text, typing_cast(list[str], dt.test.label))
 
     results_txt = result_to_text(dataset_dir, model_dir, results)
     click.echo(f"Evaluation results:\n{results_txt}\n")

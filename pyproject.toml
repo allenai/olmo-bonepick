@@ -7,7 +7,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "torch>=2.9.1",
     "click",
-    "datasets<5",
+    "datasets>=4,<5",
     "model2vec[train]>=0.7.0",
     "smart-open[s3]>=7.1.0",
     "msgspec",
@@ -35,10 +35,15 @@ path = "src/bonepick/version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/bonepick"]
 
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'"},
+]
 
 [[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
+explicit = true
 
 [project.optional-dependencies]
 annotate = [

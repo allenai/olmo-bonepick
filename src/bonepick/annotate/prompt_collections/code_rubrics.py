@@ -1,5 +1,5 @@
 import dataclasses as dt
-
+import re
 from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt, DataclassType
 
 
@@ -1721,3 +1721,103 @@ Respond with a JSON object with the following format:
 
 Keep `snippet_purpose`, `overall_assessment` and `explanation` brief: under 100 characters, or 1-2 sentences at most.
 """
+
+
+@dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
+class CountUpCriteriaPrompt(InverseCodeRubricVerySimplePrompt):
+    name: str = "countup_criteria"
+    preamble: str = """
+Using the following rubric, score the provided snippet from 0 to 25 (inclusive) depending on how well it meets the criteria provided. The snippet is enclosed between the markers "{snippet_marker_open}" and "{snippet_marker_close}".
+
+Assign one point to each criterion that is true:
+- Basic Validity
+    * Clear purpose: the purpose of the snippet can be clearly inferred
+    * Mostly empty: the snippet is mostly empty, a placeholder, or very short (<30 lines)
+    * Syntax errors: the snippet follows the correct syntax for the programming language
+    * Executable logic: the snippet contains executable logic, not just declarations
+    * Procedurally generated: the snippet does not contain text indicating that it was procedurally generated (e.g. via templates, AI, etc.).
+- Code Cleanliness
+    * Boilerplate: minimal boilerplate/config code (≤25%)
+    * Binary data: minimal binary data (base64 blobs, etc.) (≤10%)
+    * Commented-out code: minimal commented-out code (≤20%)
+    * Placeholder text: minimal placeholder text or code (TODOs, Lorem Ipsum, etc.)
+    * Debug artifacts: no leftover debug artifacts (print statements, console.log, etc.)
+    * Repetition: no significant copy-paste repeats
+- Security
+    * Hardcoded secrets: no hardcoded secrets, API keys, or credentials
+    * Vulnerabilities: no obvious vulnerabilities (SQL injection, path traversal, etc.)
+- Documentation & Readability
+    * Comments: non-trivial code sections are properly commented to explain assumptions, implementations, and behavior
+    * Docstrings: major functions, classes, or methods include docstrings.
+    * Grammar: mostly correct grammar and spelling throughout the snippet; minimal errors tolerated
+    * Naming: descriptive, meaningful names for variables, functions, classes, etc.
+    * Type hints: type hints for languages that support them
+- Structure & Organization
+    * Logical flow: functions, classes, and methods are logically organized, not randomly jumbled.
+    * Shallow nesting: no overly deep nesting (≤4 levels)
+    * Concise: few long lines (>150 chars) or long functions (>300 lines)
+    * Modularity: functionality is well partitioned into across modules, classes, functions, etc.
+- Robustness & Performance
+    * Error handling: contains error handling logic (try/catch, error messages, etc.)
+    * Side effects: minimal side effects (no global variables, no mutations, etc.)
+    * Performance: efficient, using appropriate algorithms and data structures
+"""
+
+    instructions: str = """
+Respond with a JSON object with the following format:
+
+```
+{{
+    "code_purpose": "...",    // a short description of the purpose of the snippet.
+    "programming_language": "...",    // the programming language of the snippet in lowercase.
+    "criteria": {{
+        "basic_validity": {{
+            "clear_purpose": bool,
+            "mostly_empty": bool,
+            "syntax_errors": bool,
+            "executable_logic": bool,
+            "procedurally_generated": bool,
+        }},
+        "code_cleanliness": {{
+            "boilerplate": bool,
+            "binary_data": bool,
+            "commented_out_code": bool,
+            "placeholder_text": bool,
+            "debug_artifacts": bool,
+            "repetition": bool,
+        }},
+        "security": {{
+            "hardcoded_secrets": bool,
+            "vulnerabilities": bool,
+        }},
+        "documentation_and_readability": {{
+            "comments": bool,
+            "docstrings": bool,
+            "grammar": bool,
+            "naming": bool,
+            "type_hints": bool,
+        }},
+        "structure_and_organization": {{
+            "logical_flow": bool,
+            "shallow_nesting": bool,
+            "concise": bool,
+            "modularity": bool,
+        }},
+        "robustness_and_performance": {{
+            "error_handling": bool,
+            "side_effects": bool,
+            "performance": bool,
+        }},
+    }},
+    "overall_assessment": "...",    // a final explanation of the overall assessment of the snippet.
+    "score": int    // the final score between 0 and 25 (inclusive); counts the number of criteria that are true
+}}
+```
+"""
+
+    def format_preamble(self) -> str:
+        preamble = super().format_preamble()
+
+        # replace consecutive 4+ spaces after with a tab (saving some tokens!)
+        return re.sub(r"    +", "\t", preamble)
