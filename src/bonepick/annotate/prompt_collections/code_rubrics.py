@@ -1724,11 +1724,80 @@ Keep `snippet_purpose`, `overall_assessment` and `explanation` brief: under 100 
 
 
 @dt.dataclass(frozen=True)
+class CountUpCriteriaBasicValidityOutput:
+    clear_purpose: bool
+    mostly_empty: bool
+    syntax_errors: bool
+    executable_logic: bool
+    procedurally_generated: bool
+
+
+@dt.dataclass(frozen=True)
+class CountUpCriteriaCodeCleanlinessOutput:
+    boilerplate: bool
+    binary_data: bool
+    commented_out_code: bool
+    placeholder_text: bool
+    debug_artifacts: bool
+    repetition: bool
+
+
+@dt.dataclass(frozen=True)
+class CountUpCriteriaSecurityOutput:
+    hardcoded_secrets: bool
+    vulnerabilities: bool
+
+
+@dt.dataclass(frozen=True)
+class CountUpCriteriaDocumentationAndReadabilityOutput:
+    comments: bool
+    docstrings: bool
+    grammar: bool
+    naming: bool
+    type_hints: bool
+
+
+@dt.dataclass(frozen=True)
+class CountUpCriteriaStructureAndOrganizationOutput:
+    logical_flow: bool
+    shallow_nesting: bool
+    concise: bool
+    modularity: bool
+    hardcoded_values: bool
+
+
+@dt.dataclass(frozen=True)
+class CountUpCriteriaRobustnessAndPerformanceOutput:
+    error_handling: bool
+    side_effects: bool
+    performance: bool
+
+
+@dt.dataclass(frozen=True)
+class CountUpCriteriaGroupsOutput:
+    basic_validity: CountUpCriteriaBasicValidityOutput
+    code_cleanliness: CountUpCriteriaCodeCleanlinessOutput
+    security: CountUpCriteriaSecurityOutput
+    documentation_and_readability: CountUpCriteriaDocumentationAndReadabilityOutput
+    structure_and_organization: CountUpCriteriaStructureAndOrganizationOutput
+    robustness_and_performance: CountUpCriteriaRobustnessAndPerformanceOutput
+
+
+@dt.dataclass(frozen=True)
+class CountUpCriteriaOutput:
+    code_purpose: str
+    programming_language: str
+    criteria: CountUpCriteriaGroupsOutput
+    overall_assessment: str
+    score: int
+
+
+@dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
 class CountUpCriteriaPrompt(InverseCodeRubricVerySimplePrompt):
     name: str = "countup_criteria"
     preamble: str = """
-Using the following rubric, score the provided snippet from 0 to 25 (inclusive) depending on how well it meets the criteria provided. The snippet is enclosed between the markers "{snippet_marker_open}" and "{snippet_marker_close}".
+Using the following rubric, score the provided snippet from 0 to 26 (inclusive) depending on how well it meets the criteria provided. The snippet is enclosed between the markers "{snippet_marker_open}" and "{snippet_marker_close}".
 
 Assign one point to each criterion that is true:
 - Basic Validity
@@ -1758,6 +1827,7 @@ Assign one point to each criterion that is true:
     * Shallow nesting: no overly deep nesting (≤4 levels)
     * Concise: few long lines (>150 chars) or long functions (>300 lines)
     * Modularity: functionality is well partitioned into across modules, classes, functions, etc.
+    * Hardcoded values: no hardcoded values (e.g. magic numbers, paths, inputs parameters, etc.)
 - Robustness & Performance
     * Error handling: contains error handling logic (try/catch, error messages, etc.)
     * Side effects: minimal side effects (no global variables, no mutations, etc.)
@@ -1803,6 +1873,7 @@ Respond with a JSON object with the following format:
             "shallow_nesting": bool,
             "concise": bool,
             "modularity": bool,
+            "hardcoded_values": bool,
         }},
         "robustness_and_performance": {{
             "error_handling": bool,
@@ -1811,13 +1882,8 @@ Respond with a JSON object with the following format:
         }},
     }},
     "overall_assessment": "...",    // a final explanation of the overall assessment of the snippet.
-    "score": int    // the final score between 0 and 25 (inclusive); counts the number of criteria that are true
+    "score": int    // the final score between 0 and 26 (inclusive); counts the number of criteria that are true
 }}
 ```
 """
-
-    def format_preamble(self) -> str:
-        preamble = super().format_preamble()
-
-        # replace consecutive 4+ spaces after with a tab (saving some tokens!)
-        return re.sub(r"    +", "\t", preamble)
+    output_type: type[DataclassType] = CountUpCriteriaOutput

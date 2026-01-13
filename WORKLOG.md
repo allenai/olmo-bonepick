@@ -1085,6 +1085,51 @@ Confusion Matrix:
 ```
 
 
+### Prompt: `countup_criteria` (like this one!)
+
+```shell
+export RUBRIC_PROMPT="countup_criteria"
+export MAX_TEXT_LENGTH=10000
+
+models=(
+    "gpt-5.2/"
+    "gpt-5-mini/"
+)
+
+for model in "${models[@]}"; do
+    model_name=$(echo "${model}" | cut -d '/' -f 1)
+    effort_name=$(echo "${model}" | cut -d '/' -f 2)
+
+    destination_dir="tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-${model_name}"
+    cache_dir="tmp/cache/${model}"
+
+    ## check if effort name is empty string, if not, set effort_flag="--reasoning-effort ${effort_name}"
+    if [[ -z "${effort_name}" ]]; then
+        effort_flag=""
+    else
+        effort_flag="--reasoning-effort ${effort_name}"
+        destination_dir="${destination_dir}-${effort_name}"
+        cache_dir="${cache_dir}-${effort_name}"
+    fi
+
+    echo "Annotating ${model_name} with reasoning effort: ${effort_flag}"
+
+    uv run --extra=annotate bonepick annotate-dataset \
+        --dataset-dir tmp/data/spring2code_python \
+        --output-dir "${destination_dir}" \
+        --model-name "${model_name}" \
+        --service-tier standard \
+        --annotation-task-prompt "${RUBRIC_PROMPT}" \
+        --annotation-system-prompt 'code_system' \
+        ${effort_flag} \
+        --max-concurrent-requests 1_000 \
+        --max-requests-per-minute 5_000 \
+        --limit-rows 2_000 \
+        --max-text-length ${MAX_TEXT_LENGTH} \
+        --cache-location "${cache_dir}"
+done
+```
+
 ## Data storing
 
 ```shell
