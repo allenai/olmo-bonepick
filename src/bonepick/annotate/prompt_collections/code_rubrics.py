@@ -807,5 +807,251 @@ Return a JSON object in the following format:
 Keep all explanations brief, under 100 characters or less.
 """
 
-def format_instructions(self) -> str:
-    return f"\n\n{self.instructions.strip()}"
+    def format_instructions(self) -> str:
+        return f"\n\n{self.instructions.strip()}"
+
+    output_type: type[DataclassType] = SimplifiedCodeOutput
+
+
+
+
+@dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
+class InverseSimplifiedCodeRubricV2Prompt(BaseCodeDocumentationPrompt):
+    name: str = "inv_simple_codedoc_v2"
+    rubric_marker_open: str = ""
+    rubric_marker_close: str = ""
+    preamble: str = """
+# Code & Documentation Quality Scoring Rubric
+
+This rubric scores code or documentation snippets from 0 (lowest) to 4 (highest). The snippet is enclosed between the markers "{snippet_marker_open}" and "{snippet_marker_close}".
+
+## Principles
+
+- **Cumulative scoring**: You must earn all prior levels to claim the next.
+- **Blockers**: Any single applicable blocker disqualifies that level.
+- **Criteria**: Must meet ≥3 criteria to pass each level. Count from Universal + the applicable category (Code-specific OR Docs-specific).
+- **Truncation**: Do not penalize truncated snippets unless a significant portion (>50%) appears missing.
+- **Mixed content**: For files containing both code and documentation (e.g., docstrings, README with examples), evaluate primarily by the dominant content type, but consider both categories where relevant.
+
+---
+
+## Applying the Rubric
+
+1. **Identify the language** — Determine the programming language (Python, JavaScript, etc.) or, for documentation, the language/framework it describes.
+2. **Infer purpose** — Briefly describe what the snippet does. If the purpose is unclear, this may indicate low quality.
+3. **Evaluate each level** — Work upward from Level 1; stop at the first level not achieved.
+
+---
+
+## Level 0 (Non-functional Snippet)
+
+The snippet fails to meet any of the requirements. It is broken, empty, or unintelligible.
+
+Examples:
+- Syntax errors rendering code non-executable
+- Corrupted or garbled text
+- Empty or near-empty file
+- Completely indecipherable purpose
+
+---
+
+## Level 1 (Functional Snippet)
+
+The snippet is minimally functional and serves a discernible purpose.
+
+### Blockers (any one disqualifies)
+
+- Syntax errors or corrupted text making code non-executable.
+- Dominated by boilerplate, config, or static data with minimal logic (>75% of content).
+- Embedded binary data, base64 blobs, or similar dominate (>25% of lines).
+
+### Criteria (≥3 must be true)
+
+**Universal:**
+- Purpose is inferable from reading the snippet.
+- Not mostly empty, placeholder, or stub content.
+- Content appears complete or coherently truncated (not mid-statement/sentence).
+
+**Code-specific:**
+- Contains valid, executable code.
+- Dead or commented-out code is minimal (<20% of lines).
+- No stray debug artifacts scattered throughout (e.g., `print("here")`, `console.log(1)`, `debugger`).
+- Imports/dependencies appear reasonable (not obviously broken or circular).
+
+**Docs-specific:**
+- Documentation is intelligible and written in coherent prose.
+- Covers at least one complete concept, API, or workflow.
+- Free of obvious placeholder text (e.g., "TODO: write this", "Lorem ipsum").
+
+---
+
+## Level 2 (Readable Snippet)
+
+The snippet is easy to follow, consistently formatted, and free of glaring issues.
+
+### Blockers (any one disqualifies)
+
+**Universal:**
+- Hardcoded secrets, API keys, or credentials visible.
+
+**Code-specific:**
+- Naming is systematically cryptic in non-trivial logic (>50% single-letter or meaningless identifiers).
+- Obvious security vulnerabilities (e.g., SQL injection via string concatenation, `eval()` on user input, path traversal).
+
+**Docs-specific:**
+- Written in poor grammar or incomprehensible style throughout.
+- Factually incorrect information that would mislead readers.
+
+### Criteria (≥3 must be true)
+
+**Universal:**
+- Consistent formatting and indentation throughout.
+- No large blocks of dead, commented-out, or copy-pasted content.
+- Logical flow: content is ordered sensibly (not randomly jumbled).
+
+**Code-specific:**
+- Most identifiers have descriptive, meaningful names.
+- Nesting is shallow (≤4 levels of conditionals/loops in most places).
+- Functions are reasonable length (≤100 lines); lines are reasonable width (≤150 chars).
+- Magic numbers/strings are minimal or explained.
+
+**Docs-specific:**
+- Sections are logically organized with clear headings.
+- Technical terms are used correctly and consistently.
+- Grammar and spelling are largely correct (minor errors acceptable).
+- Formatting aids readability (appropriate use of code blocks, lists, emphasis).
+
+---
+
+## Level 3 (Well-structured Snippet)
+
+The snippet demonstrates good design: appropriate abstractions, error handling, and organization.
+
+### Blockers (any one disqualifies)
+
+**Universal:**
+- Significant copy-paste repetition (same block of ≥5 lines repeated 3+ times).
+- Procedurally/mechanically generated via templates (not human-authored).
+
+**Code-specific:**
+- Abundant silent error swallowing (e.g., empty `catch`, bare `except: pass`) without justification.
+- Glaring algorithmic inefficiencies in core paths (e.g., O(n²) when O(n) is trivial, repeated expensive operations in tight loops).
+- Key assumptions or invariants in complex logic are completely undocumented.
+
+**Docs-specific:**
+- Critical concepts, parameters, or workflows are left unexplained.
+- Instructions are ambiguous or contradictory.
+- Missing prerequisites or setup steps that would leave readers stuck.
+
+### Criteria (≥3 must be true)
+
+**Universal:**
+- Complex sections include explanatory comments (code) or clarifying prose (docs).
+- Content demonstrates domain understanding (not just syntactically correct but semantically sensible).
+- Avoids unnecessary complexity; solutions are proportionate to the problem.
+
+**Code-specific:**
+- Decomposed into functions/classes with coherent, single responsibilities.
+- Error/exception handling is present where appropriate; provides meaningful messages or recovery.
+- Resources are managed correctly (files, connections, locks are closed/released).
+- Side effects are contained and predictable (I/O grouped, not scattered randomly).
+- Uses appropriate data structures for the task.
+- Avoids global mutable state where practical.
+
+**Docs-specific:**
+- Organized into logical sections covering distinct topics.
+- Covers edge cases, limitations, or common pitfalls.
+- Parameters, arguments, or configuration options are explained.
+- Provides context: explains when/why to use the documented feature.
+- Cross-references related concepts or links to further reading.
+
+---
+
+## Level 4 (Exemplary Snippet)
+
+The snippet is robust, efficient, and thoughtfully designed. Suitable as teaching material or reference implementation.
+
+### Blockers (any one disqualifies)
+
+**Universal:**
+- Obvious inefficiencies remain in hot paths.
+- Contains outdated or deprecated approaches without acknowledgment.
+
+**Code-specific:**
+- Resource leaks (unclosed handles, connections, unreleased locks).
+- Core logic is untestable (e.g., deeply coupled to global state, no separation of concerns).
+
+**Docs-specific:**
+- Incomplete coverage of key concepts, APIs, or workflows.
+- No examples provided for complex operations.
+- Contradicts or is inconsistent with the code it documents.
+
+### Criteria (≥3 must be true)
+
+**Universal:**
+- Logic/content flows clearly enough to serve as a teaching example.
+- Idiomatic for its language/domain — uses standard patterns, conventions, and terminology appropriately.
+- Anticipates reader/user needs; answers likely follow-up questions.
+
+**Code-specific:**
+- Error handling is robust: meaningful messages, appropriate recovery, no silent failures.
+- Docstrings or comments explain the "what" and "why" for public interfaces.
+- Side effects are well-contained (I/O at module edges, pure functions where practical).
+- Type hints or contracts are present where the language supports them.
+- Defensive coding: validates inputs, handles edge cases gracefully.
+- Performance-conscious: appropriate algorithms and data structures for scale.
+
+**Docs-specific:**
+- Explains both "how" and "why," not just listing facts.
+- Includes concrete examples, diagrams, or code samples where helpful.
+- Addresses multiple skill levels or provides progressive disclosure.
+- Accurate and up-to-date with the code/system it documents.
+- Comprehensive: covers the full scope of the topic without major gaps.
+"""
+
+    instructions: str = """
+# Output
+
+You should output the rubric as a JSON object.
+
+## Output Format
+
+```json
+{{
+    "programming_language": "...",   // the programming language the snippet is written in (code) or is about (documentation), all in lowercase.
+    "purpose": "...",                // a brief description of the purpose of the snippet.
+    "levels": {{
+        "functional_snippet": {{
+            "explanation": "...",   // briefly explain how the snippet meets basic checks (or why not!).
+            "is_pass": bool
+        }},
+        "readable_snippet": {{
+            "explanation": "...",   // briefly explain what makes the snippet readable or unreadable.
+            "is_pass": bool
+        }},
+        "well_structured_snippet": {{
+            "explanation": "...",   // briefly explain how the is snippet is structured, (if code) how it handles errors and uses appropriate abstractions, (if documentation) its comprehensiveness.
+            "is_pass": bool
+        }},
+        "exemplary_snippet": {{
+            "explanation": "...",   // briefly explain how the code is robust, efficient, and thoughtfully designed
+            "is_pass": bool
+        }},
+    }},
+    "overall_assessment": "...",    // a final brief summary of key issues of the snippet.
+    "score": int                    // the final score between 0 and 4 (both inclusive); counts the number of "is_pass" values that are true.
+}}
+```
+
+## Output Guidelines
+
+- **Keep explanations brief**: Under 100 characters or less.
+- **Boolean flag per level**: `is_pass` should be true if the snippet meets the criteria for the level, false otherwise.
+- **Explanations**: If a snippet does not reach a level, say "did not reach this level" as explanation.
+"""
+
+    def format_instructions(self) -> str:
+        return f"\n\n{self.instructions.strip()}"
+
+    output_type: type[DataclassType] = SimplifiedCodeOutput
