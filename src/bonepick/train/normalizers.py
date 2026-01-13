@@ -20,16 +20,33 @@ T = TypeVar("T", bound="BaseRowNormalizer")
 NORMALIZER_REGISTRY: dict[str, type["BaseRowNormalizer"]] = {}
 
 
-def fix_and_cut_text(text: str, max_length: int = 2**20) -> str:
+def cut_and_ftfy_text(text: str, max_length: int = 2**20) -> str:
     if len(text) > max_length:
         next_newline = text.find("\n", max_length)
         text = text[:max_length] if next_newline == -1 else text[:next_newline]
     try:
-        return fix_text(text)
+        # split first, then fix, then join
+        fragments = re.split(r"\b", text)
+        fixed_fragments = [fix_text(t) for t in fragments]
+        return "".join(fixed_fragments)
     except Exception:
         if max_length < 0:
             return text
-        return fix_and_cut_text(text, max_length=max_length // 2)
+        return cut_and_ftfy_text(text, max_length=max_length // 2)
+
+
+def cut_and_ascii_text(text: str, max_length: int = 2**20) -> str:
+    if len(text) > max_length:
+        next_newline = text.find("\n", max_length)
+        text = text[:max_length] if next_newline == -1 else text[:next_newline]
+    try:
+        text_fragments = re.split(r"\b", text)
+        ascii_fragments = [anyascii(t) for t in text_fragments]
+        return "".join(ascii_fragments)
+    except Exception:
+        if max_length < 0:
+            return text
+        return cut_and_ascii_text(text, max_length=max_length // 2)
 
 
 def register_normalizer(name: str) -> Callable[[type[T]], type[T]]:
@@ -72,7 +89,7 @@ class WhitespaceNormalizer(BaseRowNormalizer):
 @register_normalizer("plsfix")
 class PLSFixNormalizer(BaseRowNormalizer):
     def normalize(self, text: str) -> str:
-        return fix_and_cut_text(text)
+        return cut_and_ftfy_text(text)
 
 
 @register_normalizer("tokenizer")
@@ -81,7 +98,7 @@ class TokenizerNormalizer(BaseRowNormalizer):
         self.tokenizer = Tokenizer.from_pretrained("allenai/dolma2-tokenizer")
 
     def normalize(self, text: str) -> str:
-        cleaned_text = fix_and_cut_text(text)
+        cleaned_text = cut_and_ftfy_text(text)
         tokens = self.tokenizer.encode(cleaned_text)
         return " ".join(tokens.tokens)
 
@@ -130,32 +147,33 @@ class UltraFineWebPlusNormalizer(BaseRowNormalizer):
         self.tokenizer = Tokenizer.from_pretrained("allenai/dolma2-tokenizer")  # equivalent to cl100k_base
 
     def normalize(self, text: str) -> str:
-        # 1. fix text
-        text = fix_and_cut_text(text)
+        # 1. fix text with faster verson of ftfy
+        text = cut_and_ftfy_text(text)
 
-        # 2. convert to ASCII (including romanization of non-ASCII characters)
-        text = anyascii(text)
-
-        # 3. remove multiple newlines
+        # 2. remove multiple newlines
         text = self.remove_extra_newlines_re.sub("\n\n", text)
 
-        # 4. lower the text
+        # 3. lower the text
         text = text.lower()
 
-        # 5. remove diacritics
+        # 4. remove diacritics
         text = "".join(c for c in unicodedata.normalize("NFKD", text) if unicodedata.category(c) != "Mn")
 
-        # 6. add spacing around special characters
+        # 5. add spacing around special characters
         text = self.space_before_special_re.sub(" \\1 ", text)
 
-        # 7. first removal of extra whitespace
+        # 6. first removal of extra whitespace
         text = self.whitespace_re.sub(" ", text)
 
-        # 8. word segmentation
+        # ?. Convert to ASCII (including romanization of non-ASCII characters)
+        # skipping for now bc it's unproven
+        # text = cut_and_ascii_text(text)
+
+        # 7. word segmentation
         tokens = self.tokenizer.encode(text, add_special_tokens=False)
         text = " ".join(tokens.tokens)
 
-        # 9. second removal of extra whitespace
+        # 8. second removal of extra whitespace
         text = self.whitespace_re.sub(" ", text)
 
         return text.strip()
@@ -170,7 +188,7 @@ class PotionNormalizer(BaseRowNormalizer):
 
     def normalize(self, text: str) -> str:
         # 1. fix text
-        text = fix_and_cut_text(text)
+        text = cut_and_ftfy_text(text)
 
         # 2. remove multiple newlines
         text = re.sub(r"\n{3,}", "\n\n", text)
