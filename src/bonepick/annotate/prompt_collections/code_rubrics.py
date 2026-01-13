@@ -1725,52 +1725,52 @@ Keep `snippet_purpose`, `overall_assessment` and `explanation` brief: under 100 
 
 @dt.dataclass(frozen=True)
 class CountUpCriteriaBasicValidityOutput:
-    clear_purpose: bool
-    mostly_empty: bool
-    syntax_errors: bool
-    executable_logic: bool
-    procedurally_generated: bool
+    has_clear_purpose: bool
+    not_mostly_empty: bool
+    no_syntax_errors: bool
+    has_executable_logic: bool
+    not_procedurally_generated: bool
 
 
 @dt.dataclass(frozen=True)
 class CountUpCriteriaCodeCleanlinessOutput:
-    boilerplate: bool
-    binary_data: bool
-    commented_out_code: bool
-    placeholder_text: bool
-    debug_artifacts: bool
-    repetition: bool
+    no_boilerplate: bool
+    no_binary_data: bool
+    no_commented_out_code: bool
+    no_placeholder_text: bool
+    no_debug_artifacts: bool
+    no_repetition: bool
 
 
 @dt.dataclass(frozen=True)
 class CountUpCriteriaSecurityOutput:
-    hardcoded_secrets: bool
-    vulnerabilities: bool
+    no_hardcoded_secrets: bool
+    no_vulnerabilities: bool
 
 
 @dt.dataclass(frozen=True)
 class CountUpCriteriaDocumentationAndReadabilityOutput:
-    comments: bool
-    docstrings: bool
-    grammar: bool
-    naming: bool
-    type_hints: bool
+    has_comments: bool
+    has_docstrings: bool
+    good_grammar: bool
+    good_naming: bool
+    has_type_hints: bool
 
 
 @dt.dataclass(frozen=True)
 class CountUpCriteriaStructureAndOrganizationOutput:
-    logical_flow: bool
-    shallow_nesting: bool
-    concise: bool
-    modularity: bool
-    hardcoded_values: bool
+    good_logical_flow: bool
+    only_shallow_nesting: bool
+    is_concise: bool
+    is_modular: bool
+    no_hardcoded_values: bool
 
 
 @dt.dataclass(frozen=True)
 class CountUpCriteriaRobustnessAndPerformanceOutput:
-    error_handling: bool
-    side_effects: bool
-    performance: bool
+    has_error_handling: bool
+    minimal_side_effects: bool
+    is_efficient: bool
 
 
 @dt.dataclass(frozen=True)
@@ -1801,37 +1801,37 @@ Using the following rubric, score the provided snippet from 0 to 26 (inclusive) 
 
 Assign one point to each criterion that is true:
 - Basic Validity
-    * Clear purpose: the purpose of the snippet can be clearly inferred
-    * Mostly empty: the snippet is mostly empty, a placeholder, or very short (<30 lines)
-    * Syntax errors: the snippet follows the correct syntax for the programming language
-    * Executable logic: the snippet contains executable logic, not just declarations
-    * Procedurally generated: the snippet does not contain text indicating that it was procedurally generated (e.g. via templates, AI, etc.).
+    * Has clear purpose: the purpose of the snippet can be clearly inferred
+    * Not mostly empty: the snippet is NOT mostly empty, a placeholder, or very short (<30 lines)
+    * No syntax errors: the snippet follows the correct syntax for the programming language
+    * Has executable logic: the snippet contains executable logic, not just declarations
+    * Not procedurally generated: the snippet does NOT contain text indicating that it was procedurally generated (e.g. via templates, AI, etc.).
 - Code Cleanliness
-    * Boilerplate: minimal boilerplate/config code (≤25%)
-    * Binary data: minimal binary data (base64 blobs, etc.) (≤10%)
-    * Commented-out code: minimal commented-out code (≤20%)
-    * Placeholder text: minimal placeholder text or code (TODOs, Lorem Ipsum, etc.)
-    * Debug artifacts: no leftover debug artifacts (print statements, console.log, etc.)
-    * Repetition: no significant copy-paste repeats
+    * No boilerplate: boilerplate/config code is at most <10% of the snippet
+    * No binary data: binary data (base64 blobs, etc.) is at most <10% of the snippet
+    * No commented-out code: commented-out code is at most <10% of the snippet
+    * No placeholder text: placeholder text or code (TODOs, Lorem Ipsum, etc.) is at most <10% of the snippet
+    * No debug artifacts: no leftover debug artifacts (print statements, console.log, etc.)
+    * No repetition: no significant copy-paste repeats
 - Security
-    * Hardcoded secrets: no hardcoded secrets, API keys, or credentials
-    * Vulnerabilities: no obvious vulnerabilities (SQL injection, path traversal, etc.)
-- Documentation & Readability
-    * Comments: non-trivial code sections are properly commented to explain assumptions, implementations, and behavior
-    * Docstrings: major functions, classes, or methods include docstrings.
-    * Grammar: mostly correct grammar and spelling throughout the snippet; minimal errors tolerated
-    * Naming: descriptive, meaningful names for variables, functions, classes, etc.
-    * Type hints: type hints for languages that support them
-- Structure & Organization
-    * Logical flow: functions, classes, and methods are logically organized, not randomly jumbled.
-    * Shallow nesting: no overly deep nesting (≤4 levels)
-    * Concise: few long lines (>150 chars) or long functions (>300 lines)
-    * Modularity: functionality is well partitioned into across modules, classes, functions, etc.
-    * Hardcoded values: no hardcoded values (e.g. magic numbers, paths, inputs parameters, etc.)
-- Robustness & Performance
-    * Error handling: contains error handling logic (try/catch, error messages, etc.)
-    * Side effects: minimal side effects (no global variables, no mutations, etc.)
-    * Performance: efficient, using appropriate algorithms and data structures
+    * No hardcoded secrets: no hardcoded secrets, API keys, or credentials
+    * No vulnerabilities: no obvious vulnerabilities (SQL injection, path traversal, etc.)
+- Documentation and Readability
+    * Has comments: non-trivial code sections are properly commented to explain assumptions, implementations, and behavior
+    * Has docstrings: major functions, classes, or methods include docstrings.
+    * Good grammar: mostly correct grammar and spelling throughout the snippet; minimal errors tolerated
+    * Good naming: descriptive, meaningful names for variables, functions, classes, etc.
+    * Has type hints: type hints for languages that support them
+- Structure and Organization
+    * Good logical flow: functions, classes, and methods are logically organized, not randomly jumbled.
+    * Only shallow nesting: no overly deep nesting (<6 levels)
+    * Is concise: long lines (>150 chars) or long functions (>300 lines) are at most <10% of the snippet
+    * Is modular: functionality is well partitioned into across modules, classes, functions, etc.
+    * No hardcoded values: no hardcoded values (e.g. magic numbers, paths, inputs parameters, etc.)
+- Robustness and Performance
+    * Has error handling: contains error handling logic (try/catch, error messages, etc.)
+    * Minimal side effects: minimal side effects (no global variables, no mutations, etc.)
+    * Is efficient: the snippet is efficient, using appropriate algorithms and data structures
 """
 
     instructions: str = """
@@ -1843,42 +1843,42 @@ Respond with a JSON object with the following format:
     "programming_language": "...",    // the programming language of the snippet in lowercase.
     "criteria": {{
         "basic_validity": {{
-            "clear_purpose": bool,
-            "mostly_empty": bool,
-            "syntax_errors": bool,
-            "executable_logic": bool,
-            "procedurally_generated": bool,
+            "has_clear_purpose": bool,
+            "not_mostly_empty": bool,
+            "no_syntax_errors": bool,
+            "has_executable_logic": bool,
+            "not_procedurally_generated": bool,
         }},
         "code_cleanliness": {{
-            "boilerplate": bool,
-            "binary_data": bool,
-            "commented_out_code": bool,
-            "placeholder_text": bool,
-            "debug_artifacts": bool,
-            "repetition": bool,
+            "no_boilerplate": bool,
+            "no_binary_data": bool,
+            "no_commented_out_code": bool,
+            "no_placeholder_text": bool,
+            "no_debug_artifacts": bool,
+            "no_repetition": bool,
         }},
         "security": {{
-            "hardcoded_secrets": bool,
-            "vulnerabilities": bool,
+            "no_hardcoded_secrets": bool,
+            "no_vulnerabilities": bool,
         }},
         "documentation_and_readability": {{
-            "comments": bool,
-            "docstrings": bool,
-            "grammar": bool,
-            "naming": bool,
-            "type_hints": bool,
+            "has_comments": bool,
+            "has_docstrings": bool,
+            "good_grammar": bool,
+            "good_naming": bool,
+            "has_type_hints": bool,
         }},
         "structure_and_organization": {{
-            "logical_flow": bool,
-            "shallow_nesting": bool,
-            "concise": bool,
-            "modularity": bool,
-            "hardcoded_values": bool,
+            "good_logical_flow": bool,
+            "only_shallow_nesting": bool,
+            "is_concise": bool,
+            "is_modular": bool,
+            "no_hardcoded_values": bool,
         }},
         "robustness_and_performance": {{
-            "error_handling": bool,
-            "side_effects": bool,
-            "performance": bool,
+            "has_error_handling": bool,
+            "minimal_side_effects": bool,
+            "is_efficient": bool,
         }},
     }},
     "overall_assessment": "...",    // a final explanation of the overall assessment of the snippet.
