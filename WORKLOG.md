@@ -1088,3 +1088,10 @@ Confusion Matrix:
 │ pos                   │   197 │ 596 │
 └───────────────────────┴───────┴─────┘
 ```
+
+
+### Data storing
+
+```shell
+ s5cmd cp -sp 'tmp/data/*' 's3://ai2-lucas/annotations-code-bonepick-diff-prompts/'
+ ```
