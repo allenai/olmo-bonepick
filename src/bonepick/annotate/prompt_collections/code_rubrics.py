@@ -1048,7 +1048,6 @@ You should output the rubric as a JSON object.
 
 - **Keep explanations brief**: Under 100 characters or less.
 - **Boolean flag per level**: `is_pass` should be true if the snippet meets the criteria for the level, false otherwise.
-- **Explanations**: If a snippet does not reach a level, say "did not reach this level" as explanation.
 """
 
     def format_instructions(self) -> str:
