@@ -171,7 +171,6 @@ def annotation_agreement(
     # Check if extra dependencies are installed
     extra_dependencies.check()
 
-
     if len(dataset_dir) < 2:
         raise ValueError("At least two dataset directories are required")
 
@@ -194,7 +193,6 @@ def annotation_agreement(
             )
         else:
             key_expression = key_expression * len(dataset_dir)
-
 
     console = Console()
 
@@ -377,6 +375,8 @@ def annotation_agreement(
                     console.print()
 
                 if len(disagreements) > max_disagreements:
-                    console.print(f"[dim]... and {len(disagreements) - max_disagreements} more disagreements[/dim]\n")
+                    console.print(
+                        f"[dim]... and {len(disagreements) - max_disagreements} more disagreements[/dim]\n"
+                    )
             else:
                 console.print("[green]No disagreements found! Perfect agreement.[/green]\n")

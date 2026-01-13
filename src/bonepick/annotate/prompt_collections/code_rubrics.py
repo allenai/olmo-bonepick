@@ -270,7 +270,6 @@ Respond in a json format with the following keys:
     output_type: type[DataclassType] = ClaudeProgressiveCodeRubricOutput
 
 
-
 @dt.dataclass(frozen=True)
 class BetterTruncationCodePrompt(BaseCodePrompt):
     def format_text(self, text: str, max_text_length: int | None = None) -> str:
@@ -290,11 +289,9 @@ class BetterTruncationCodePrompt(BaseCodePrompt):
         return f"===== BEGIN CODE SNIPPET =====\n{text}\n===== END CODE SNIPPET =====\n"
 
 
-
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
 class ClaudeProgressiveRubricCodeV2Prompt(BetterTruncationCodePrompt):
-
     name: str = "claude_progressive_rubric_code_v2"
     instructions: str = """
 The following rubric is used to score the code snippet above between 1 and 5 (inclusive). It assesses whether the code is of high quality and could be useful for teaching coding concepts, algorithms, libraries, best practices, etc. Scoring guide:
@@ -463,6 +460,7 @@ After examining the extract, respond with a JSON object with the following forma
 }}
 ```
 """
+
     def format_text(self, text: str, max_text_length: int | None = None) -> str:
         text = text.strip()
         if max_text_length is not None and len(text) > max_text_length:
@@ -473,7 +471,6 @@ After examining the extract, respond with a JSON object with the following forma
         return self.instructions.strip()
 
     output_type: type[DataclassType] = StackEduOutput
-
 
 
 @dt.dataclass(frozen=True)
@@ -489,6 +486,7 @@ class SimplifiedCodeLevelsOutput:
     well_structured_snippet: SimplifiedCodeLevelCriterionOutput
     exemplary_snippet: SimplifiedCodeLevelCriterionOutput
 
+
 @dt.dataclass(frozen=True)
 class SimplifiedCodeOutput:
     programming_language: str
@@ -500,7 +498,6 @@ class SimplifiedCodeOutput:
 
 @dt.dataclass(frozen=True)
 class BaseCodeDocumentationPrompt(BaseAnnotationPrompt[str]):
-
     snippet_marker_open: str = "===== BEGIN SNIPPET ====="
     snippet_marker_close: str = "===== END SNIPPET ====="
     rubric_marker_open: str = "===== BEGIN RUBRIC ====="
@@ -673,7 +670,6 @@ Keep all explanations brief, under 100 characters or less.
     output_type: type[DataclassType] = SimplifiedCodeOutput
 
 
-
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
 class InverseSimplifiedCodeRubricPrompt(BaseCodeDocumentationPrompt):
@@ -813,7 +809,6 @@ Keep all explanations brief, under 100 characters or less.
     output_type: type[DataclassType] = SimplifiedCodeOutput
 
 
-
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
 class InverseSimplifiedCodeRubricV4Output(InverseSimplifiedCodeRubricPrompt):
@@ -823,7 +818,6 @@ class InverseSimplifiedCodeRubricV4Output(InverseSimplifiedCodeRubricPrompt):
 
 This rubric scores code or documentation snippets from 0 (lowest) to 4 (highest). The snippet is enclosed between the markers "{snippet_marker_open}" and "{snippet_marker_close}".
 """
-
 
 
 @dt.dataclass(frozen=True)
@@ -1071,7 +1065,6 @@ You should output the rubric as a JSON object.
         return f"\n\n{self.instructions.strip()}"
 
     output_type: type[DataclassType] = SimplifiedCodeOutput
-
 
 
 @dt.dataclass(frozen=True)
@@ -1542,6 +1535,7 @@ Return JSON only (no markdown, no extra text).
 - `score` must match the booleans exactly (count trues).
 """
 
+
 @dt.dataclass(frozen=True)
 class InverseCodeRubricVerySimpleCriterionExplanationOutput:
     explanation: str
@@ -1684,7 +1678,6 @@ Respond in JSON format with the following keys:
         return f"\n\n{self.instructions.strip()}"
 
     output_type: type[DataclassType] = InverseCodeRubricVerySimpleOutput
-
 
 
 @dt.dataclass(frozen=True)
