@@ -1120,17 +1120,47 @@ s5cmd cp -sp "${SRC_VERY_SIMPLE_DIR}/*" "${DST_VERY_SIMPLE_DIR}/"
 ```shell
 export LOCAL_BASE_DIR="${HOME}/ai2-llm/classifiers/code-quality"
 export S3_BASE_DIR='s3://ai2-llm/classifiers/code-quality'
+export BASE_NAME_PREFIX="the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB"
 
 s5cmd cp -sp "${S3_BASE_DIR}/*" "${LOCAL_BASE_DIR}/"
 
-export CLAUDE_RUBRIC_DIR="${LOCAL_BASE_DIR}/data/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/claude_rubric_code/gpt-5-mini/32k_trimmed"
-export VERY_SIMPLE_DIR="${LOCAL_BASE_DIR}/data/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/inv_codedoc_verysimple/gpt-5-mini/10k_trimmed"
+export CLAUDE_RUBRIC_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/claude_rubric_code/gpt-5-mini/32k_trimmed"
+export VERY_SIMPLE_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/inv_codedoc_verysimple/gpt-5-mini/10k_trimmed"
 ```
 
 ### Gotta binarize the data. We usee >3 as the threshold.
 
 ```shell
-uv run bonepick transform-dataset \
-    --input-dir $VERY_SIMPLE_DIR \
-    --output-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg \
-    --label-transform '{score: (if .score > 3 then "pos" else "neg" end)}'
+export LABEL_NAME="inv_codedoc_verysimple/gpt-5-mini/10k_trimmed"
+export VERY_SIMPLE_DIR_UNSPLIT="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/${LABEL_NAME}"
+export VERY_SIMPLE_DIR_SPLIT="${LOCAL_BASE_DIR}/data-train_test_split/${BASE_NAME_PREFIX}/${LABEL_NAME}"
+
+for pl in $(ls --color=never ${VERY_SIMPLE_DIR_UNSPLIT}); do
+    echo "Processing ${pl}..."
+    uv run bonepick reshard-dataset \
+        --dataset-dir "${VERY_SIMPLE_DIR_UNSPLIT}/${pl}" \
+        --output-dir "${VERY_SIMPLE_DIR_SPLIT}/${pl}" \
+        --num-files 5 \
+        --test-split-frac 10_000
+done
+
+export VERY_SIMPLE_DIR_JSONL="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/jsonl"
+
+for pl in $(ls --color=never ${VERY_SIMPLE_DIR_SPLIT}); do
+    echo "Processing ${pl}..."
+    uv run bonepick transform-dataset \
+        --input-dir "${VERY_SIMPLE_DIR_SPLIT}/${pl}" \
+        --output-dir "${VERY_SIMPLE_DIR_JSONL}/${pl}" \
+        --label-transform '{score: (if .score > 3 then "pos" else "neg" end)}'
+done
+
+export VERY_SIMPLE_DIR_JSONL_FASTTEXT="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/fasttext"
+
+for pl in $(ls --color=never ${VERY_SIMPLE_DIR_JSONL}); do
+    echo "Processing ${pl}..."
+    uv run bonepick convert-to-fasttext \
+        --input-dir "${VERY_SIMPLE_DIR_JSONL}/${pl}" \
+        --output-dir "${VERY_SIMPLE_DIR_JSONL_FASTTEXT}/${pl}" \
+        --normalization ultrafine-plus
+done
+```

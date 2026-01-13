@@ -126,7 +126,7 @@ class UltraFineWebPlusNormalizer(BaseRowNormalizer):
         self.remove_extra_newlines_re = re.compile(r"\n{3,}")
         self.space_before_special_re = re.compile(r"(\n\r\t)")
         self.whitespace_re = re.compile(r"[^\S\n\r\t]+")
-        self.tokenizer = Tokenizer.from_pretrained("allenai/Ultra-FineWeb-tokenizer")
+        self.tokenizer = Tokenizer.from_pretrained("allenai/dolma2-tokenizer")  # equivalent to cl100k_base
 
     def normalize(self, text: str) -> str:
         # 1. fix text
