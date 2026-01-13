@@ -858,6 +858,7 @@ for model in "${models[@]}"; do
     effort_name=$(echo "${model}" | cut -d '/' -f 2)
 
     destination_dir="tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-${model_name}-${MAX_TEXT_LENGTH}"
+    cache_dir="tmp/cache/${model}"
 
     ## check if effort name is empty string, if not, set effort_flag="--reasoning-effort ${effort_name}"
     if [[ -z "${effort_name}" ]]; then
@@ -865,6 +866,7 @@ for model in "${models[@]}"; do
     else
         effort_flag="--reasoning-effort ${effort_name}"
         destination_dir="${destination_dir}-${effort_name}"
+        cache_dir="${cache_dir}-${effort_name}"
     fi
 
     cache_dir="tmp/cache/${model}"
@@ -888,16 +890,201 @@ done
 ```
 
 
-Compare agreement between 5.2 and 5-mini:
+### Prompt: `inv_codedoc_verysimple` (like this one!)
+
+```shell
+export RUBRIC_PROMPT="inv_codedoc_verysimple"
+export MAX_TEXT_LENGTH=10000
+
+models=(
+    "gpt-5.2/"
+    "gpt-5-mini/"
+    "gpt-5.2/medium"
+    "gpt-5.2/minimal"
+)
+
+for model in "${models[@]}"; do
+    model_name=$(echo "${model}" | cut -d '/' -f 1)
+    effort_name=$(echo "${model}" | cut -d '/' -f 2)
+
+    destination_dir="tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-${model_name}"
+    cache_dir="tmp/cache/${model}"
+
+    ## check if effort name is empty string, if not, set effort_flag="--reasoning-effort ${effort_name}"
+    if [[ -z "${effort_name}" ]]; then
+        effort_flag=""
+    else
+        effort_flag="--reasoning-effort ${effort_name}"
+        destination_dir="${destination_dir}-${effort_name}"
+        cache_dir="${cache_dir}-${effort_name}"
+    fi
+
+    echo "Annotating ${model_name} with reasoning effort: ${effort_flag}"
+
+    uv run --extra=annotate bonepick annotate-dataset \
+        --dataset-dir tmp/data/spring2code_python \
+        --output-dir "${destination_dir}" \
+        --model-name "${model_name}" \
+        --service-tier flex \
+        --annotation-task-prompt "${RUBRIC_PROMPT}" \
+        --annotation-system-prompt 'code_system' \
+        ${effort_flag} \
+        --max-concurrent-requests 1_000 \
+        --max-requests-per-minute 5_000 \
+        --limit-rows 5_000 \
+        --max-text-length ${MAX_TEXT_LENGTH} \
+        --cache-location "${cache_dir}"
+done
+```
+
+Now we check full and binary agreement between 5.2 and 5-mini:
 
 ```shell
 uv run bonepick annotation-agreement \
-    --dataset1 tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5.2 \
-    --dataset2 tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5-mini \
+    --dataset-dir tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5.2 \
+    --dataset-dir tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5-mini \
     --label-expression ".${RUBRIC_PROMPT}.score" \
     --key-expression '.text'
 ```
 
+Output for full agreement:
 
 ```text
+Annotation Agreement Analysis
+
+Dataset 1:
+  - path:       tmp/data/spring2code_python-annotated-inv_codedoc_verysimple-gpt-5.2-10000
+  - label expr: .inv_codedoc_verysimple.score
+  - key expr:   .text
+
+Dataset 2:
+  - path:       tmp/data/spring2code_python-annotated-inv_codedoc_verysimple-gpt-5-mini-10000
+  - label expr: .inv_codedoc_verysimple.score
+  - key expr:   .text
+
+Loading annotations from dataset 1...
+Loaded 2,000 annotations from dataset 1
+
+Loading annotations from dataset 2...
+Loaded 2,000 annotations from dataset 2
+
+Dataset Coverage:
+┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Metric               ┃ Count ┃
+┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ Samples in dataset 1 │ 2,000 │
+│ Samples in dataset 2 │ 2,000 │
+│ Common samples       │ 2,000 │
+│ Only in dataset 1    │     0 │
+│ Only in dataset 2    │     0 │
+└──────────────────────┴───────┘
+
+Computing agreement metrics...
+
+╭──── Agreement Metrics ─────╮
+│ Agreement Rate: 60.00%     │
+│ Cohen's Kappa: 0.4190      │
+│ Agreements: 1,200 / 2,000  │
+│ Disagreements: 800 / 2,000 │
+╰────────────────────────────╯
+
+Cohen's Kappa interpretation: Moderate
+
+Label Distribution:
+┏━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Label ┃   Dataset 1 ┃   Dataset 2 ┃
+┡━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ 0     │   19 (0.9%) │    3 (0.1%) │
+│ 1     │  132 (6.6%) │   68 (3.4%) │
+│ 2     │ 445 (22.2%) │ 295 (14.8%) │
+│ 3     │ 611 (30.6%) │ 865 (43.2%) │
+│ 4     │ 783 (39.1%) │ 737 (36.9%) │
+│ 5     │   10 (0.5%) │   32 (1.6%) │
+└───────┴─────────────┴─────────────┘
+
+Confusion Matrix:
+(rows=dataset1, columns=dataset2)
+
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━┳━━━━┳━━━━━┳━━━━━┳━━━━━┳━━━━┓
+┃ Dataset 1 \ Dataset 2 ┃ 0 ┃  1 ┃   2 ┃   3 ┃   4 ┃  5 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━╇━━━━╇━━━━━╇━━━━━╇━━━━━╇━━━━┩
+│ 0                     │ 1 │  7 │   6 │   5 │   0 │  0 │
+│ 1                     │ 2 │ 39 │  45 │  43 │   3 │  0 │
+│ 2                     │ 0 │ 17 │ 172 │ 216 │  40 │  0 │
+│ 3                     │ 0 │  5 │  54 │ 422 │ 130 │  0 │
+│ 4                     │ 0 │  0 │  18 │ 179 │ 560 │ 26 │
+│ 5                     │ 0 │  0 │   0 │   0 │   4 │  6 │
+└───────────────────────┴───┴────┴─────┴─────┴─────┴────┘
+```
+
+Now onto binary agreement:
+
+```shell
+uv run bonepick annotation-agreement \
+    --dataset-dir tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5.2 \
+    --dataset-dir tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5-mini \
+    --label-expression "(if .${RUBRIC_PROMPT}.score > 3 then \"pos\" else \"neg\" end)" \
+    --key-expression '.text'
+```
+
+Output for binary agreement:
+
+```text
+Annotation Agreement Analysis
+
+Dataset 1:
+  - path:       tmp/data/spring2code_python-annotated-inv_codedoc_verysimple-gpt-5.2
+  - label expr: (if .inv_codedoc_verysimple.score > 3 then "pos" else "neg" end)
+  - key expr:   .text
+
+Dataset 2:
+  - path:       tmp/data/spring2code_python-annotated-inv_codedoc_verysimple-gpt-5-mini
+  - label expr: (if .inv_codedoc_verysimple.score > 3 then "pos" else "neg" end)
+  - key expr:   .text
+
+Loading annotations from dataset 1...
+Loaded 2,000 annotations from dataset 1
+
+Loading annotations from dataset 2...
+Loaded 2,000 annotations from dataset 2
+
+Dataset Coverage:
+┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Metric               ┃ Count ┃
+┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ Samples in dataset 1 │ 2,000 │
+│ Samples in dataset 2 │ 2,000 │
+│ Common samples       │ 2,000 │
+│ Only in dataset 1    │     0 │
+│ Only in dataset 2    │     0 │
+└──────────────────────┴───────┘
+
+Computing agreement metrics...
+
+╭──── Agreement Metrics ─────╮
+│ Agreement Rate: 81.50%     │
+│ Cohen's Kappa: 0.6114      │
+│ Agreements: 1,630 / 2,000  │
+│ Disagreements: 370 / 2,000 │
+╰────────────────────────────╯
+
+Cohen's Kappa interpretation: Substantial
+
+Label Distribution:
+┏━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ Label ┃     Dataset 1 ┃     Dataset 2 ┃
+┡━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ neg   │ 1,207 (60.4%) │ 1,231 (61.6%) │
+│ pos   │   793 (39.6%) │   769 (38.5%) │
+└───────┴───────────────┴───────────────┘
+
+Confusion Matrix:
+(rows=dataset1, columns=dataset2)
+
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━┓
+┃ Dataset 1 \ Dataset 2 ┃   neg ┃ pos ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━┩
+│ neg                   │ 1,034 │ 173 │
+│ pos                   │   197 │ 596 │
+└───────────────────────┴───────┴─────┘
 ```

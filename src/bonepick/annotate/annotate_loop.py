@@ -198,6 +198,14 @@ def annotate_dataset(
     # make sure the models available in the registry are updated
     lm_deluge_monkey_patch()
 
+    click.echo("Locations:")
+    click.echo(f"  Cache location: {cache_location}")
+    click.echo("  Dataset directories:")
+    for d in dataset_dir:
+        click.echo(f"    - {str(d)}")
+    click.echo(f"  Output directory: {str(output_dir)}")
+    click.echo()
+
     click.echo("Annotation task")
     click.echo(f"  Prompt: {annotation_task_prompt}")
     click.echo(f"  System prompt: {annotation_system_prompt}")
