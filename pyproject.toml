@@ -19,6 +19,7 @@ dependencies = [
     "plsfix>=0.1.8",
     "pyyaml>=6.0.3",
     "lazy-imports>=1.2.0",
+    "anyascii>=0.3.3",
 ]
 
 [project.scripts]

@@ -2,6 +2,7 @@ import re
 from typing import Callable, Generic, TypeVar
 import unicodedata
 from plsfix import fix_text
+from anyascii import anyascii
 
 from tokenizers import Tokenizer
 
@@ -132,26 +133,29 @@ class UltraFineWebPlusNormalizer(BaseRowNormalizer):
         # 1. fix text
         text = fix_and_cut_text(text)
 
-        # 2. remove multiple newlines
+        # 2. convert to ASCII (including romanization of non-ASCII characters)
+        text = anyascii(text)
+
+        # 3. remove multiple newlines
         text = self.remove_extra_newlines_re.sub("\n\n", text)
 
-        # 3. lower the text
+        # 4. lower the text
         text = text.lower()
 
-        # 4. remove diacritics
+        # 5. remove diacritics
         text = "".join(c for c in unicodedata.normalize("NFKD", text) if unicodedata.category(c) != "Mn")
 
-        # 5. add spacing around special characters
+        # 6. add spacing around special characters
         text = self.space_before_special_re.sub(" \\1 ", text)
 
-        # 6. first removal of extra whitespace
+        # 7. first removal of extra whitespace
         text = self.whitespace_re.sub(" ", text)
 
-        # 7. word segmentation
+        # 8. word segmentation
         tokens = self.tokenizer.encode(text, add_special_tokens=False)
         text = " ".join(tokens.tokens)
 
-        # 8. second removal of extra whitespace
+        # 9. second removal of extra whitespace
         text = self.whitespace_re.sub(" ", text)
 
         return text.strip()
