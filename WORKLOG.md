@@ -256,19 +256,14 @@ done
 ### Step 4: lets run annotation pipeline
 
 ```shell
-RUBRIC_PROMPT="claude_rubric_code"
+RUBRIC_PROMPT="inv_codedoc_verysimple"
 MODEL_NAME="gpt-5-mini"
-MAX_LENGTH=32000
-LIMIT_ROWS=100000
+MAX_LENGTH=10_000
+LIMIT_ROWS=500_000
 CACHE_LOCATION="${ROOT_DIR}/bonepick.annotate"
 
-for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
-    # skip markdown files, they need custom prompts
-    if [[ "${pl}" == *.md ]]; then
-        echo "Skipping ${pl}..."
-        continue
-    fi
-
+# for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
+for pl in "Markdown" "Python"; do
     echo "Processing ${pl}..."
     uv run --extra=annotate bonepick annotate-dataset \
         --dataset-dir "${BASE_DIR}_1GB_sample_to_annotate/${pl}" \
@@ -276,8 +271,8 @@ for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
         --model-name "${MODEL_NAME}" \
         --service-tier flex \
         --annotation-task-prompt "${RUBRIC_PROMPT}" \
-        --max-concurrent-requests 2000 \
-        --max-new-tokens 2048 \
+        --max-concurrent-requests 5_000 \
+        --max-new-tokens 4096 \
         --annotation-system-prompt 'code_system' \
         --max-text-length ${MAX_LENGTH} \
         --limit-rows ${LIMIT_ROWS} \
@@ -288,7 +283,7 @@ done
 ### Step 5: upload the annotated data to S3
 
 ```shell
-s5cmd cp -sp "${ROOT_DIR}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_gpt-5-mini_claude_rubric_code_32000/"* "s3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_gpt-5-mini_claude_rubric_code_32000/"
+s5cmd cp -n -sp "${ROOT_DIR}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_gpt-5-mini_inv_codedoc_verysimple_10_000/"* "s3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_gpt-5-mini_inv_codedoc_verysimple_10_000/"
 ```
 
 ------------------------------------------------------------------------------------------------
