@@ -240,10 +240,10 @@ def main():
 
     # Validate input files
     if not args.file1.exists():
-        console.print(f"[bold red]Error:[/bold red] File not found: {args.file1}", file=sys.stderr)
+        console.print(f"[bold red]Error:[/bold red] File not found: {args.file1}")
         sys.exit(1)
     if not args.file2.exists():
-        console.print(f"[bold red]Error:[/bold red] File not found: {args.file2}", file=sys.stderr)
+        console.print(f"[bold red]Error:[/bold red] File not found: {args.file2}")
         sys.exit(1)
 
     # Load both files
