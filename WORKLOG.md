@@ -1573,3 +1573,25 @@ for pl in "${programming_languages[@]}"; do
         --model-dir "${model_dir}"
 done
 ```
+
+
+### Step 5: Train a regression model
+
+Let's train a regression model too:
+
+```shell
+export REGRESSION_MODEL_DIR="${LOCAL_BASE_DIR}/trained_models/model2vec_regression"
+
+model_path="minishlab/potion-base-32M"
+pl="Python"
+
+model_name=$(echo "${model_path}" | awk -F'/' '{print $NF}')
+dataset_name=$(echo "${DATASET_DIR_SPLIT#"${LOCAL_BASE_DIR}/data-train_test_split/"}" | tr '/' '_')
+output_dir="${REGRESSION_MODEL_DIR}/${dataset_name}/${pl}/${model_name}"
+
+uv run bonepick train-model2vec \
+    --dataset-dir ${DATASET_DIR_SPLIT}/${pl} \
+    --model-name "${model_path}" \
+    --output-dir "${output_dir}" \
+    --regression
+```
