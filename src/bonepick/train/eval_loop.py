@@ -21,6 +21,7 @@ from bonepick.train.fasttext_utils import check_fasttext_binary
 from bonepick.train.jq_utils import add_field_or_expression_command_options, field_or_expression
 from bonepick.train.normalizers import list_normalizers
 
+
 def _compute_metrics_from_predictions(
     y_true: np.ndarray,
     y_proba: np.ndarray,
@@ -161,7 +162,13 @@ def compute_detailed_metrics_fasttext(
     return _compute_metrics_from_predictions(y_true, y_proba, encoded_classes, plain_classes)
 
 
-def result_to_text(dataset_dir: tuple[Path, ...], model_dir: Path, results: dict) -> str:
+def result_to_text(
+    dataset_dir: tuple[Path, ...],
+    model_dir: Path,
+    results: dict,
+    max_length: int | None = None,
+    normalizer: str | None = None,
+) -> str:
     per_class_metrics = [
         {
             **{"class_name": class_name},
@@ -223,7 +230,8 @@ def eval_model2vec(
     click.echo("Starting model2vec evaluation...")
     click.echo(f"  Dataset directories: {', '.join(str(d) for d in dataset_dir)}")
     click.echo(f"  Model directory: {model_dir}")
-    click.echo(f"  Text field: {text_field}")
+    click.echo(f"  Text expression: {text_expression}")
+    click.echo(f"  Label expression: {label_expression}")
     click.echo(f"  Label field: {label_field}")
     if max_length is not None:
         click.echo(f"  Max length: {max_length}")
@@ -250,7 +258,13 @@ def eval_model2vec(
     assert dt.test.label is not None, "Test labels are required"
     results = compute_detailed_metrics(pipeline, dt.test.text, typing_cast(list[str], dt.test.label))
 
-    results_txt = result_to_text(dataset_dir, model_dir, results)
+    results_txt = result_to_text(
+        dataset_dir=dataset_dir,
+        model_dir=model_dir,
+        results=results,
+        max_length=max_length,
+        normalizer=normalizer,
+    )
     click.echo(f"Evaluation results:\n{results_txt}\n")
 
     results_file = model_dir / f"results_{dt.test.signature[:6]}.yaml"

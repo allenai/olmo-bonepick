@@ -219,6 +219,7 @@ class PotionCodeNormalizer(BaseRowNormalizer):
         self.whitespace_re = re.compile(r"[^\S\n\r\t]+")
 
         # now replace leading spaces with most likely tab indentation
+
     def _replace_leading_spaces(self, match: re.Match, indentation: int) -> str:
         spaces = match.group(1)
         num_indents = len(spaces) // indentation
@@ -242,19 +243,14 @@ class PotionCodeNormalizer(BaseRowNormalizer):
         # find the most likely indentation. to do that, find how many
         # lines have indentation that is a multiple of the candidate.
         indentation_candidates = {
-            k: sum(
-                1 if line_indentation % k == 0 else 0 for line_indentation in indentation_lengths
-            )
+            k: sum(1 if line_indentation % k == 0 else 0 for line_indentation in indentation_lengths)
             # assumption: the indentation is at least 2 spaces
             for k in range(2, max(indentation_lengths) + 1, 2)
         }
 
         # a bit hacky, but i'll pick which candidates are most likely
         # by checking if they are within sqrt of the highest candidate.
-        most_likely_indentation, _ = max(
-            indentation_candidates.items(),
-            key=lambda x: max(sqrt(x[1]), x[0])
-        )
+        most_likely_indentation, _ = max(indentation_candidates.items(), key=lambda x: max(sqrt(x[1]), x[0]))
 
         fn = partial(self._replace_leading_spaces, indentation=most_likely_indentation)
         return re.sub(r"^( +)", fn, text, flags=re.MULTILINE)

@@ -41,7 +41,6 @@ def field_or_expression(field: str | None = None, expression: str | None = None)
 
 
 class FieldOrExpressionCommandProtocol(Protocol):
-
     def __call__(
         self,
         text_field: str | None,
@@ -51,8 +50,7 @@ class FieldOrExpressionCommandProtocol(Protocol):
         /,
         *args: Any,
         **kwargs: Any,
-    ) -> Any:
-        ...
+    ) -> Any: ...
 
 
 T = TypeVar("T", bound=FieldOrExpressionCommandProtocol)

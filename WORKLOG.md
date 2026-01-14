@@ -1658,8 +1658,6 @@ done
 Train a model2vec model directly
 
 ```shell
-
-
 uv run bonepick train-model2vec \
     --dataset-dir "${DATASET_DIR_SPLIT}/${PROGRAMMING_LANGUAGE}" \
     --model-name "${MODEL2VEC_MODEL}" \
@@ -1676,6 +1674,7 @@ Now we eval the models:
 uv run bonepick eval-model2vec \
     --dataset-dir "${DATASET_DIR_SPLIT}/${PROGRAMMING_LANGUAGE}" \
     --model-dir "${MODEL2VEC_OUTPUT_DIR}" \
+    --label-expression "${MODEL2VEC_LABEL_EXPRESSION}" \
     --max-length "${TEXT_MAX_LENGTH}" \
     --normalizer "${MODEL2VEC_NORMALIZER}"
 ```

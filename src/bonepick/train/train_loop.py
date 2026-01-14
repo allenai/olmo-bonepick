@@ -1,4 +1,5 @@
 import json
+import yaml
 from multiprocessing import cpu_count
 import subprocess
 from pathlib import Path
@@ -16,6 +17,7 @@ from bonepick.train.fasttext_utils import check_fasttext_binary
 from bonepick.train.model2vec_utils import StaticModelForClassification, StaticModelForRegression
 from bonepick.train.jq_utils import add_field_or_expression_command_options, field_or_expression
 from bonepick.train.normalizers import list_normalizers
+
 
 @click.command()
 @add_field_or_expression_command_options
@@ -198,17 +200,38 @@ def train_model2vec(
         )
         click.echo("Model fitting complete.")
 
-        if output_dir is not None:
-            click.echo(f"\nSaving model to {output_dir}...")
-            output_dir.mkdir(parents=True, exist_ok=True)
-            pipeline = model.to_pipeline()
-            model_path = output_dir / "model"
-            pipeline.save_pretrained(str(model_path))
-            click.echo(f"Model saved to: {model_path}")
-        else:
+        if output_dir is None:
             click.echo("\nNo output directory specified, skipping model save.")
+            return
 
-    click.echo("\nTraining complete!")
+        report_dict = {
+            "text_expression": str(text_expression),
+            "label_expression": str(label_expression),
+            "dataset_dir": [str(d) for d in dataset_dir],
+            "output_dir": str(output_dir),
+            "model_name": str(model_name),
+            "learning_rate": float(learning_rate),
+            "batch_size": int(batch_size),
+            "min_epochs": int(min_epochs),
+            "max_epochs": int(max_epochs),
+            "early_stopping_patience": int(early_stopping_patience),
+            "loss_class_weight": str(loss_class_weight),
+            "regression": regression,
+            "normalizer": str(normalizer) if normalizer is not None else None,
+            "max_length": int(max_length) if max_length is not None else None,
+        }
+
+        report_file = output_dir / "report.yaml"
+        with open(report_file, "w", encoding="utf-8") as f:
+            yaml.dump(report_dict, f, indent=2)
+        click.echo(f"Report saved to: {report_file}")
+
+        click.echo(f"\nSaving model to {output_dir}...")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        pipeline = model.to_pipeline()
+        model_path = output_dir / "model"
+        pipeline.save_pretrained(str(model_path))
+        click.echo(f"Model saved to: {model_path}")
 
 
 @click.command()

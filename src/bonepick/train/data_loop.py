@@ -189,7 +189,6 @@ def normalize_dataset(
         pbar.close()
 
 
-
 @click.command()
 @add_field_or_expression_command_options
 @click.option("-i", "--input-dir", type=PathParamType(exists=True, is_dir=True), required=True)
@@ -475,7 +474,6 @@ def sample_dataset(
     file_tasks: list[tuple[Path, Path, int]] = []  # (source, dest, target_size)
 
     if effective_sampling_rate < 0.05:
-
         click.echo("\n  Optimization: Selecting subset of files due to low sampling rate...")
 
         # Shuffle files to get random selection
@@ -810,9 +808,13 @@ def reshard_dataset(
     # Step 4: split rows into train, test, and valid
     train_size, valid_size, test_size = len(all_rows), 0, 0
     if valid_split_frac is not None:
-        valid_size = round(total_rows * valid_split_frac) if isinstance(valid_split_frac, float) else valid_split_frac
+        valid_size = (
+            round(total_rows * valid_split_frac) if isinstance(valid_split_frac, float) else valid_split_frac
+        )
         if valid_size > total_rows:
-            raise click.BadParameter(f"Requested more validation rows ({valid_size:,}) than total rows ({total_rows:,})")
+            raise click.BadParameter(
+                f"Requested more validation rows ({valid_size:,}) than total rows ({total_rows:,})"
+            )
         train_size -= valid_size
     if test_split_frac is not None:
         test_size = round(total_rows * test_split_frac) if isinstance(test_split_frac, float) else test_split_frac
@@ -850,7 +852,7 @@ def reshard_dataset(
             split_output_dir = (output_dir / split_name) if valid_size != 0 or test_size != 0 else output_dir
             split_output_dir.mkdir(parents=True, exist_ok=True)
 
-            for (range_start, range_end) in row_ranges:
+            for range_start, range_end in row_ranges:
                 dest_path = split_output_dir / f"shard_{total_files_written:0{suffix_digits_name}d}.jsonl.zst"
 
                 with smart_open.open(dest_path, "wb") as f:  # pyright: ignore
