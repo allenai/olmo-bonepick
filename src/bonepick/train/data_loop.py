@@ -1,9 +1,11 @@
 import os
+import random
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from functools import partial
 from pathlib import Path
+from math import log10
 
 import click
 import datasets
@@ -24,17 +26,19 @@ from bonepick.train.data_utils import (
     FILE_SUFFIXES,
     transform_single_file,
     pretty_size,
-    reshard_single_output,
 )
 from bonepick.train.normalizers import list_normalizers
 
 
 __all__ = [
     "balance_dataset",
+    "convert_to_fasttext",
     "count_tokens",
     "import_hf_dataset",
-    "sample_dataset",
+    "normalize_dataset",
     "reshard_dataset",
+    "sample_dataset",
+    "transform_dataset",
 ]
 
 
@@ -311,7 +315,6 @@ def balance_dataset(
     num_proc: int,
 ):
     """Balance dataset so each label has equal representation in all splits."""
-    import random
 
     click.echo("Starting dataset balancing...")
     click.echo(f"  Input directories: {', '.join(str(d) for d in input_dir)}")
@@ -506,7 +509,6 @@ def sample_dataset(
     file_tasks: list[tuple[Path, Path, int]] = []  # (source, dest, target_size)
 
     if effective_sampling_rate < 0.05:
-        import random
 
         click.echo("\n  Optimization: Selecting subset of files due to low sampling rate...")
 
@@ -708,198 +710,6 @@ def count_tokens(
     click.echo(f"  Average tokens per byte: {total_tokens / sum(file_sizes):.2f}")
 
 
-def _write_rows_to_file(
-    rows: list[bytes],
-    destination_path: Path,
-) -> tuple[int, int]:
-    """Write a list of rows to a destination file.
-
-    Args:
-        rows: List of byte strings (lines) to write
-        destination_path: Path to destination file
-
-    Returns:
-        Tuple of (total_rows, total_bytes) written
-    """
-    destination_path.parent.mkdir(parents=True, exist_ok=True)
-
-    total_rows = 0
-    total_bytes = 0
-
-    with smart_open.open(destination_path, "wb") as dest_file:  # pyright: ignore
-        for line in rows:
-            dest_file.write(line)
-            total_rows += 1
-            total_bytes += len(line)
-
-    return total_rows, total_bytes
-
-
-def _reshard_rows_to_shards(
-    rows: list[bytes],
-    output_dir: Path,
-    num_files: int,
-    num_proc: int,
-    split_name: str | None = None,
-) -> tuple[int, int, int]:
-    """Reshard a list of rows into multiple shard files.
-
-    Args:
-        rows: List of byte strings (lines) to write
-        output_dir: Output directory for shards
-        num_files: Number of output files to create
-        num_proc: Number of processes for parallel processing
-        split_name: Optional split name (e.g., "train", "test") for logging
-
-    Returns:
-        Tuple of (num_files_written, total_rows, total_bytes)
-    """
-    if len(rows) == 0:
-        if split_name:
-            click.echo(f"\nSkipping {split_name} split (no rows)")
-        return 0, 0, 0
-
-    if split_name:
-        click.echo(f"\nProcessing {split_name} split...")
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Distribute rows into shards
-    rows_per_shard = len(rows) // num_files
-    remainder = len(rows) % num_files
-
-    executor_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
-
-    with executor_cls(max_workers=num_proc) as pool:
-        futures = []
-        start_idx = 0
-
-        for shard_idx in range(num_files):
-            # Calculate rows for this shard (distribute remainder evenly)
-            shard_rows_count = rows_per_shard + (1 if shard_idx < remainder else 0)
-            end_idx = start_idx + shard_rows_count
-            shard_rows = rows[start_idx:end_idx]
-            start_idx = end_idx
-
-            dest_path = output_dir / f"shard_{shard_idx:05d}.jsonl.zst"
-            future = pool.submit(
-                _write_rows_to_file,
-                rows=shard_rows,
-                destination_path=dest_path,
-            )
-            futures.append(future)
-
-        total_rows = 0
-        total_bytes = 0
-        desc = f"Writing {split_name} shards" if split_name else "Writing shards"
-        pbar = tqdm(total=len(futures), desc=desc, unit="file")
-        for future in as_completed(futures):
-            try:
-                rows_written, bytes_written = future.result()
-                total_rows += rows_written
-                total_bytes += bytes_written
-                pbar.set_postfix(rows=f"{total_rows:,}", size=pretty_size(total_bytes))
-            except Exception as e:
-                for future in futures:
-                    future.cancel()
-                raise e
-            pbar.update(1)
-
-        pbar.close()
-
-    if split_name:
-        click.echo(f"  {split_name.capitalize()} output files: {len(futures)}")
-        click.echo(f"  {split_name.capitalize()} total rows: {total_rows:,}")
-        click.echo(f"  {split_name.capitalize()} total size: {pretty_size(total_bytes)}")
-
-    return len(futures), total_rows, total_bytes
-
-
-def _reshard_files_to_shards(
-    input_files: list[tuple[Path, int]],
-    output_dir: Path,
-    num_files: int,
-    num_proc: int,
-) -> tuple[int, int, int]:
-    """Reshard multiple input files into shards using greedy bin packing.
-
-    Args:
-        input_files: List of (file_path, file_size) tuples
-        output_dir: Output directory for shards
-        num_files: Number of output files to create
-        num_proc: Number of processes for parallel processing
-
-    Returns:
-        Tuple of (num_files_written, total_rows, total_bytes)
-    """
-    # Sort files by size (largest first) for better distribution
-    input_files.sort(key=lambda x: x[1], reverse=True)
-
-    total_size = sum(size for _, size in input_files)
-
-    # Distribute files into output shards using greedy bin packing
-    # This ensures output files are roughly equal in size
-    target_size_per_shard = total_size / num_files
-    click.echo(f"  Target size per output file: {pretty_size(target_size_per_shard)}")
-
-    # Initialize shards with empty lists and size tracking
-    shards: list[tuple[list[Path], int]] = [([], 0) for _ in range(num_files)]
-
-    # Greedy bin packing: assign each file to the shard with smallest current size
-    for file_path, file_size in input_files:
-        # Find shard with smallest current size
-        min_shard_idx = min(range(num_files), key=lambda i: shards[i][1])
-        shards[min_shard_idx][0].append(file_path)
-        shards[min_shard_idx] = (shards[min_shard_idx][0], shards[min_shard_idx][1] + file_size)
-
-    # Display distribution statistics
-    shard_sizes = [size for _, size in shards]
-    click.echo(f"  Output file size range: {pretty_size(min(shard_sizes))} - {pretty_size(max(shard_sizes))}")
-    click.echo(
-        f"  Size standard deviation: {pretty_size(sum((s - target_size_per_shard) ** 2 for s in shard_sizes) ** 0.5 / num_files)}"
-    )
-
-    # Process shards in parallel
-    click.echo(f"\nResharding using {num_proc} processes...")
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    executor_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
-
-    with executor_cls(max_workers=num_proc) as pool:
-        futures = []
-        for shard_idx, (shard_files, _) in enumerate(shards):
-            if not shard_files:
-                continue
-
-            dest_path = output_dir / f"shard_{shard_idx:05d}{'.jsonl.zst'}"
-            future = pool.submit(
-                reshard_single_output,
-                source_files=shard_files,
-                destination_path=dest_path,
-                shard_index=shard_idx,
-            )
-            futures.append(future)
-
-        total_rows = 0
-        total_bytes = 0
-        pbar = tqdm(total=len(futures), desc="Resharding files", unit="file")
-        for future in as_completed(futures):
-            try:
-                rows, bytes_written = future.result()
-                total_rows += rows
-                total_bytes += bytes_written
-                pbar.set_postfix(rows=f"{total_rows:,}", size=pretty_size(total_bytes))
-            except Exception as e:
-                for future in futures:
-                    future.cancel()
-                raise e
-            pbar.update(1)
-
-        pbar.close()
-
-    return len(futures), total_rows, total_bytes
-
-
 @click.command()
 @click.option(
     "-i",
@@ -981,6 +791,7 @@ def reshard_dataset(
     if num_files <= 0:
         raise click.BadParameter("--num-files must be greater than 0")
 
+    # Step 0: Print configuration
     click.echo("Starting dataset resharding...")
     click.echo(f"  Input directory: {dataset_dir}")
     click.echo(f"  Output directory: {output_dir}")
@@ -1011,122 +822,76 @@ def reshard_dataset(
     click.echo(f"  Input files: {len(input_files):,}")
     click.echo(f"  Total size: {pretty_size(total_size)}")
 
-    # Step 2: Handle train/test/valid split if requested
-    if test_split_frac is not None or valid_split_frac is not None:
-        import random
-        import smart_open
-
-        # Read all rows from all files
-        click.echo("\nReading all rows for splitting...")
-        all_rows: list[bytes] = []
-        for file_path, _ in tqdm(input_files, desc="Reading files", unit="file"):
+    # Step 2: simply read all rows into memory
+    all_rows: list[bytes] = []
+    with tqdm(total=len(input_files), desc="Reading files", unit="file") as pbar:
+        for file_path, _ in input_files:
             with smart_open.open(file_path, "rb") as f:  # pyright: ignore
                 for line in f:
                     all_rows.append(line)
+                    pbar.set_postfix(rows=f"{len(all_rows):,}")
+                pbar.update(1)
+                pbar.refresh()
 
-        total_rows = len(all_rows)
-        click.echo(f"  Total rows: {total_rows:,}")
-
-        # Shuffle rows
-        click.echo(f"  Shuffling rows with seed {seed}...")
-        rng = random.Random(seed)
-        rng.shuffle(all_rows)
-
-        # Calculate test split size
-        test_size = 0
-        if test_split_frac is not None:
-            if isinstance(test_split_frac, float):
-                if test_split_frac <= 0 or test_split_frac >= 1.0:
-                    raise click.BadParameter("--test-split-frac must be between 0 and 1.0 when using float")
-                test_size = int(total_rows * test_split_frac)
-            else:
-                if test_split_frac <= 0 or test_split_frac >= total_rows:
-                    raise click.BadParameter(
-                        f"--test-split-frac must be between 0 and {total_rows} when using int"
-                    )
-                test_size = test_split_frac
-
-        # Calculate valid split size
-        valid_size = 0
-        if valid_split_frac is not None:
-            if isinstance(valid_split_frac, float):
-                if valid_split_frac <= 0 or valid_split_frac >= 1.0:
-                    raise click.BadParameter("--valid-split-frac must be between 0 and 1.0 when using float")
-                valid_size = int(total_rows * valid_split_frac)
-            else:
-                if valid_split_frac <= 0 or valid_split_frac >= total_rows:
-                    raise click.BadParameter(
-                        f"--valid-split-frac must be between 0 and {total_rows} when using int"
-                    )
-                valid_size = valid_split_frac
-
-        # Validate total split sizes
-        if test_size + valid_size >= total_rows:
-            raise click.BadParameter(
-                f"Combined test ({test_size}) and valid ({valid_size}) sizes exceed total rows ({total_rows})"
-            )
-
-        train_size = total_rows - test_size - valid_size
-        click.echo(f"  Train rows: {train_size:,}")
-        if test_size > 0:
-            click.echo(f"  Test rows: {test_size:,}")
-        if valid_size > 0:
-            click.echo(f"  Valid rows: {valid_size:,}")
-
-        # Split rows: train first, then test, then valid
-        train_rows = all_rows[:train_size]
-        test_rows = all_rows[train_size : train_size + test_size] if test_size > 0 else []
-        valid_rows = all_rows[train_size + test_size :] if valid_size > 0 else []
-
-        # Calculate number of files for each split (proportional to data size)
-        # Only count splits that have data
-        active_splits: list[tuple[str, list[bytes], int]] = []
-
-        # Always have train
-        train_num_files = max(1, int(num_files * train_size / total_rows))
-        remaining_files = num_files - train_num_files
-        active_splits.append(("train", train_rows, train_num_files))
-
-        if test_size > 0 and valid_size > 0:
-            # Both test and valid - split remaining files proportionally
-            test_num_files = max(1, int(remaining_files * test_size / (test_size + valid_size)))
-            valid_num_files = max(1, remaining_files - test_num_files)
-            active_splits.append(("test", test_rows, test_num_files))
-            active_splits.append(("valid", valid_rows, valid_num_files))
-        elif test_size > 0:
-            test_num_files = max(1, remaining_files)
-            active_splits.append(("test", test_rows, test_num_files))
-        elif valid_size > 0:
-            valid_num_files = max(1, remaining_files)
-            active_splits.append(("valid", valid_rows, valid_num_files))
-
-        for split_name, _, split_num_files in active_splits:
-            click.echo(f"  {split_name.capitalize()} files: {split_num_files}")
-
-        # Process each split using helper function
-        for split_name, split_rows, split_num_files in active_splits:
-            _reshard_rows_to_shards(
-                rows=split_rows,
-                output_dir=output_dir / split_name,
-                num_files=split_num_files,
-                num_proc=num_proc,
-                split_name=split_name,
-            )
-
-        click.echo("\nResharding complete!")
-        click.echo(f"  Output written to: {output_dir}")
-        return
-
-    # Original code path (no train/test split) - use helper function
-    num_output_files, total_rows, total_bytes = _reshard_files_to_shards(
-        input_files=input_files,
-        output_dir=output_dir,
-        num_files=num_files,
-        num_proc=num_proc,
-    )
-
-    click.echo("\nResharding complete!")
-    click.echo(f"  Output files: {num_output_files}")
+    total_rows = len(all_rows)
     click.echo(f"  Total rows: {total_rows:,}")
-    click.echo(f"  Total size: {pretty_size(total_bytes)}")
-    click.echo(f"  Output written to: {output_dir}")
+
+    # Step 3: shuffle rows
+    click.echo(f"  Shuffling rows with seed {seed}...")
+    rng = random.Random(seed)
+    rng.shuffle(all_rows)
+
+    # Step 4: split rows into train, test, and valid
+    train_size, valid_size, test_size = len(all_rows), 0, 0
+    if valid_split_frac is not None:
+        valid_size = round(total_rows * valid_split_frac) if isinstance(valid_split_frac, float) else valid_split_frac
+        if valid_size > total_rows:
+            raise click.BadParameter(f"Requested more validation rows ({valid_size:,}) than total rows ({total_rows:,})")
+        train_size -= valid_size
+    if test_split_frac is not None:
+        test_size = round(total_rows * test_split_frac) if isinstance(test_split_frac, float) else test_split_frac
+        if test_size > total_rows:
+            raise click.BadParameter(f"Requested more test rows ({test_size:,}) than total rows ({total_rows:,})")
+        train_size -= test_size
+
+    # Step 5: calculate number of files for each split
+    num_valid_files = round(max(1.0, num_files * valid_size / total_rows))
+    num_test_files = round(max(1.0, num_files * test_size / total_rows))
+    num_train_files = num_files - num_valid_files - num_test_files
+    if num_train_files <= 0:
+        raise click.BadParameter(f"Not enough files ({num_files:,}) for the split requested")
+    suffix_digits_name = int(log10(num_files)) + 1
+
+    click.echo(f"  Train files: {num_train_files:,}")
+    click.echo(f"  Valid files: {num_valid_files:,}")
+    click.echo(f"  Test files: {num_test_files:,}")
+
+    with tqdm(total=len(all_rows), desc="Writing files", unit="row") as pbar:
+        total_files_written = 0
+
+        for split_name, split_start, split_end, num_files in [
+            ("train", 0, train_size, num_train_files),
+            ("valid", train_size, train_size + valid_size, num_valid_files),
+            ("test", train_size + valid_size, train_size + valid_size + test_size, num_test_files),
+        ]:
+            num_rows_per_file = (split_end - split_start) / num_files
+            row_ranges = [
+                (round(split_start + i * num_rows_per_file), round(split_start + (i + 1) * num_rows_per_file))
+                for i in range(num_files)
+            ]
+
+            # if we have valid and/or test split, we include the split name in the path
+            split_output_dir = (output_dir / split_name) if valid_size != 0 or test_size != 0 else output_dir
+            split_output_dir.mkdir(parents=True, exist_ok=True)
+
+            for (range_start, range_end) in row_ranges:
+                dest_path = split_output_dir / f"shard_{total_files_written:0{suffix_digits_name}d}.jsonl.zst"
+
+                with smart_open.open(dest_path, "wb") as f:  # pyright: ignore
+                    for row in all_rows[range_start:range_end]:
+                        f.write(row)
+                        pbar.update(1)
+
+                total_files_written += 1
+                pbar.set_postfix(split=split_name, files_written=total_files_written)
+                pbar.refresh()
