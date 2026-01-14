@@ -286,6 +286,7 @@ LIMIT_ROWS=100_000
 
 for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
     if [[ "${pl}" == "Markdown" ]] || [[ "${pl}" == "Python" ]]; then
+        echo "Skipping ${pl}..."
         continue
     fi
 
@@ -1619,5 +1620,5 @@ uv run bonepick train-model2vec \
     --model-name "${model_path}" \
     --output-dir "${output_dir}" \
     --regression \
-    --label-expression ".${RUBRIC_PROMPT}.score"
+    --label-expression "(.${RUBRIC_PROMPT}.score / 19)"
 ```
