@@ -1887,3 +1887,167 @@ Respond with a JSON object with the following format:
 ```
 """
     output_type: type[DataclassType] = CountUpCriteriaOutput
+
+
+# @dt.dataclass(frozen=True)
+# class CountUpCriteriaBasicValidityOutput:
+#     has_clear_purpose: bool
+#     not_mostly_empty: bool
+#     no_syntax_errors: bool
+#     has_executable_logic: bool
+#     not_procedurally_generated: bool
+
+
+# @dt.dataclass(frozen=True)
+# class CountUpCriteriaCodeCleanlinessOutput:
+#     no_boilerplate: bool
+#     no_binary_data: bool
+#     no_commented_out_code: bool
+#     no_placeholder_text: bool
+#     no_debug_artifacts: bool
+#     no_repetition: bool
+
+
+# @dt.dataclass(frozen=True)
+# class CountUpCriteriaSecurityOutput:
+#     no_hardcoded_secrets: bool
+#     no_vulnerabilities: bool
+
+
+# @dt.dataclass(frozen=True)
+# class CountUpCriteriaDocumentationAndReadabilityOutput:
+#     has_comments: bool
+#     has_docstrings: bool
+#     good_grammar: bool
+#     good_naming: bool
+#     has_type_hints: bool
+
+
+# @dt.dataclass(frozen=True)
+# class CountUpCriteriaStructureAndOrganizationOutput:
+#     good_logical_flow: bool
+#     only_shallow_nesting: bool
+#     is_concise: bool
+#     is_modular: bool
+#     no_hardcoded_values: bool
+
+
+# @dt.dataclass(frozen=True)
+# class CountUpCriteriaRobustnessAndPerformanceOutput:
+#     has_error_handling: bool
+#     minimal_side_effects: bool
+#     is_efficient: bool
+
+
+# @dt.dataclass(frozen=True)
+# class CountUpCriteriaGroupsOutput:
+#     basic_validity: CountUpCriteriaBasicValidityOutput
+#     code_cleanliness: CountUpCriteriaCodeCleanlinessOutput
+#     security: CountUpCriteriaSecurityOutput
+#     documentation_and_readability: CountUpCriteriaDocumentationAndReadabilityOutput
+#     structure_and_organization: CountUpCriteriaStructureAndOrganizationOutput
+#     robustness_and_performance: CountUpCriteriaRobustnessAndPerformanceOutput
+
+
+@dt.dataclass(frozen=True)
+class CountUpCriteriaV2Output:
+    code_purpose: str
+    programming_language: str
+    criteria: CountUpCriteriaGroupsOutput
+    overall_assessment: str
+    score: int
+
+
+@dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
+class CountUpCriteriaV2Prompt(InverseCodeRubricVerySimplePrompt):
+    name: str = "countup_criteria_v2"
+    preamble: str = """
+Using the following rubric, score the provided snippet from 0 to 26 (inclusive) depending on how well it meets the criteria provided. The snippet is enclosed between the markers "{snippet_marker_open}" and "{snippet_marker_close}".
+
+Assign one point to each criterion that is true:
+- Basic Validity
+    * Not mostly empty: the snippet is not a placeholder file or very minimal code (a single, short function or some constants)
+    * No syntax errors: the snippet follows the correct syntax for the programming language
+    * Has executable logic: the snippet contains executable logic, not just declarations
+    * Not procedurally generated: the snippet does NOT contain text indicating that it was procedurally generated (e.g. via templates, AI, etc.).
+- Code Cleanliness
+    * No boilerplate: no boilerplate code or configurations in the snippet
+    * No binary data: no binary data (base64 blobs, etc.) in the snippet
+    * No commented-out code: no blocks of commented-out code in the snippet
+    * No placeholder text: no placeholder text or code (TODOs, Lorem Ipsum, etc.) in the snippet
+    * No debug artifacts: no leftover debug artifacts (debugging log or print statements, breakpoints, etc.)
+- Security
+    * No hardcoded secrets: no hardcoded secrets, API keys, or credentials
+    * No vulnerabilities: no obvious vulnerabilities (SQL injection, path traversal, etc.)
+- Documentation and Readability
+    * Has comments: non-trivial code sections are properly commented to explain assumptions, implementations, and behavior
+    * Has docstrings: major functions, classes, or methods include docstrings.
+    * Good grammar: mostly correct grammar and spelling throughout the snippet; minimal errors tolerated
+    * Good naming: descriptive, meaningful names for variables, functions, classes, etc.
+    * Has type hints: type hints for languages that support them
+- Structure and Organization
+    * Good logical flow: functions, classes, and methods are logically organized, not randomly jumbled.
+    * Only shallow nesting: no overly deep nesting (<6 levels)
+    * Is concise: long lines (>150 chars) or long functions (>300 lines) are at most <10% of the snippet
+    * Is modular: functionality is well partitioned into across modules, classes, functions, etc.
+    * No hardcoded values: no hardcoded values (e.g. magic numbers, paths, inputs parameters, etc.)
+- Robustness and Performance
+    * Has error handling: contains error handling logic (try/catch, error messages, etc.)
+    * Minimal side effects: minimal side effects (no global variables, no mutations, etc.)
+    * Is efficient: the snippet is efficient, using appropriate algorithms and data structures
+"""
+
+    instructions: str = """
+Respond with a JSON object with the following format:
+
+```
+{{
+    "code_purpose": "...",    // a short description of the purpose of the snippet.
+    "programming_language": "...",    // the programming language of the snippet in lowercase.
+    "criteria": {{
+        "basic_validity": {{
+            "has_clear_purpose": bool,
+            "not_mostly_empty": bool,
+            "no_syntax_errors": bool,
+            "has_executable_logic": bool,
+            "not_procedurally_generated": bool,
+        }},
+        "code_cleanliness": {{
+            "no_boilerplate": bool,
+            "no_binary_data": bool,
+            "no_commented_out_code": bool,
+            "no_placeholder_text": bool,
+            "no_debug_artifacts": bool,
+            "no_repetition": bool,
+        }},
+        "security": {{
+            "no_hardcoded_secrets": bool,
+            "no_vulnerabilities": bool,
+        }},
+        "documentation_and_readability": {{
+            "has_comments": bool,
+            "has_docstrings": bool,
+            "good_grammar": bool,
+            "good_naming": bool,
+            "has_type_hints": bool,
+        }},
+        "structure_and_organization": {{
+            "good_logical_flow": bool,
+            "only_shallow_nesting": bool,
+            "is_concise": bool,
+            "is_modular": bool,
+            "no_hardcoded_values": bool,
+        }},
+        "robustness_and_performance": {{
+            "has_error_handling": bool,
+            "minimal_side_effects": bool,
+            "is_efficient": bool,
+        }},
+    }},
+    "overall_assessment": "...",    // a final explanation of the overall assessment of the snippet.
+    "score": int    // the final score between 0 and 26 (inclusive); counts the number of criteria that are true
+}}
+```
+"""
+    output_type: type[DataclassType] = CountUpCriteriaOutput

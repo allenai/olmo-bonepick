@@ -1130,6 +1130,57 @@ for model in "${models[@]}"; do
 done
 ```
 
+#### Reviewing agreement by label
+
+```json
+{
+    "code_purpose": "...",    // a short description of the purpose of the snippet.
+    "programming_language": "...",    // the programming language of the snippet in lowercase.
+    "criteria": {
+        "basic_validity": {
+            "has_clear_purpose": bool,          // 1993/2000, 0.6657, remove
+            "not_mostly_empty": bool,           //  970/2000, 0.0500, clarify
+            "no_syntax_errors": bool,           // 1851/2000, 0.3694, review
+            "has_executable_logic": bool,       // 1934/2000, 0.6561, review
+            "not_procedurally_generated": bool, // 1907/2000, 0.9084, keep
+        },
+        "code_cleanliness": {
+            "no_boilerplate": bool,             // 1715/2000, 0.5954, tighten?
+            "no_binary_data": bool,             // 1992/2000, 0.5865, tighten?
+            "no_commented_out_code": bool,      // 1585/2000, 0.8681, keep
+            "no_placeholder_text": bool,        // 1740/2000, 0.4750, review, low agreement!
+            "no_debug_artifacts": bool,         // 1234/2000, 0.7259, tighten?
+            "no_repetition": bool,              // 1470/2000, 0.3463, remove
+        },
+        "security": {
+            "no_hardcoded_secrets": bool,      // 1923/2000, 0.7310, keep
+            "no_vulnerabilities": bool,        // 1663/2000, 0.6002, review
+        },
+        "documentation_and_readability": {
+            "has_comments": bool,              // 1253/2000, 0.6316, keep/review
+            "has_docstrings": bool,            //  467/2000, 0.8406, keep
+            "good_grammar": bool,              // 1713/2000, 0.4220, clarify
+            "good_naming": bool,               // 1474/2000, 0.4599, remove
+            "has_type_hints": bool,            //   97/2000, 0.8305, keep
+        },
+        "structure_and_organization": {
+            "good_logical_flow": bool,         // 1931/2000, 0.5651, review/remove
+            "only_shallow_nesting": bool,      // 1987/2000, -0.002, remove
+            "is_concise": bool,                // 1972/2000, 0.3268, remove
+            "is_modular": bool,                //  918/2000, 0.5003, clarify or remove
+            "no_hardcoded_values": bool,       //  139/2000, 0.4524, change to no hardcoded inputs?
+        },
+        "robustness_and_performance": {
+            "has_error_handling": bool,        //  346/2000, 0.6529, keep/review
+            "minimal_side_effects": bool,      //  616/2000, 0.6851, keep
+            "is_efficient": bool,              // 1630/2000, 0.3530, remove
+        },
+    },
+    "overall_assessment": "...",    // a final explanation of the overall assessment of the snippet.
+    "score": int    // the final score between 0 and 26 (inclusive); counts the number of criteria that are true
+}
+```
+
 ## Data storing
 
 ```shell
