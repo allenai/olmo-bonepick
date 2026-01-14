@@ -24,6 +24,13 @@ uv run python3 scripts/compare_jsonl.py file1.jsonl.zst file2.jsonl.zst \
     --output disagreements.jsonl.zst
 ```
 
+Interactive mode (browse disagreements one at a time):
+```bash
+uv run python3 scripts/compare_jsonl.py file1.jsonl.zst file2.jsonl.zst \
+    --value-path '.label' \
+    --interactive
+```
+
 Just show statistics without writing output:
 ```bash
 uv run python3 scripts/compare_jsonl.py file1.jsonl.zst file2.jsonl.zst \
@@ -53,6 +60,15 @@ When `--output` is specified, disagreements are written as JSONL with the follow
   "row_file2": {"full": "row from file2"}
 }
 ```
+
+### Interactive Mode
+
+Use `--interactive` or `-i` to browse disagreements one at a time:
+- Press ENTER to see the next example
+- Type `q` + ENTER to quit
+- Type `s` + ENTER to skip to the end
+
+This mode shows the full text (up to 500 characters) and the disagreeing values from both files.
 
 ### Statistics Output
 

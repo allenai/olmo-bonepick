@@ -20,6 +20,9 @@ import jq
 import msgspec
 import smart_open
 from tqdm import tqdm
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 
 def compile_jq(jq_expr: str):
@@ -115,6 +118,71 @@ def find_disagreements(
     return disagreements
 
 
+def show_disagreements_interactive(disagreements: list[dict], text_field: str):
+    """Interactively display disagreements, one at a time.
+
+    Args:
+        disagreements: List of disagreement records
+        text_field: Name of the text field being used for matching
+    """
+    console = Console()
+
+    if not disagreements:
+        console.print("\n[yellow]No disagreements to show.[/yellow]")
+        return
+
+    console.print(
+        f"\n[bold cyan]{'=' * 80}[/bold cyan]\n"
+        f"[bold cyan]INTERACTIVE DISAGREEMENT VIEWER[/bold cyan] [dim]({len(disagreements)} total)[/dim]\n"
+        f"[bold cyan]{'=' * 80}[/bold cyan]"
+    )
+    console.print("[dim]Press ENTER to see next example, 'q' + ENTER to quit, 's' + ENTER to skip to end[/dim]\n")
+
+    for i, d in enumerate(disagreements, 1):
+        # Display the text (potentially truncated for readability)
+        text = d['text']
+        if len(text) > 500:
+            text_display = f"{text[:500]}[dim]... (truncated, {len(text)} chars total)[/dim]"
+        else:
+            text_display = text
+
+        # Create a panel for the disagreement
+        content = (
+            f"[bold white]{text_field}:[/bold white]\n{text_display}\n\n"
+            f"[bold magenta]{d['file1_name']}:[/bold magenta] [magenta]{d['value_file1']}[/magenta]\n"
+            f"[bold cyan]{d['file2_name']}:[/bold cyan] [cyan]{d['value_file2']}[/cyan]"
+        )
+
+        console.print(
+            Panel(
+                content,
+                title=f"[bold yellow]Example {i} of {len(disagreements)}[/bold yellow]",
+                border_style="yellow",
+            )
+        )
+
+        # Wait for user input
+        if i < len(disagreements):
+            try:
+                user_input = input("\n[ENTER=next, q=quit, s=skip to end] ").strip().lower()
+                if user_input == 'q':
+                    console.print("\n[yellow]Exiting viewer.[/yellow]")
+                    break
+                elif user_input == 's':
+                    console.print(f"\n[yellow]Skipping to end. Showed {i} of {len(disagreements)} examples.[/yellow]")
+                    break
+                console.print()  # Add spacing between examples
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n\n[yellow]Exiting viewer.[/yellow]")
+                break
+        else:
+            console.print(
+                f"\n[bold green]{'=' * 80}[/bold green]\n"
+                f"[bold green]Reached end. Showed all {len(disagreements)} disagreements.[/bold green]\n"
+                f"[bold green]{'=' * 80}[/bold green]"
+            )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Compare two JSONL files and find disagreements on a specific field"
@@ -144,50 +212,69 @@ def main():
         action="store_true",
         help="Only print statistics, don't write output file",
     )
+    parser.add_argument(
+        "--interactive",
+        "-i",
+        action="store_true",
+        help="Interactively browse disagreements (press ENTER to see each example)",
+    )
 
     args = parser.parse_args()
 
+    console = Console()
+
+    # Auto-enable interactive mode if no output file specified
+    if not args.output and not args.stats_only and not args.interactive:
+        args.interactive = True
+
     # Validate input files
     if not args.file1.exists():
-        print(f"Error: File not found: {args.file1}", file=sys.stderr)
+        console.print(f"[bold red]Error:[/bold red] File not found: {args.file1}", file=sys.stderr)
         sys.exit(1)
     if not args.file2.exists():
-        print(f"Error: File not found: {args.file2}", file=sys.stderr)
+        console.print(f"[bold red]Error:[/bold red] File not found: {args.file2}", file=sys.stderr)
         sys.exit(1)
 
     # Load both files
-    print(f"Loading {args.file1}...")
+    console.print(f"[yellow]Loading {args.file1}...[/yellow]")
     file1_data = load_file_as_dict(args.file1, args.value_path, args.text_field)
-    print(f"  Loaded {len(file1_data)} entries")
+    console.print(f"  Loaded [bold]{len(file1_data):,}[/bold] entries")
 
-    print(f"Loading {args.file2}...")
+    console.print(f"[yellow]Loading {args.file2}...[/yellow]")
     file2_data = load_file_as_dict(args.file2, args.value_path, args.text_field)
-    print(f"  Loaded {len(file2_data)} entries")
+    console.print(f"  Loaded [bold]{len(file2_data):,}[/bold] entries")
 
     # Find disagreements
-    print("\nFinding disagreements...")
+    console.print("\n[yellow]Finding disagreements...[/yellow]")
     disagreements = find_disagreements(file1_data, file2_data, args.file1.name, args.file2.name)
 
-    # Print statistics
-    print("\n" + "=" * 60)
-    print("COMPARISON STATISTICS")
-    print("=" * 60)
-    print(f"File 1: {args.file1.name} ({len(file1_data)} entries)")
-    print(f"File 2: {args.file2.name} ({len(file2_data)} entries)")
-    print(f"Common entries: {len(set(file1_data.keys()) & set(file2_data.keys()))}")
-    print(f"Only in file 1: {len(set(file1_data.keys()) - set(file2_data.keys()))}")
-    print(f"Only in file 2: {len(set(file2_data.keys()) - set(file1_data.keys()))}")
-    print(f"Disagreements: {len(disagreements)}")
+    # Print statistics using rich table
+    console.print()
+    table = Table(title="[bold cyan]COMPARISON STATISTICS[/bold cyan]", show_header=True)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Count", justify="right", style="magenta")
 
-    if len(disagreements) > 0:
-        common_count = len(set(file1_data.keys()) & set(file2_data.keys()))
-        if common_count > 0:
-            disagreement_rate = len(disagreements) / common_count * 100
-            print(f"Disagreement rate: {disagreement_rate:.2f}%")
+    common_count = len(set(file1_data.keys()) & set(file2_data.keys()))
+    only_in_1 = len(set(file1_data.keys()) - set(file2_data.keys()))
+    only_in_2 = len(set(file2_data.keys()) - set(file1_data.keys()))
+
+    table.add_row(f"File 1: {args.file1.name}", f"{len(file1_data):,}")
+    table.add_row(f"File 2: {args.file2.name}", f"{len(file2_data):,}")
+    table.add_row("Common entries", f"{common_count:,}")
+    table.add_row("Only in file 1", f"{only_in_1:,}")
+    table.add_row("Only in file 2", f"{only_in_2:,}")
+    table.add_row("Disagreements", f"{len(disagreements):,}")
+
+    if len(disagreements) > 0 and common_count > 0:
+        disagreement_rate = len(disagreements) / common_count * 100
+        table.add_row("Disagreement rate", f"{disagreement_rate:.2f}%")
+
+    console.print(table)
+    console.print()
 
     # Write output if requested
     if args.output and not args.stats_only:
-        print(f"\nWriting disagreements to {args.output}...")
+        console.print(f"[yellow]Writing disagreements to {args.output}...[/yellow]")
         encoder = msgspec.json.Encoder()
         args.output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -195,15 +282,21 @@ def main():
             for disagreement in tqdm(disagreements, desc="Writing", unit=" entries"):
                 f.write(encoder.encode(disagreement) + b"\n")
 
-        print(f"Wrote {len(disagreements)} disagreements to {args.output}")
-    elif not args.stats_only and len(disagreements) > 0:
-        print("\nExample disagreements (first 5):")
-        print("-" * 60)
+        console.print(f"[green]Wrote {len(disagreements):,} disagreements to {args.output}[/green]")
+
+    # Interactive mode
+    if args.interactive and len(disagreements) > 0:
+        show_disagreements_interactive(disagreements, args.text_field)
+    elif not args.stats_only and not args.interactive and len(disagreements) > 0:
+        console.print("\n[bold]Example disagreements (first 5):[/bold]")
+        console.print("-" * 60)
         for i, d in enumerate(disagreements[:5], 1):
-            print(f"\nExample {i}:")
-            print(f"  Text: {d['text'][:100]}...")
-            print(f"  {d['file1_name']}: {d['value_file1']}")
-            print(f"  {d['file2_name']}: {d['value_file2']}")
+            console.print(f"\n[cyan]Example {i}:[/cyan]")
+            console.print(f"  Text: {d['text'][:100]}...")
+            console.print(f"  [magenta]{d['file1_name']}:[/magenta] {d['value_file1']}")
+            console.print(f"  [cyan]{d['file2_name']}:[/cyan] {d['value_file2']}")
+        if len(disagreements) > 5:
+            console.print(f"\n[dim]... and {len(disagreements) - 5} more. Use --interactive to browse all.[/dim]")
 
 
 if __name__ == "__main__":
