@@ -2,6 +2,7 @@ import json
 from multiprocessing import cpu_count
 import subprocess
 from pathlib import Path
+from typing import cast as typing_cast
 
 import click
 import torch
@@ -12,7 +13,7 @@ from sklearn.preprocessing import LabelEncoder
 from bonepick.train.data_utils import load_jsonl_dataset
 from bonepick.cli import PathParamType
 from bonepick.train.fasttext_utils import check_fasttext_binary
-from bonepick.train.model2vec_utils import BetterStaticModelForClassification
+from bonepick.train.model2vec_utils import BetterStaticModelForClassification, StaticModelForRegression
 
 
 @click.command()
@@ -62,6 +63,12 @@ from bonepick.train.model2vec_utils import BetterStaticModelForClassification
     default="uniform",
     help="Class weighting scheme for loss: 'uniform', 'balanced', 'sqrt' (default: uniform)",
 )
+@click.option(
+    "--regression",
+    is_flag=True,
+    default=False,
+    help="Train a regression model instead of classification",
+)
 def train_model2vec(
     dataset_dir: tuple[Path, ...],
     output_dir: Path | None,
@@ -74,13 +81,16 @@ def train_model2vec(
     max_epochs: int,
     early_stopping_patience: int,
     loss_class_weight: str,
+    regression: bool,
 ):
-    click.echo("Starting model2vec training...")
+    task_type = "regression" if regression else "classification"
+    click.echo(f"Starting model2vec {task_type} training...")
     click.echo(f"  Dataset directories: {', '.join(str(d) for d in dataset_dir)}")
     click.echo(f"  Output directory: {output_dir}")
     click.echo(f"  Text field: {text_field}")
     click.echo(f"  Label field: {label_field}")
     click.echo(f"  Model name: {model_name}")
+    click.echo(f"  Task: {task_type}")
 
     click.echo(f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}...")
     dataset_tuple = load_jsonl_dataset(
@@ -92,53 +102,95 @@ def train_model2vec(
     click.echo(f"  Train samples: {len(dataset_tuple.train.text)}")
 
     click.echo(f"\nLoading pretrained model: {model_name}...")
-    model = BetterStaticModelForClassification.from_pretrained(model_name=model_name)
-    click.echo("Pretrained model loaded.")
 
-    if loss_class_weight != "uniform":
-        encoded_labels = (label_encoder := LabelEncoder()).fit_transform(dataset_tuple.train.label)
-        class_weights = compute_class_weight(
-            "balanced",
-            classes=label_encoder.transform(label_encoder.classes_),
-            y=encoded_labels,
+    if regression:
+        model = StaticModelForRegression.from_pretrained(model_name=model_name)
+        click.echo("Pretrained regression model loaded.")
+
+        # Convert labels to floats for regression
+        train_targets = [float(y) for y in typing_cast(list[str], dataset_tuple.train.label)]
+        valid_targets = [
+            float(y) for y in typing_cast(list[str], dataset_tuple.valid.label)
+        ] if len(dataset_tuple.valid) > 0 else None
+
+        click.echo("\nFitting regression model on training data...")
+        model = model.fit(
+            X=dataset_tuple.train.text,
+            y=train_targets,
+            learning_rate=learning_rate,
+            batch_size=batch_size,
+            min_epochs=min_epochs,
+            max_epochs=max_epochs,
+            X_val=dataset_tuple.valid.text if len(dataset_tuple.valid) > 0 else None,
+            y_val=valid_targets,
+            early_stopping_patience=early_stopping_patience,
         )
+        click.echo("Model fitting complete.")
 
-        if loss_class_weight == "sqrt":
-            class_weights = np.sqrt(class_weights)
-
-        # renormalize to sum to 1
-        class_weights = torch.tensor(class_weights / class_weights.sum(), dtype=torch.float)
-
-        click.echo(f"Class weights ({loss_class_weight}):")
-        for class_name, class_weight in zip(label_encoder.classes_.tolist(), class_weights.tolist()):  # pyright: ignore
-            click.echo(f"  {class_name}: {class_weight:.4f}")
+        if output_dir is not None:
+            click.echo(f"\nSaving model to {output_dir}...")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            model_path = output_dir / "model"
+            # Save the underlying static model for regression
+            static_model = model.to_static_model()
+            static_model.save_pretrained(str(model_path))
+            # Also save the head weights separately
+            head_path = output_dir / "regression_head.pt"
+            torch.save(model.head.state_dict(), head_path)
+            click.echo(f"Model saved to: {model_path}")
+            click.echo(f"Regression head saved to: {head_path}")
+        else:
+            click.echo("\nNo output directory specified, skipping model save.")
     else:
-        class_weights = None
+        model = BetterStaticModelForClassification.from_pretrained(model_name=model_name)
+        click.echo("Pretrained classification model loaded.")
 
-    click.echo("\nFitting model on training data...")
-    model = model.fit(
-        X=dataset_tuple.train.text,
-        y=dataset_tuple.train.label,
-        learning_rate=learning_rate,
-        batch_size=batch_size,
-        min_epochs=min_epochs,
-        max_epochs=max_epochs,
-        X_val=dataset_tuple.valid.text if len(dataset_tuple.valid) > 0 else None,
-        y_val=dataset_tuple.valid.label if len(dataset_tuple.valid) > 0 else None,
-        early_stopping_patience=early_stopping_patience,
-        class_weight=class_weights,
-    )
-    click.echo("Model fitting complete.")
+        if loss_class_weight != "uniform":
+            encoded_labels = (label_encoder := LabelEncoder()).fit_transform(dataset_tuple.train.label)
+            class_weights = compute_class_weight(
+                "balanced",
+                classes=label_encoder.transform(label_encoder.classes_),
+                y=encoded_labels,
+            )
 
-    if output_dir is not None:
-        click.echo(f"\nSaving model to {output_dir}...")
-        output_dir.mkdir(parents=True, exist_ok=True)
-        pipeline = model.to_pipeline()
-        model_path = output_dir / "model"
-        pipeline.save_pretrained(str(model_path))
-        click.echo(f"Model saved to: {model_path}")
-    else:
-        click.echo("\nNo output directory specified, skipping model save.")
+            if loss_class_weight == "sqrt":
+                class_weights = np.sqrt(class_weights)
+
+            # renormalize to sum to 1
+            class_weights = torch.tensor(class_weights / class_weights.sum(), dtype=torch.float)
+
+            click.echo(f"Class weights ({loss_class_weight}):")
+            for class_name, class_weight in zip(label_encoder.classes_.tolist(), class_weights.tolist()):  # pyright: ignore
+                click.echo(f"  {class_name}: {class_weight:.4f}")
+        else:
+            class_weights = None
+
+        click.echo("\nFitting model on training data...")
+
+
+        model = model.fit(
+            X=dataset_tuple.train.text,
+            y=typing_cast(list[str], dataset_tuple.train.label),
+            learning_rate=learning_rate,
+            batch_size=batch_size,
+            min_epochs=min_epochs,
+            max_epochs=max_epochs,
+            X_val=dataset_tuple.valid.text if len(dataset_tuple.valid) > 0 else None,
+            y_val=typing_cast(list[str], dataset_tuple.valid.label) if len(dataset_tuple.valid) > 0 else None,
+            early_stopping_patience=early_stopping_patience,
+            class_weight=class_weights,
+        )
+        click.echo("Model fitting complete.")
+
+        if output_dir is not None:
+            click.echo(f"\nSaving model to {output_dir}...")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            pipeline = model.to_pipeline()
+            model_path = output_dir / "model"
+            pipeline.save_pretrained(str(model_path))
+            click.echo(f"Model saved to: {model_path}")
+        else:
+            click.echo("\nNo output directory specified, skipping model save.")
 
     click.echo("\nTraining complete!")
 
