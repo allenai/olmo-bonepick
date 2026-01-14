@@ -299,7 +299,7 @@ def annotate_dataset(
             input_file = file_stack.enter_context(smart_open.open(source_file, "rb"))  # pyright: ignore
             output_file = file_stack.enter_context(smart_open.open(destination_file, "wb"))  # pyright: ignore
 
-            batch_input: list[dict] = []
+            batch_rows: list[dict] = []
             for line in input_file:
                 row = decoder.decode(line)
 
@@ -310,7 +310,7 @@ def annotate_dataset(
                     continue
 
                 # to annotate; add to batch
-                batch_input.append(row)
+                batch_rows.append(row)
                 to_annotate_docs_cnt += 1
 
                 if limit_rows is not None and to_annotate_docs_cnt >= limit_rows:
@@ -320,16 +320,16 @@ def annotate_dataset(
             # keep track of the progress
             pbar.set_postfix(successful=successful_docs_cnt, failed=failed_docs_cnt)
 
-            if not batch_input:
+            if not batch_rows:
                 # nothing to annotate; move onto next file
                 pbar.update(1)
                 file_stack.pop_all()
                 click.echo(f"\nSkipping {source_file.name} because it has no rows to annotate\n")
                 continue
 
-            click.echo(f"\nAnnotating {len(batch_input):,} rows from {source_file.name}\n")
+            click.echo(f"\nAnnotating {len(batch_rows):,} rows from {source_file.name}\n")
             batch_prompts: list[Conversation] = []
-            for row in batch_input:
+            for row in batch_rows:
                 # use JQ expression to extract the input value from the row
                 # (e.g., ".text" -> will extract the value of the "text" field)
                 content = input_field_selector(row)
@@ -345,7 +345,7 @@ def annotate_dataset(
             # annotate batches in chunk on `annotation_batch_size`` rows at the time
             for i in range(0, len(batch_prompts), annotation_batch_size):
                 batch_prompts_chunk = batch_prompts[i : i + annotation_batch_size]
-                batch_input_chunk = batch_input[i : i + annotation_batch_size]
+                batch_rows_chunk = batch_rows[i : i + annotation_batch_size]
 
                 # we have to use the async cuz the sync APIs don't support service tier
                 batch_responses = asyncio.run(
@@ -358,7 +358,7 @@ def annotate_dataset(
                 )
 
                 # write responses to output file
-                for response, row in zip(batch_responses, batch_input_chunk):
+                for response, row in zip(batch_responses, batch_rows_chunk):
                     if response is None or response.completion is None:
                         failed_docs_cnt += 1
                         continue
@@ -371,7 +371,7 @@ def annotate_dataset(
                     output_file.write(encoder.encode({**row, task_prompt.name: parsed_response}) + b"\n")
                     successful_docs_cnt += 1
 
-            click.echo(f"  Wrote {len(batch_input):,} rows to {destination_file.name}")
+            click.echo(f"  Wrote {len(batch_rows):,} rows to {destination_file.name}")
             pbar.update(1)
 
         pbar.close()
