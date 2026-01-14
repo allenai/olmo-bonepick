@@ -1,5 +1,4 @@
 import logging
-from collections import Counter
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
@@ -333,6 +332,8 @@ class _RegressionLightningModule(pl.LightningModule):
         head_out, _ = self.model(x)
         predictions = head_out.squeeze(-1)
         loss = self.loss_function(predictions, y)
+
+        breakpoint()
 
         # Compute R² for logging
         ss_res = torch.sum((y - predictions) ** 2)
