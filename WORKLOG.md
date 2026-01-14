@@ -1368,11 +1368,11 @@ export LOCAL_BASE_DIR="${HOME}/ai2-llm/classifiers/code-quality"
 export S3_BASE_DIR='s3://ai2-llm/classifiers/code-quality'
 export BASE_NAME_PREFIX="the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB"
 
-s5cmd cp -sp "${S3_BASE_DIR}/*" "${LOCAL_BASE_DIR}/"
-
 export CLAUDE_RUBRIC_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/claude_rubric_code/gpt-5-mini/32k_trimmed"
 export VERY_SIMPLE_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/inv_codedoc_verysimple/gpt-5-mini/10k_trimmed"
 export COUNTUP_CRITERIA_V2_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/countup_criteria_v2/gpt-5-mini/10k_trimmed"
+
+s5cmd cp -sp "${S3_BASE_DIR}/*" "${LOCAL_BASE_DIR}/"
 ```
 
 
@@ -1493,83 +1493,70 @@ done
 ### Step 4: convert to FastText and Model2Vec format
 
 ```shell
-export DATASET_DIR_JSONL_FASTTEXT="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_threshold/fasttext"
+export FASTTEXT_NORMALIZATION="ultrafine"
+export DATASET_DIR_JSONL_FASTTEXT="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_threshold/fasttext/${FASTTEXT_NORMALIZATION}"
+
 for pl in $(ls --color=never ${DATASET_DIR_JSONL}); do
     echo "Processing ${pl}..."
     uv run bonepick convert-to-fasttext \
         --input-dir "${DATASET_DIR_JSONL}/${pl}" \
         --output-dir "${DATASET_DIR_JSONL_FASTTEXT}/${pl}" \
-        --normalization ultrafine
+        --normalization ${FASTTEXT_NORMALIZATION}
 done
 
-export DATASET_DIR_JSONL_MODEL2VEC="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_threshold/model2vec"
+export MODEL2VEC_NORMALIZATION="potion-code"
+export DATASET_DIR_JSONL_MODEL2VEC="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_threshold/model2vec/${MODEL2VEC_NORMALIZATION}"
+
 for pl in $(ls --color=never ${DATASET_DIR_JSONL}); do
     echo "Processing ${pl}..."
     uv run bonepick normalize-dataset \
         --input-dir "${DATASET_DIR_JSONL}/${pl}" \
         --output-dir "${DATASET_DIR_JSONL_MODEL2VEC}/${pl}" \
-        --normalization plsfix
+        --normalization ${MODEL2VEC_NORMALIZATION}
 done
 ```
 
 ### Step 3: Train/eval a model2vec model
 
 ```shell
+# model_paths=(
+#     "minishlab/potion-base-32M"
+#     "${LOCAL_BASE_DIR}/models/model2vec/Qwen3-Embedding-4B"
+# )
+
+# programming_languages=(
+#     "Python"
+#     "Markdown"
+# )
+
+# all_loss_class_weights=(
+#     "sqrt"
+#     "uniform"
+# )
+
 export MODEL2VEC_MODEL_DIR="${LOCAL_BASE_DIR}/trained_models/model2vec"
 
-model_paths=(
-    "minishlab/potion-base-32M"
-    "${LOCAL_BASE_DIR}/models/model2vec/Qwen3-Embedding-4B"
-)
+programming_language="Python"
+model_path="minishlab/potion-base-32M"
+loss_class_weights="uniform"
 
-programming_languages=(
-    "Python"
-    "Markdown"
-)
+model_name=$(echo "${model_path}" | awk -F'/' '{print $NF}')
+dataset_name=$(echo "${DATASET_DIR_JSONL_MODEL2VEC#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
+model_dir="${MODEL2VEC_MODEL_DIR}/${dataset_name}/${programming_language}/${model_name}/${loss_class_weights}"
 
-all_loss_class_weights=(
-    "sqrt"
-    "uniform"
-)
-
-for pl in "${programming_languages[@]}"; do
-    for model_path in "${model_paths[@]}"; do
-        for loss_class_weights in "${all_loss_class_weights[@]}"; do
-            model_name=$(echo "${model_path}" | awk -F'/' '{print $NF}')
-            dataset_name=$(echo "${DATASET_DIR_JSONL_MODEL2VEC#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
-            output_dir="${MODEL2VEC_MODEL_DIR}/${dataset_name}/${pl}/${model_name}/${loss_class_weights}"
-
-            echo "${pl}: Training ${model_name} on ${dataset_name}"
-
-            uv run bonepick train-model2vec \
-                --dataset-dir ${DATASET_DIR_JSONL_MODEL2VEC}/${pl} \
-                --model-name "${model_path}" \
-                --output-dir "${output_dir}" \
-                --loss-class-weight "${loss_class_weights}"
-        done
-    done
-done
+uv run bonepick train-model2vec \
+    --dataset-dir ${DATASET_DIR_JSONL_MODEL2VEC}/${programming_language} \
+    --model-name "${model_path}" \
+    --output-dir "${model_dir}" \
+    --loss-class-weight "${loss_class_weights}"
 ```
 
 Now we eval the models:
 
 ```shell
-
-for pl in "${programming_languages[@]}"; do
-    for model_path in "${model_paths[@]}"; do
-        for loss_class_weights in "${all_loss_class_weights[@]}"; do
-            model_name=$(echo "${model_path}" | awk -F'/' '{print $NF}')
-            dataset_name=$(echo "${DATASET_DIR_JSONL_MODEL2VEC#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
-            model_dir="${MODEL2VEC_MODEL_DIR}/${dataset_name}/${pl}/${model_name}/${loss_class_weights}"
-
-            echo "${pl}: Training ${model_name} on ${dataset_name}"
-
-            uv run bonepick eval-model2vec \
-                --dataset-dir ${DATASET_DIR_JSONL_MODEL2VEC}/${pl} \
-                --model-dir "${model_dir}"
-        done
-    done
-done
+uv run bonepick eval-model2vec \
+    --dataset-dir ${DATASET_DIR_JSONL_MODEL2VEC}/${programming_language} \
+    --model-dir "${model_dir}"
 ```
 
 

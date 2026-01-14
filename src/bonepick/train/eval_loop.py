@@ -18,7 +18,7 @@ from bonepick.train.data_utils import (
 from bonepick.train.fasttext_utils import fasttext_dataset_signature
 from bonepick.cli import PathParamType
 from bonepick.train.fasttext_utils import check_fasttext_binary
-
+from bonepick.train.jq_utils import add_field_or_expression_command_options, field_or_expression
 
 def _compute_metrics_from_predictions(
     y_true: np.ndarray,
@@ -179,6 +179,7 @@ def result_to_text(dataset_dir: tuple[Path, ...], model_dir: Path, results: dict
 
 
 @click.command()
+@add_field_or_expression_command_options
 @click.option(
     "-d",
     "--dataset-dir",
@@ -193,56 +194,16 @@ def result_to_text(dataset_dir: tuple[Path, ...], model_dir: Path, results: dict
     type=PathParamType(exists=True, is_dir=True),
     required=True,
 )
-@click.option(
-    "-t",
-    "--text-field",
-    type=str,
-    default=None,
-    help="field in dataset to use as text",
-)
-@click.option(
-    "-l",
-    "--label-field",
-    type=str,
-    default=None,
-    help="field in dataset to use as label",
-)
-@click.option(
-    "-tt",
-    "--text-expression",
-    type=str,
-    default=".text",
-    help="expression to extract text from dataset",
-)
-@click.option(
-    "-ll",
-    "--label-expression",
-    type=str,
-    default=".score",
-    help="expression to extract label from dataset",
-)
 def eval_model2vec(
-    dataset_dir: tuple[Path, ...],
-    model_dir: Path,
     text_field: str | None,
     label_field: str | None,
     text_expression: str,
     label_expression: str,
+    dataset_dir: tuple[Path, ...],
+    model_dir: Path,
 ):
-    if text_field is not None:
-        msg = (
-            "[bold red]WARNING:[/bold red] [red]-t/--text-field[/red] is deprecated, "
-            "use [red]-tt/--text-expression[/red] instead."
-        )
-        text_expression = f".{text_field}"
-
-    if label_field is not None:
-        msg = (
-            "[bold red]WARNING:[/bold red] [red]-l/--label-field[/red] is deprecated, "
-            "use [red]-ll/--label-expression[/red] instead."
-        )
-        click.echo(msg, err=True, color=True)
-        label_expression = f".{label_field}"
+    text_expression = field_or_expression(text_field, text_expression)
+    label_expression = field_or_expression(label_field, label_expression)
 
     click.echo("Starting model2vec evaluation...")
     click.echo(f"  Dataset directories: {', '.join(str(d) for d in dataset_dir)}")

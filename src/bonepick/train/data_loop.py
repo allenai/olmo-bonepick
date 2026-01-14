@@ -28,6 +28,7 @@ from bonepick.train.data_utils import (
     pretty_size,
 )
 from bonepick.train.normalizers import list_normalizers
+from bonepick.train.jq_utils import field_or_expression, add_field_or_expression_command_options
 
 
 __all__ = [
@@ -189,20 +190,23 @@ def normalize_dataset(
 
 
 @click.command()
+@add_field_or_expression_command_options
 @click.option("-i", "--input-dir", type=PathParamType(exists=True, is_dir=True), required=True)
 @click.option("-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True)
-@click.option("-t", "--text-field", type=str, default="text")
-@click.option("-l", "--label-field", type=str, default="score")
 @click.option("-p", "--num-proc", type=int, default=os.cpu_count())
 @click.option("-n", "--normalization", type=click.Choice(list_normalizers()), default="whitespace")
 def convert_to_fasttext(
+    text_field: str | None,
+    label_field: str | None,
+    text_expression: str,
+    label_expression: str,
     input_dir: Path,
     output_dir: Path,
-    text_field: str,
-    label_field: str,
     num_proc: int,
     normalization: str,
 ):
+    text_expression = field_or_expression(text_field, text_expression)
+    label_expression = field_or_expression(label_field, label_expression)
     for split in ("train", "test"):
         split_dir = input_dir / split
         assert split_dir.exists(), f"Split directory {split_dir} does not exist"
@@ -228,8 +232,8 @@ def convert_to_fasttext(
                     future = pool.submit(
                         convert_single_file_to_fasttext,
                         source_path=fn,
-                        text_field=text_field,
-                        label_field=label_field,
+                        text_expression=text_expression,
+                        label_expression=label_expression,
                         normalization=normalization,
                     )
                     futures.append(future)
@@ -253,6 +257,7 @@ def convert_to_fasttext(
 
 
 @click.command()
+@add_field_or_expression_command_options
 @click.option(
     "-i",
     "--input-dir",
@@ -268,20 +273,6 @@ def convert_to_fasttext(
     required=True,
     help="Output directory for balanced dataset",
 )
-@click.option(
-    "-t",
-    "--text-field",
-    type=str,
-    default=None,
-    help="Field in dataset to use as text",
-)
-@click.option(
-    "-l",
-    "--label-field",
-    type=str,
-    default=None,
-    help="Field in dataset to use as label",
-)
 @click.option("-s", "--seed", type=int, default=42, help="Random seed for reproducibility")
 @click.option(
     "-p",
@@ -290,27 +281,13 @@ def convert_to_fasttext(
     default=os.cpu_count(),
     help="Number of processes for parallel processing",
 )
-@click.option(
-    "-tt",
-    "--text-expression",
-    type=str,
-    default=".text",
-    help="expression to extract text from dataset",
-)
-@click.option(
-    "-ll",
-    "--label-expression",
-    type=str,
-    default=".score",
-    help="expression to extract label from dataset",
-)
 def balance_dataset(
-    input_dir: tuple[Path, ...],
-    output_dir: Path,
     text_field: str | None,
     label_field: str | None,
     text_expression: str,
     label_expression: str,
+    input_dir: tuple[Path, ...],
+    output_dir: Path,
     seed: int,
     num_proc: int,
 ):
@@ -326,20 +303,8 @@ def balance_dataset(
 
     rng = random.Random(seed)
 
-    if text_field is not None:
-        msg = (
-            "[bold red]WARNING:[/bold red] [red]-t/--text-field[/red] is deprecated, "
-            "use [red]-tt/--text-expression[/red] instead."
-        )
-        text_expression = f".{text_field}"
-
-    if label_field is not None:
-        msg = (
-            "[bold red]WARNING:[/bold red] [red]-l/--label-field[/red] is deprecated, "
-            "use [red]-ll/--label-expression[/red] instead."
-        )
-        click.echo(msg, err=True, color=True)
-        label_expression = f".{label_field}"
+    text_expression = field_or_expression(text_field, text_expression)
+    label_expression = field_or_expression(label_field, label_expression)
 
     dataset_tuple = load_jsonl_dataset(
         dataset_dirs=list(input_dir),

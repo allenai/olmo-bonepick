@@ -9,7 +9,8 @@ import msgspec
 import smart_open
 from lazy_imports import try_import
 
-from bonepick.train.data_utils import compile_jq, FILE_SUFFIXES
+from bonepick.train.data_utils import FILE_SUFFIXES
+from bonepick.train.jq_utils import compile_jq
 from bonepick.cli import PathParamType
 
 
@@ -94,8 +95,8 @@ def compute_agreement_metrics(labels1: list[Any], labels2: list[Any], ordinal: b
     if ordinal:
         # Convert labels to numeric if they aren't already
         try:
-            labels1_numeric = [float(l) for l in labels1]
-            labels2_numeric = [float(l) for l in labels2]
+            labels1_numeric = [float(label) for label in labels1]
+            labels2_numeric = [float(label) for label in labels2]
         except (ValueError, TypeError):
             raise ValueError("For ordinal metrics, labels must be numeric or convertible to numeric")
 
@@ -152,8 +153,8 @@ def display_difference_histogram(labels1: list[Any], labels2: list[Any], console
         max_width: Maximum width of histogram bars
     """
     # Convert to numeric
-    labels1_numeric = [float(l) for l in labels1]
-    labels2_numeric = [float(l) for l in labels2]
+    labels1_numeric = [float(label) for label in labels1]
+    labels2_numeric = [float(label) for label in labels2]
 
     # Calculate differences (dataset2 - dataset1)
     differences = [l2 - l1 for l1, l2 in zip(labels1_numeric, labels2_numeric)]
@@ -418,6 +419,8 @@ def annotation_agreement(
 
         # Interpretation of Kappa
         kappa = metrics.get("weighted_kappa") if ordinal else metrics.get("cohen_kappa")
+        assert kappa is not None, "Kappa is None, this should never happen!"
+
         if kappa < 0:
             interpretation = "Poor (less than chance)"
         elif kappa < 0.20:

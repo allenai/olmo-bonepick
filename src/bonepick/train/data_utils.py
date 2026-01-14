@@ -1,4 +1,5 @@
 import dataclasses as dt
+import time
 import pickle
 import shutil
 import tempfile
@@ -9,16 +10,17 @@ import random
 from contextlib import ExitStack
 from functools import cached_property
 from pathlib import Path
-from typing import Callable, Generator, Self, TypeVar, Generic, ClassVar, Any
+from typing import Generator, Self, TypeVar, Generic, ClassVar
 import uuid
 
-import jq
+
 import msgspec
 import smart_open
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
 from bonepick.train.normalizers import get_normalizer
+from bonepick.train.jq_utils import compile_jq
 
 
 FILE_SUFFIXES = [
@@ -47,27 +49,6 @@ def batch_save_hf_dataset(
             f.write(encoder.encode(sample) + b"\n")
 
     return batch
-
-
-def compile_jq(jq_expr: str) -> Callable[[dict], Any]:
-    if not jq_expr.strip():
-
-        def identity(x: dict) -> dict:
-            assert isinstance(x, dict), f"Expected dict, got {type(x)}"
-            return x
-
-        return identity
-
-    compiled_jq = jq.compile(jq_expr)
-
-    def transform(x: dict, _compiled_jq=compiled_jq) -> dict:
-        assert isinstance(x, dict), f"Expected dict, got {type(x)}"
-        output = _compiled_jq.input_value(x).first()
-        assert output is not None, "Expected output, got None"
-        return output
-
-    return transform
-
 
 def transform_single_file(
     source_path: Path,
@@ -332,11 +313,22 @@ def normalize_label(label: str) -> str:
     return label.lower().strip()
 
 
+def pretty_time(seconds: float) -> str:
+    if seconds < 60:
+        return f"{seconds:.2f}s"
+    elif seconds < 3600:
+        return f"{seconds // 60:.2f}m {seconds % 60:.2f}s"
+    else:
+        return f"{seconds // 3600:.2f}h {seconds % 3600 // 60:.2f}m {seconds % 60:.2f}s"
+
+
 def convert_single_file_to_fasttext(
     source_path: Path,
-    text_field: str,
-    label_field: str,
+    text_expression: str,
+    label_expression: str,
     normalization: str,
+    print_progress: bool = True,
+    print_every: int = 1_000,
 ) -> list[str]:
     decoder = msgspec.json.Decoder()
     rows: list[str] = []
@@ -344,12 +336,30 @@ def convert_single_file_to_fasttext(
     normalizer = get_normalizer(normalization)
     re_remove_extra_labels = re.compile(r"\b__label__(\S+)\b")
 
+    start_time = time.time()
+    count = 0
+
+    text_field_selector = compile_jq(text_expression)
+    label_field_selector = compile_jq(label_expression)
+
     with smart_open.open(source_path, "rb") as f:  # pyright: ignore
-        for line in tqdm(f, desc="Converting file to fasttext", unit=" lines", unit_scale=True):
+        for line in f:
+            count += 1
+            if print_progress and count % print_every == 0:
+                now = time.time()
+                elapsed = pretty_time(now - start_time)
+                throughput = f"{count / (now - start_time):.2f}"
+                print(f"Converted {count:,} rows in {elapsed} ({throughput} rows/s)")
+
             row = decoder.decode(line)
-            text = normalizer.normalize(str(row[text_field]))
-            text = re_remove_extra_labels.sub(r"\1", text)
-            label = normalize_label(str(row[label_field]))
+            text_value = text_field_selector(row)
+            text = normalizer.normalize(str(text_value))
+
+            if "__label__" in text:
+                text = re_remove_extra_labels.sub(r"\1", text)
+
+            label_value = label_field_selector(row)
+            label = normalize_label(str(label_value))
             rows.append(f"__label__{label} {text}")
     return rows
 

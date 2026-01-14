@@ -14,9 +14,11 @@ from bonepick.train.data_utils import load_jsonl_dataset
 from bonepick.cli import PathParamType
 from bonepick.train.fasttext_utils import check_fasttext_binary
 from bonepick.train.model2vec_utils import StaticModelForClassification, StaticModelForRegression
+from bonepick.train.jq_utils import add_field_or_expression_command_options, field_or_expression
 
 
 @click.command()
+@add_field_or_expression_command_options
 @click.option(
     "-d",
     "--dataset-dir",
@@ -26,34 +28,6 @@ from bonepick.train.model2vec_utils import StaticModelForClassification, StaticM
     help="Dataset directory (can be specified multiple times)",
 )
 @click.option("-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), default=None)
-@click.option(
-    "-t",
-    "--text-field",
-    type=str,
-    default=None,
-    help="field in dataset to use as text",
-)
-@click.option(
-    "-l",
-    "--label-field",
-    type=str,
-    default=None,
-    help="field in dataset to use as label",
-)
-@click.option(
-    "-tt",
-    "--text-expression",
-    type=str,
-    default=".text",
-    help="expression to extract text from dataset",
-)
-@click.option(
-    "-ll",
-    "--label-expression",
-    type=str,
-    default=".score",
-    help="expression to extract label from dataset",
-)
 @click.option(
     "-m",
     "--model-name",
@@ -84,12 +58,12 @@ from bonepick.train.model2vec_utils import StaticModelForClassification, StaticM
     help="Train a regression model instead of classification",
 )
 def train_model2vec(
-    dataset_dir: tuple[Path, ...],
-    output_dir: Path | None,
     text_field: str | None,
     label_field: str | None,
     text_expression: str,
     label_expression: str,
+    dataset_dir: tuple[Path, ...],
+    output_dir: Path | None,
     model_name: str,
     learning_rate: float,
     batch_size: int,
@@ -110,20 +84,8 @@ def train_model2vec(
 
     click.echo(f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}...")
 
-    if text_field is not None:
-        msg = (
-            "[bold red]WARNING:[/bold red] [red]-t/--text-field[/red] is deprecated, "
-            "use [red]-tt/--text-expression[/red] instead."
-        )
-        text_expression = f".{text_field}"
-
-    if label_field is not None:
-        msg = (
-            "[bold red]WARNING:[/bold red] [red]-l/--label-field[/red] is deprecated, "
-            "use [red]-ll/--label-expression[/red] instead."
-        )
-        click.echo(msg, err=True, color=True)
-        label_expression = f".{label_field}"
+    text_expression = field_or_expression(text_field, text_expression)
+    label_expression = field_or_expression(label_field, label_expression)
 
     dataset_tuple = load_jsonl_dataset(
         dataset_dirs=list(dataset_dir),
