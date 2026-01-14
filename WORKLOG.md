@@ -1348,7 +1348,7 @@ export COUNTUP_CRITERIA_V2_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/count
 ```
 
 
-### Step 2: Gotta binarize the data. We usee >3 as the threshold.
+### Step 2: Make train/test/valid splits and preprocess the data
 
 ```shell
 export RUBRIC_PROMPT="countup_criteria_v2"
@@ -1364,26 +1364,117 @@ for pl in $(ls --color=never ${DATASET_DIR_UNSPLIT}); do
         --test-split-frac 10_000 \
         --valid-split-frac 10_000
 done
+```
 
-# export DATASET_DIR_JSONL="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/jsonl"
-# for pl in $(ls --color=never ${DATASET_DIR_SPLIT}); do
-#     echo "Processing ${pl}..."
-#     uv run bonepick transform-dataset \
-#         --input-dir "${DATASET_DIR_SPLIT}/${pl}" \
-#         --output-dir "${DATASET_DIR_JSONL}/${pl}" \
-#         --label-transform "{score: (if .${RUBRIC_PROMPT}.score > 3 then \"pos\" else \"neg\" end)}"
-# done
 
-export DATASET_DIR_JSONL_FASTTEXT="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/fasttext"
+### Step 3: do we wanna binarize the data?
+
+
+I've looked at stats to get maybe 50/50?
+
+For Python data:
+
+```shell
+$ zstdcat Python/* | grep -oP '"score":\d+' | sed 's/"score"://g' | uv run --with=tqdm tqdm | sort | uniq -c | sort -k2,2n | awk '
+{scores[NR]=$2; counts[NR]=$1; total+=$1}
+END {
+  print "score", "count", "cumul", "cdf"
+  cum=0
+  for(i=1; i<=NR; i++) {
+    cum += counts[i]
+    printf "%d %d %d %.6f\n", scores[i], counts[i], cum, cum/total
+  }
+}'
+
+score count cumul cdf
+0 3 3 0.000006
+3 2 5 0.000010
+4 7 12 0.000024
+5 44 56 0.000112
+6 1243 1299 0.002598
+7 2320 3619 0.007238
+8 6837 10456 0.020912
+9 16012 26468 0.052936
+10 13958 40426 0.080852
+11 60264 100690 0.201381
+12 98476 199166 0.398334
+13 114091 313257 0.626518
+14 67144 380401 0.760807
+15 83388 463789 0.927584
+16 25126 488915 0.977836
+17 7129 496044 0.992094
+18 2939 498983 0.997972
+19 1014 499997 1.000000
+```
+
+
+for Markdown data:
+```shell
+$ zstdcat Markdown/* | grep -oP '"score":\d+' | sed 's/"score"://g' | uv run --with=tqdm tqdm | sort | uniq -c | sort -k2,2n | awk '
+{scores[NR]=$2; counts[NR]=$1; total+=$1}
+END {
+  print "score", "count", "cumul", "cdf"
+  cum=0
+  for(i=1; i<=NR; i++) {
+    cum += counts[i]
+    printf "%d %d %d %.6f\n", scores[i], counts[i], cum, cum/total
+  }
+}'
+
+score count cumul cdf
+3 17 17 0.000034
+4 190 207 0.000414
+5 979 1186 0.002372
+6 18020 19206 0.038412
+7 33123 52329 0.104658
+8 71425 123754 0.247509
+9 117139 240893 0.481788
+10 59020 299913 0.599828
+11 114894 414807 0.829617
+12 53041 467848 0.935700
+13 19211 487059 0.974122
+14 5450 492509 0.985022
+15 5512 498021 0.996046
+16 1609 499630 0.999264
+17 326 499956 0.999916
+18 36 499992 0.999988
+19 6 499998 1.000000
+```
+
+It's different! if you really want, we probably want `>12` for Python and `>9` for Markdown. But we should try regression too.
+
+```zsh
+export DATASET_DIR_JSONL="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_threshold/jsonl"
+for pl in $(ls --color=never ${DATASET_DIR_SPLIT}); do
+    if [[ "${pl}" == "Python" ]]; then
+        THRESHOLD=12
+    elif [[ "${pl}" == "Markdown" ]]; then
+        THRESHOLD=9
+    else
+        echo "Unknown programming language: ${pl}"
+        exit 1
+    fi
+    echo "Processing ${pl} (threshold: ${THRESHOLD})..."
+    uv run bonepick transform-dataset \
+        --input-dir "${DATASET_DIR_SPLIT}/${pl}" \
+        --output-dir "${DATASET_DIR_JSONL}/${pl}" \
+        --label-transform "{score: (if .${RUBRIC_PROMPT}.score > ${THRESHOLD} then \"pos\" else \"neg\" end)}"
+done
+```
+
+### Step 4: convert to FastText and Model2Vec format
+
+```shell
+export DATASET_DIR_JSONL_FASTTEXT="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_threshold/fasttext"
 for pl in $(ls --color=never ${DATASET_DIR_JSONL}); do
     echo "Processing ${pl}..."
     uv run bonepick convert-to-fasttext \
         --input-dir "${DATASET_DIR_JSONL}/${pl}" \
         --output-dir "${DATASET_DIR_JSONL_FASTTEXT}/${pl}" \
-        --normalization ultrafine-plus
+        --normalization ultrafine
 done
 
-export DATASET_DIR_JSONL_MODEL2VEC="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/model2vec"
+export DATASET_DIR_JSONL_MODEL2VEC="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_threshold/model2vec"
 for pl in $(ls --color=never ${DATASET_DIR_JSONL}); do
     echo "Processing ${pl}..."
     uv run bonepick normalize-dataset \
