@@ -100,7 +100,7 @@ def compute_agreement_metrics(labels1: list[Any], labels2: list[Any], ordinal: b
             raise ValueError("For ordinal metrics, labels must be numeric or convertible to numeric")
 
         # Weighted Cohen's Kappa (quadratic weights)
-        kappa = cohen_kappa_score(labels1, labels2, weights='quadratic')
+        kappa = cohen_kappa_score(labels1, labels2, weights="quadratic")
         metrics["weighted_kappa"] = kappa
 
         # Mean Absolute Error

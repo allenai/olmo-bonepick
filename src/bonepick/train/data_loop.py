@@ -338,7 +338,6 @@ def balance_dataset(
         click.echo(msg, err=True, color=True)
         label_expression = f".{label_field}"
 
-
     dataset_tuple = load_jsonl_dataset(
         dataset_dirs=list(input_dir),
         text_field_expression=text_expression,
@@ -1042,7 +1041,9 @@ def reshard_dataset(
                 test_size = int(total_rows * test_split_frac)
             else:
                 if test_split_frac <= 0 or test_split_frac >= total_rows:
-                    raise click.BadParameter(f"--test-split-frac must be between 0 and {total_rows} when using int")
+                    raise click.BadParameter(
+                        f"--test-split-frac must be between 0 and {total_rows} when using int"
+                    )
                 test_size = test_split_frac
 
         # Calculate valid split size
@@ -1054,7 +1055,9 @@ def reshard_dataset(
                 valid_size = int(total_rows * valid_split_frac)
             else:
                 if valid_split_frac <= 0 or valid_split_frac >= total_rows:
-                    raise click.BadParameter(f"--valid-split-frac must be between 0 and {total_rows} when using int")
+                    raise click.BadParameter(
+                        f"--valid-split-frac must be between 0 and {total_rows} when using int"
+                    )
                 valid_size = valid_split_frac
 
         # Validate total split sizes

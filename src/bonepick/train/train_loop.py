@@ -125,7 +125,6 @@ def train_model2vec(
         click.echo(msg, err=True, color=True)
         label_expression = f".{label_field}"
 
-
     dataset_tuple = load_jsonl_dataset(
         dataset_dirs=list(dataset_dir),
         text_field_expression=text_expression,
@@ -142,9 +141,11 @@ def train_model2vec(
 
         # Convert labels to floats for regression
         train_targets = [float(y) for y in typing_cast(list[str], dataset_tuple.train.label)]
-        valid_targets = [
-            float(y) for y in typing_cast(list[str], dataset_tuple.valid.label)
-        ] if len(dataset_tuple.valid) > 0 else None
+        valid_targets = (
+            [float(y) for y in typing_cast(list[str], dataset_tuple.valid.label)]
+            if len(dataset_tuple.valid) > 0
+            else None
+        )
 
         click.echo("\nFitting regression model on training data...")
         model = model.fit(
@@ -199,7 +200,6 @@ def train_model2vec(
             class_weights = None
 
         click.echo("\nFitting model on training data...")
-
 
         model = model.fit(
             X=dataset_tuple.train.text,

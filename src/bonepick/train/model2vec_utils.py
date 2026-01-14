@@ -130,9 +130,7 @@ class StaticModelForRegression(FinetunableStaticModel):
 
         return nn.Sequential(*modules)
 
-    def predict(
-        self, X: list[str], show_progress_bar: bool = False, batch_size: int = 1024
-    ) -> np.ndarray:
+    def predict(self, X: list[str], show_progress_bar: bool = False, batch_size: int = 1024) -> np.ndarray:
         """Predict regression values for texts.
 
         :param X: The texts to predict on.
@@ -265,7 +263,7 @@ class StaticModelForRegression(FinetunableStaticModel):
         y: list[float] | np.ndarray,
         max_length: int = 512,
         num_proc: int | None = None,
-        max_chunk_size: int = 20_000
+        max_chunk_size: int = 20_000,
     ) -> TextDataset:
         """Prepare a dataset for regression.
 
@@ -284,9 +282,7 @@ class StaticModelForRegression(FinetunableStaticModel):
         targets_tensor = torch.tensor(y, dtype=torch.float32)
         return TextDataset(tokenized, targets_tensor)
 
-    def evaluate(
-        self, X: list[str], y: list[float] | np.ndarray, batch_size: int = 1024
-    ) -> dict[str, float]:
+    def evaluate(self, X: list[str], y: list[float] | np.ndarray, batch_size: int = 1024) -> dict[str, float]:
         """Evaluate the regression model.
 
         :param X: The texts.

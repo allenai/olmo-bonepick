@@ -229,7 +229,6 @@ def eval_model2vec(
     text_expression: str,
     label_expression: str,
 ):
-
     if text_field is not None:
         msg = (
             "[bold red]WARNING:[/bold red] [red]-t/--text-field[/red] is deprecated, "

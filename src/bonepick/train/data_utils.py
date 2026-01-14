@@ -203,8 +203,6 @@ def _load_single_json_dataset_file(
     return texts, labels
 
 
-
-
 def load_jsonl_dataset(
     dataset_dirs: Path | list[Path],
     train_split_name: str = "train",
@@ -262,12 +260,17 @@ def load_jsonl_dataset(
         with ExitStack() as stack:
             pool_cls = ProcessPoolExecutor if max_workers > 1 else ThreadPoolExecutor
             pool = stack.enter_context(pool_cls(max_workers=max_workers))
-            pbar = stack.enter_context(tqdm(total=len(all_files), desc=f"Loading {split_name} split", unit=" files", unit_scale=True))
+            pbar = stack.enter_context(
+                tqdm(total=len(all_files), desc=f"Loading {split_name} split", unit=" files", unit_scale=True)
+            )
 
             for file_path in all_files:
                 future = pool.submit(
                     _load_single_json_dataset_file,
-                    file_path, text_field_expression, label_field_expression, allow_missing_label
+                    file_path,
+                    text_field_expression,
+                    label_field_expression,
+                    allow_missing_label,
                 )
                 futures.append(future)
 
