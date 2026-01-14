@@ -139,10 +139,9 @@ def show_disagreements_interactive(disagreements: list[dict], text_field: str, p
     console.print("[dim]Press ENTER to see next example, 'q' + ENTER to quit, 's' + ENTER to skip to end[/dim]\n")
 
     for i, d in enumerate(disagreements, 1):
-
         text = d["text"]
         if print_lines > 0:
-            lines = d['text'].split('\n')[:print_lines]
+            lines = d["text"].split("\n")[:print_lines]
             text_display = "\n".join(lines)
         else:
             text_display = d["text"]
@@ -170,11 +169,13 @@ def show_disagreements_interactive(disagreements: list[dict], text_field: str, p
         if i < len(disagreements):
             try:
                 user_input = input("\n[ENTER=next, q=quit, s=skip to end] ").strip().lower()
-                if user_input == 'q':
+                if user_input == "q":
                     console.print("\n[yellow]Exiting viewer.[/yellow]")
                     break
-                elif user_input == 's':
-                    console.print(f"\n[yellow]Skipping to end. Showed {i} of {len(disagreements)} examples.[/yellow]")
+                elif user_input == "s":
+                    console.print(
+                        f"\n[yellow]Skipping to end. Showed {i} of {len(disagreements)} examples.[/yellow]"
+                    )
                     break
                 console.print()  # Add spacing between examples
             except (KeyboardInterrupt, EOFError):
