@@ -262,8 +262,33 @@ MAX_LENGTH=10_000
 LIMIT_ROWS=500_000
 CACHE_LOCATION="${ROOT_DIR}/bonepick.annotate"
 
-# for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
 for pl in "Markdown" "Python"; do
+    echo "Processing ${pl}..."
+    uv run --extra=annotate bonepick annotate-dataset \
+        --dataset-dir "${BASE_DIR}_1GB_sample_to_annotate/${pl}" \
+        --output-dir "${BASE_DIR}_1GB_sample_annotated_${MODEL_NAME}_${RUBRIC_PROMPT}_${MAX_LENGTH}/${pl}" \
+        --model-name "${MODEL_NAME}" \
+        --service-tier flex \
+        --annotation-task-prompt "${RUBRIC_PROMPT}" \
+        --max-concurrent-requests 5_000 \
+        --max-new-tokens 4096 \
+        --annotation-system-prompt 'code_system' \
+        --max-text-length ${MAX_LENGTH} \
+        --limit-rows ${LIMIT_ROWS} \
+        --cache-location ${CACHE_LOCATION}
+done
+```
+
+Doing another round with 100_000 but all PLs
+
+```shell
+LIMIT_ROWS=100_000
+
+for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
+    if [[ "${pl}" == "Markdown" ]] || [[ "${pl}" == "Python" ]]; then
+        continue
+    fi
+
     echo "Processing ${pl}..."
     uv run --extra=annotate bonepick annotate-dataset \
         --dataset-dir "${BASE_DIR}_1GB_sample_to_annotate/${pl}" \
@@ -1593,5 +1618,6 @@ uv run bonepick train-model2vec \
     --dataset-dir ${DATASET_DIR_SPLIT}/${pl} \
     --model-name "${model_path}" \
     --output-dir "${output_dir}" \
-    --regression
+    --regression \
+    --label-expression ".${RUBRIC_PROMPT}.score"
 ```

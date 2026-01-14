@@ -268,14 +268,14 @@ def convert_to_fasttext(
     "-t",
     "--text-field",
     type=str,
-    default="text",
+    default=None,
     help="Field in dataset to use as text",
 )
 @click.option(
     "-l",
     "--label-field",
     type=str,
-    default="score",
+    default=None,
     help="Field in dataset to use as label",
 )
 @click.option("-s", "--seed", type=int, default=42, help="Random seed for reproducibility")
@@ -286,11 +286,27 @@ def convert_to_fasttext(
     default=os.cpu_count(),
     help="Number of processes for parallel processing",
 )
+@click.option(
+    "-tt",
+    "--text-expression",
+    type=str,
+    default=".text",
+    help="expression to extract text from dataset",
+)
+@click.option(
+    "-ll",
+    "--label-expression",
+    type=str,
+    default=".score",
+    help="expression to extract label from dataset",
+)
 def balance_dataset(
     input_dir: tuple[Path, ...],
     output_dir: Path,
-    text_field: str,
-    label_field: str,
+    text_field: str | None,
+    label_field: str | None,
+    text_expression: str,
+    label_expression: str,
     seed: int,
     num_proc: int,
 ):
@@ -307,10 +323,26 @@ def balance_dataset(
 
     rng = random.Random(seed)
 
+    if text_field is not None:
+        msg = (
+            "[bold red]WARNING:[/bold red] [red]-t/--text-field[/red] is deprecated, "
+            "use [red]-tt/--text-expression[/red] instead."
+        )
+        text_expression = f".{text_field}"
+
+    if label_field is not None:
+        msg = (
+            "[bold red]WARNING:[/bold red] [red]-l/--label-field[/red] is deprecated, "
+            "use [red]-ll/--label-expression[/red] instead."
+        )
+        click.echo(msg, err=True, color=True)
+        label_expression = f".{label_field}"
+
+
     dataset_tuple = load_jsonl_dataset(
         dataset_dirs=list(input_dir),
-        text_field_name=text_field,
-        label_field_name=label_field,
+        text_field_expression=text_expression,
+        label_field_expression=label_expression,
     )
     sampled_dataset_splits: dict[str, DatasetSplit] = {}
 
@@ -355,8 +387,8 @@ def balance_dataset(
     write_dataset(
         dataset=sampled_dataset_tuple,
         destination_dir=output_dir,
-        text_field_name=text_field,
-        label_field_name=label_field,
+        text_field_name=text_field or "text",
+        label_field_name=label_field or "score",
     )
     click.echo(f"  Written to: {output_dir}")
 

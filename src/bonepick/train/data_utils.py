@@ -9,7 +9,7 @@ import random
 from contextlib import ExitStack
 from functools import cached_property
 from pathlib import Path
-from typing import Callable, Generator, Self, TypeVar, Generic, ClassVar
+from typing import Callable, Generator, Self, TypeVar, Generic, ClassVar, Any
 import uuid
 
 import jq
@@ -48,7 +48,7 @@ def batch_save_hf_dataset(
     return batch
 
 
-def compile_jq(jq_expr: str) -> Callable[[dict], dict]:
+def compile_jq(jq_expr: str) -> Callable[[dict], Any]:
     if not jq_expr.strip():
 
         def identity(x: dict) -> dict:
@@ -174,8 +174,8 @@ def load_jsonl_dataset(
     train_split_name: str = "train",
     valid_split_name: str = "valid",
     test_split_name: str = "test",
-    text_field_name: str = "text",
-    label_field_name: str = "label",
+    text_field_expression: str = ".text",
+    label_field_expression: str = ".label",
     train_split_required: bool = True,
     valid_split_required: bool = False,
     test_split_required: bool = True,
@@ -192,6 +192,9 @@ def load_jsonl_dataset(
 
     dataset_tuple = DatasetTuple.new()
     decoder = msgspec.json.Decoder()
+
+    text_field_selector = compile_jq(text_field_expression)
+    label_field_selector = compile_jq(label_field_expression)
 
     for dataset_split, split_name, is_required in (
         (dataset_tuple.train, train_split_name, train_split_required),
@@ -227,15 +230,17 @@ def load_jsonl_dataset(
             with smart_open.open(file_path, "rb") as f:  # pyright: ignore
                 for line in f:
                     row = decoder.decode(line)
-                    dataset_split.text.append(row[text_field_name])
+                    text_value = text_field_selector(row)
+                    label_value = label_field_selector(row)
 
-                    label_value: str | None
+                    dataset_split.text.append(str(text_value))
+
                     if allow_missing_label:
-                        label_value = str(row[label_field_name]) if label_field_name in row else None
-                    elif label_field_name in row:
-                        label_value = str(row[label_field_name])
+                        label_value = str(label_value) if label_value is not None else None
+                    elif label_value is not None:
+                        label_value = str(label_value)
                     else:
-                        raise ValueError(f"Label field {label_field_name} not found in row {row}")
+                        raise ValueError(f"Label expression {label_field_expression} yielded None for row {row}")
 
                     dataset_split.label.append(label_value)
 
