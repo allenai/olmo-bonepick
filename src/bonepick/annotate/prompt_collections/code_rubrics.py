@@ -1972,30 +1972,25 @@ Assign one point to each criterion that is true:
     * Has executable logic: the snippet contains executable logic, not just declarations
     * Not procedurally generated: the snippet does NOT contain text indicating that it was procedurally generated (e.g. via templates, AI, etc.).
 - Code Cleanliness
-    * No boilerplate: no boilerplate code or configurations in the snippet
-    * No binary data: no binary data (base64 blobs, etc.) in the snippet
-    * No commented-out code: no blocks of commented-out code in the snippet
-    * No placeholder text: no placeholder text or code (TODOs, Lorem Ipsum, etc.) in the snippet
+    * No boilerplate: no large blocks of boilerplate code or configurations (YAML, dictionaries, JSON, etc.)
+    * No binary data: no binary data: base64 blobs, binary files, etc.
+    * No commented-out code: no blocks of commented-out code
+    * No placeholder text: no TODOs, Lorem Ipsum, stubs, or other placeholder text/code
     * No debug artifacts: no leftover debug artifacts (debugging log or print statements, breakpoints, etc.)
 - Security
     * No hardcoded secrets: no hardcoded secrets, API keys, or credentials
     * No vulnerabilities: no obvious vulnerabilities (SQL injection, path traversal, etc.)
 - Documentation and Readability
     * Has comments: non-trivial code sections are properly commented to explain assumptions, implementations, and behavior
-    * Has docstrings: major functions, classes, or methods include docstrings.
+    * Has docstrings: major functions, classes, or methods have text describing their purpose/inputs/outputs.
     * Good grammar: mostly correct grammar and spelling throughout the snippet; minimal errors tolerated
-    * Good naming: descriptive, meaningful names for variables, functions, classes, etc.
     * Has type hints: type hints for languages that support them
 - Structure and Organization
     * Good logical flow: functions, classes, and methods are logically organized, not randomly jumbled.
-    * Only shallow nesting: no overly deep nesting (<6 levels)
-    * Is concise: long lines (>150 chars) or long functions (>300 lines) are at most <10% of the snippet
-    * Is modular: functionality is well partitioned into across modules, classes, functions, etc.
-    * No hardcoded values: no hardcoded values (e.g. magic numbers, paths, inputs parameters, etc.)
-- Robustness and Performance
+    * Is modular: functionality is well partitioned into distinct modules, classes, functions, etc.
+    * No hardcoded inputs: any inputs to script/function are parsed, not hardcoded in the snippet.
     * Has error handling: contains error handling logic (try/catch, error messages, etc.)
     * Minimal side effects: minimal side effects (no global variables, no mutations, etc.)
-    * Is efficient: the snippet is efficient, using appropriate algorithms and data structures
 """
 
     instructions: str = """

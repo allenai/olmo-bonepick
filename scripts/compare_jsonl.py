@@ -118,7 +118,7 @@ def find_disagreements(
     return disagreements
 
 
-def show_disagreements_interactive(disagreements: list[dict], text_field: str):
+def show_disagreements_interactive(disagreements: list[dict], text_field: str, print_lines: int = 20):
     """Interactively display disagreements, one at a time.
 
     Args:
@@ -139,12 +139,17 @@ def show_disagreements_interactive(disagreements: list[dict], text_field: str):
     console.print("[dim]Press ENTER to see next example, 'q' + ENTER to quit, 's' + ENTER to skip to end[/dim]\n")
 
     for i, d in enumerate(disagreements, 1):
-        # Display the text (potentially truncated for readability)
-        text = d['text']
-        if len(text) > 500:
-            text_display = f"{text[:500]}[dim]... (truncated, {len(text)} chars total)[/dim]"
+
+        text = d["text"]
+        if print_lines > 0:
+            lines = d['text'].split('\n')[:print_lines]
+            text_display = "\n".join(lines)
         else:
-            text_display = text
+            text_display = d["text"]
+
+        # Display the text (potentially truncated for readability)
+        if len(text_display) < len(text_display):
+            text_display = f"{text_display}\n[dim]... (truncated, {len(text)} chars total)[/dim]"
 
         # Create a panel for the disagreement
         content = (
@@ -218,7 +223,12 @@ def main():
         action="store_true",
         help="Interactively browse disagreements (press ENTER to see each example)",
     )
-
+    parser.add_argument(
+        "--print-lines",
+        default=20,
+        help="Print the first N lines of the text field to compare",
+        type=int,
+    )
     args = parser.parse_args()
 
     console = Console()
@@ -286,7 +296,7 @@ def main():
 
     # Interactive mode
     if args.interactive and len(disagreements) > 0:
-        show_disagreements_interactive(disagreements, args.text_field)
+        show_disagreements_interactive(disagreements, args.text_field, args.print_lines)
     elif not args.stats_only and not args.interactive and len(disagreements) > 0:
         console.print("\n[bold]Example disagreements (first 5):[/bold]")
         console.print("-" * 60)
