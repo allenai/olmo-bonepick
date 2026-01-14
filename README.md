@@ -375,8 +375,8 @@ Compare annotations between two datasets to measure inter-annotator agreement:
 
 ```shell
 uv run bonepick annotation-agreement \
-    --dataset1 data/annotator1 \
-    --dataset2 data/annotator2 \
+    --dataset-dir data/annotator1 \
+    --dataset-dir data/annotator2 \
     --label-expression '.label' \
     --key-expression '.id'
 ```
@@ -387,24 +387,45 @@ This command computes agreement metrics between two annotation datasets, useful 
 - Validating annotation quality across different annotation rounds
 
 Key options:
-- `--dataset1`, `--dataset2`: Paths to the two dataset directories (required)
+- `--dataset-dir`: Paths to the dataset directories (specify multiple times, required)
 - `--label-expression`: JQ expression to extract the label/annotation (e.g., `.label`, `.annotation.category`)
 - `--key-expression`: JQ expression to extract a unique identifier (e.g., `.id`, `.text`)
 - `--show-confusion-matrix/--no-confusion-matrix`: Show confusion matrix (default: true)
 - `--show-disagreements/--no-disagreements`: Show examples where annotators disagreed (default: false)
 - `--max-disagreements`: Maximum disagreement examples to show (default: 10)
+- `--ordinal/--no-ordinal`: Treat labels as ordinal (ordered) values (default: false)
 
 Example with nested fields:
 
 ```shell
 uv run bonepick annotation-agreement \
-    --dataset1 data/human-annotations \
-    --dataset2 data/llm-annotations \
+    --dataset-dir data/human-annotations \
+    --dataset-dir data/llm-annotations \
     --label-expression '.annotation.quality_score' \
     --key-expression '.metadata.document_id' \
     --show-disagreements \
     --max-disagreements 20
 ```
+
+#### Ordinal Labels
+
+For numeric labels where order matters (e.g., rating scales 1-5), use `--ordinal` to compute metrics that account for the distance between ratings:
+
+```shell
+uv run bonepick annotation-agreement \
+    --dataset-dir data/rater1 \
+    --dataset-dir data/rater2 \
+    --label-expression '.score' \
+    --key-expression '.id' \
+    --ordinal
+```
+
+With `--ordinal`, the command computes:
+- **Weighted Kappa (quadratic)**: Penalizes distant disagreements more heavily (13 vs 14 is less severe than 13 vs 30)
+- **Mean Absolute Error (MAE)**: Average absolute difference between ratings
+- **Root Mean Squared Error (RMSE)**: Emphasizes larger disagreements
+- **Pearson Correlation**: Measures linear relationship between raters
+- **Difference Histogram**: Visual distribution of rating differences
 
 The command outputs:
 - **Dataset coverage**: Samples in each dataset, common samples, unique samples

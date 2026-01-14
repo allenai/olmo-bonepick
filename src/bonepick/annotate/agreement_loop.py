@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, Counter
 from typing import Any
 import hashlib
 
@@ -71,23 +71,68 @@ def load_annotations_from_dataset(
     return annotations
 
 
-def compute_agreement_metrics(labels1: list[Any], labels2: list[Any]) -> dict[str, float]:
-    """Compute agreement metrics between two sets of labels."""
+def compute_agreement_metrics(labels1: list[Any], labels2: list[Any], ordinal: bool = False) -> dict[str, float]:
+    """Compute agreement metrics between two sets of labels.
+
+    Args:
+        labels1: First set of labels
+        labels2: Second set of labels
+        ordinal: If True, compute ordinal metrics (weighted kappa, MAE, RMSE)
+    """
     # Simple agreement
     total = len(labels1)
     agreements = sum(1 for l1, l2 in zip(labels1, labels2) if l1 == l2)
     agreement_rate = agreements / total if total > 0 else 0.0
 
-    # Cohen's Kappa
-    kappa = cohen_kappa_score(labels1, labels2)
-
-    return {
+    metrics = {
         "agreement_rate": agreement_rate,
-        "cohen_kappa": kappa,
         "total_samples": total,
         "agreements": agreements,
         "disagreements": total - agreements,
     }
+
+    if ordinal:
+        # Convert labels to numeric if they aren't already
+        try:
+            labels1_numeric = [float(l) for l in labels1]
+            labels2_numeric = [float(l) for l in labels2]
+        except (ValueError, TypeError):
+            raise ValueError("For ordinal metrics, labels must be numeric or convertible to numeric")
+
+        # Weighted Cohen's Kappa (quadratic weights)
+        kappa = cohen_kappa_score(labels1, labels2, weights='quadratic')
+        metrics["weighted_kappa"] = kappa
+
+        # Mean Absolute Error
+        differences = [abs(l1 - l2) for l1, l2 in zip(labels1_numeric, labels2_numeric)]
+        mae = sum(differences) / total if total > 0 else 0.0
+        metrics["mae"] = mae
+
+        # Root Mean Squared Error
+        squared_diffs = [(l1 - l2) ** 2 for l1, l2 in zip(labels1_numeric, labels2_numeric)]
+        rmse = (sum(squared_diffs) / total) ** 0.5 if total > 0 else 0.0
+        metrics["rmse"] = rmse
+
+        # Pearson correlation
+        mean1 = sum(labels1_numeric) / len(labels1_numeric)
+        mean2 = sum(labels2_numeric) / len(labels2_numeric)
+
+        numerator = sum((l1 - mean1) * (l2 - mean2) for l1, l2 in zip(labels1_numeric, labels2_numeric))
+        denom1 = (sum((l1 - mean1) ** 2 for l1 in labels1_numeric)) ** 0.5
+        denom2 = (sum((l2 - mean2) ** 2 for l2 in labels2_numeric)) ** 0.5
+
+        if denom1 > 0 and denom2 > 0:
+            correlation = numerator / (denom1 * denom2)
+            metrics["pearson_correlation"] = correlation
+        else:
+            metrics["pearson_correlation"] = 0.0
+
+    else:
+        # Standard Cohen's Kappa (unweighted)
+        kappa = cohen_kappa_score(labels1, labels2)
+        metrics["cohen_kappa"] = kappa
+
+    return metrics
 
 
 def create_confusion_matrix(labels1: list[Any], labels2: list[Any]) -> tuple[Any, list[Any]]:
@@ -95,6 +140,72 @@ def create_confusion_matrix(labels1: list[Any], labels2: list[Any]) -> tuple[Any
     cm = confusion_matrix(labels1, labels2)
     unique_labels = sorted(set(labels1 + labels2))
     return cm, unique_labels
+
+
+def display_difference_histogram(labels1: list[Any], labels2: list[Any], console: Console, max_width: int = 60):
+    """Display a histogram of label differences for ordinal data.
+
+    Args:
+        labels1: First set of numeric labels
+        labels2: Second set of numeric labels
+        console: Rich console for output
+        max_width: Maximum width of histogram bars
+    """
+    # Convert to numeric
+    labels1_numeric = [float(l) for l in labels1]
+    labels2_numeric = [float(l) for l in labels2]
+
+    # Calculate differences (dataset2 - dataset1)
+    differences = [l2 - l1 for l1, l2 in zip(labels1_numeric, labels2_numeric)]
+
+    # Count frequency of each difference
+    diff_counts = Counter(differences)
+
+    # Sort by difference value
+    sorted_diffs = sorted(diff_counts.items())
+
+    if not sorted_diffs:
+        console.print("[yellow]No differences to display[/yellow]")
+        return
+
+    # Find max count for scaling
+    max_count = max(count for _, count in sorted_diffs)
+
+    console.print("[bold]Difference Histogram (Dataset 2 - Dataset 1):[/bold]")
+    console.print("[dim]Negative values: Dataset 1 rated higher | Positive values: Dataset 2 rated higher[/dim]\n")
+
+    # Create histogram table
+    hist_table = Table(show_header=True, box=None)
+    hist_table.add_column("Difference", justify="right", style="cyan", width=12)
+    hist_table.add_column("Count", justify="right", style="magenta", width=8)
+    hist_table.add_column("Bar", style="blue")
+
+    for diff, count in sorted_diffs:
+        # Calculate bar width
+        bar_width = int((count / max_count) * max_width) if max_count > 0 else 0
+        bar = "█" * bar_width
+
+        # Color the bar based on difference
+        if diff == 0:
+            bar_colored = f"[bold green]{bar}[/bold green]"
+        elif diff > 0:
+            bar_colored = f"[blue]{bar}[/blue]"
+        else:
+            bar_colored = f"[yellow]{bar}[/yellow]"
+
+        # Format difference value
+        if diff == int(diff):
+            diff_str = f"{int(diff):+d}"
+        else:
+            diff_str = f"{diff:+.1f}"
+
+        percentage = (count / len(differences)) * 100
+        count_str = f"{count:,} ({percentage:.1f}%)"
+
+        hist_table.add_row(diff_str, count_str, bar_colored)
+
+    console.print(hist_table)
+    console.print()
 
 
 @click.command()
@@ -137,6 +248,12 @@ def create_confusion_matrix(labels1: list[Any], labels2: list[Any]) -> tuple[Any
     default=10,
     help="Maximum number of disagreement examples to show",
 )
+@click.option(
+    "--ordinal/--no-ordinal",
+    is_flag=True,
+    default=False,
+    help="Treat labels as ordinal (ordered) values. Computes weighted kappa, MAE, RMSE, and shows difference histogram.",
+)
 def annotation_agreement(
     dataset_dir: tuple[Path, ...],
     label_expression: tuple[str, ...],
@@ -144,6 +261,7 @@ def annotation_agreement(
     show_confusion_matrix: bool,
     show_disagreements: bool,
     max_disagreements: int,
+    ordinal: bool,
 ):
     """Compare annotations between two datasets and compute agreement metrics.
 
@@ -268,23 +386,38 @@ def annotation_agreement(
 
         # Compute agreement metrics
         console.print("[yellow]Computing agreement metrics...[/yellow]\n")
-        metrics = compute_agreement_metrics(labels1, labels2)
+        metrics = compute_agreement_metrics(labels1, labels2, ordinal=ordinal)
 
         # Display metrics
-        console.print(
-            Panel.fit(
+        if ordinal:
+            metrics_text = (
+                f"[bold green]Agreement Rate:[/bold green] {metrics['agreement_rate']:.2%}\n"
+                f"[bold green]Weighted Kappa (quadratic):[/bold green] {metrics['weighted_kappa']:.4f}\n"
+                f"[bold green]Mean Absolute Error (MAE):[/bold green] {metrics['mae']:.4f}\n"
+                f"[bold green]Root Mean Squared Error (RMSE):[/bold green] {metrics['rmse']:.4f}\n"
+                f"[bold green]Pearson Correlation:[/bold green] {metrics['pearson_correlation']:.4f}\n"
+                f"[bold]Agreements:[/bold] {metrics['agreements']:,} / {metrics['total_samples']:,}\n"
+                f"[bold]Disagreements:[/bold] {metrics['disagreements']:,} / {metrics['total_samples']:,}"
+            )
+        else:
+            metrics_text = (
                 f"[bold green]Agreement Rate:[/bold green] {metrics['agreement_rate']:.2%}\n"
                 f"[bold green]Cohen's Kappa:[/bold green] {metrics['cohen_kappa']:.4f}\n"
                 f"[bold]Agreements:[/bold] {metrics['agreements']:,} / {metrics['total_samples']:,}\n"
-                f"[bold]Disagreements:[/bold] {metrics['disagreements']:,} / {metrics['total_samples']:,}",
+                f"[bold]Disagreements:[/bold] {metrics['disagreements']:,} / {metrics['total_samples']:,}"
+            )
+
+        console.print(
+            Panel.fit(
+                metrics_text,
                 title="[bold cyan]Agreement Metrics[/bold cyan]",
                 border_style="cyan",
             )
         )
         console.print()
 
-        # Interpretation of Cohen's Kappa
-        kappa = metrics["cohen_kappa"]
+        # Interpretation of Kappa
+        kappa = metrics.get("weighted_kappa") if ordinal else metrics.get("cohen_kappa")
         if kappa < 0:
             interpretation = "Poor (less than chance)"
         elif kappa < 0.20:
@@ -298,7 +431,12 @@ def annotation_agreement(
         else:
             interpretation = "Almost Perfect"
 
-        console.print(f"[dim]Cohen's Kappa interpretation: {interpretation}[/dim]\n")
+        kappa_name = "Weighted Kappa" if ordinal else "Cohen's Kappa"
+        console.print(f"[dim]{kappa_name} interpretation: {interpretation}[/dim]\n")
+
+        # Display histogram for ordinal data
+        if ordinal:
+            display_difference_histogram(labels1, labels2, console)
 
         # Label distribution
         unique_labels = sorted(set(labels1 + labels2))
