@@ -1139,9 +1139,9 @@ done
     "criteria": {
         "basic_validity": {
             "has_clear_purpose": bool,          // 1993/2000, 0.6657, remove
-            "not_mostly_empty": bool,           //  970/2000, 0.0500, clarify
-            "no_syntax_errors": bool,           // 1851/2000, 0.3694, review
-            "has_executable_logic": bool,       // 1934/2000, 0.6561, review
+            "not_mostly_empty": bool,           //  970/2000, 0.0500, clarify, done
+            "no_syntax_errors": bool,           // 1851/2000, 0.3694, review, done
+            "has_executable_logic": bool,       // 1934/2000, 0.6561, review, done
             "not_procedurally_generated": bool, // 1907/2000, 0.9084, keep
         },
         "code_cleanliness": {
