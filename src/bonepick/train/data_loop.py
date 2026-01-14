@@ -765,7 +765,7 @@ def _reshard_rows_to_shards(
         for future in as_completed(futures):
             try:
                 rows, bytes_written = future.result()
-                total_rows += rows
+                total_rows += len(rows)
                 total_bytes += bytes_written
                 pbar.set_postfix(rows=f"{total_rows:,}", size=pretty_size(total_bytes))
             except Exception as e:
@@ -899,11 +899,18 @@ def _reshard_files_to_shards(
     help="Test split fraction (float 0.0-1.0 for percentage, or int for number of instances)",
 )
 @click.option(
+    "-v",
+    "--valid-split-frac",
+    type=FloatOrIntParamType(),
+    default=None,
+    help="Validation split fraction (float 0.0-1.0 for percentage, or int for number of instances)",
+)
+@click.option(
     "-s",
     "--seed",
     type=int,
     default=42,
-    help="Random seed for reproducibility when splitting into train/test",
+    help="Random seed for reproducibility when splitting into train/test/valid",
 )
 @click.option(
     "-p",
@@ -917,6 +924,7 @@ def reshard_dataset(
     output_dir: Path,
     num_files: int,
     test_split_frac: float | int | None,
+    valid_split_frac: float | int | None,
     seed: int,
     num_proc: int,
 ):
@@ -926,16 +934,17 @@ def reshard_dataset(
     of larger files, with output files being roughly equal in size. All files in the input
     directory and its subdirectories will be combined.
 
-    If --test-split-frac is specified, the data will be split into train/ and test/
-    subdirectories, with num-files distributed proportionally between the two splits.
+    If --test-split-frac and/or --valid-split-frac are specified, the data will be split
+    into train/, test/, and/or valid/ subdirectories, with num-files distributed
+    proportionally between the splits.
 
     Useful for:
     - Reducing the number of small files for more efficient I/O
     - Creating evenly-sized shards for distributed processing
     - Preparing data for systems that work better with fewer, larger files
-    - Creating train/test splits during resharding
+    - Creating train/test/valid splits during resharding
 
-    Note: Call this command separately for train/ and test/ directories if you need to
+    Note: Call this command separately for train/, test/, valid/ directories if you need to
     maintain split separation without creating a new split.
     """
     if num_files <= 0:
@@ -947,6 +956,9 @@ def reshard_dataset(
     click.echo(f"  Target output files: {num_files}")
     if test_split_frac is not None:
         click.echo(f"  Test split: {test_split_frac}")
+    if valid_split_frac is not None:
+        click.echo(f"  Valid split: {valid_split_frac}")
+    if test_split_frac is not None or valid_split_frac is not None:
         click.echo(f"  Random seed: {seed}")
     click.echo(f"  Num processes: {num_proc}")
 
@@ -968,13 +980,13 @@ def reshard_dataset(
     click.echo(f"  Input files: {len(input_files):,}")
     click.echo(f"  Total size: {pretty_size(total_size)}")
 
-    # Step 2: Handle train/test split if requested
-    if test_split_frac is not None:
+    # Step 2: Handle train/test/valid split if requested
+    if test_split_frac is not None or valid_split_frac is not None:
         import random
         import smart_open
 
         # Read all rows from all files
-        click.echo("\nReading all rows for train/test split...")
+        click.echo("\nReading all rows for splitting...")
         all_rows: list[bytes] = []
         for file_path, _ in tqdm(input_files, desc="Reading files", unit="file"):
             with smart_open.open(file_path, "rb") as f:  # pyright: ignore
@@ -990,34 +1002,74 @@ def reshard_dataset(
         rng.shuffle(all_rows)
 
         # Calculate test split size
-        if isinstance(test_split_frac, float):
-            if test_split_frac <= 0 or test_split_frac >= 1.0:
-                raise click.BadParameter("--test-split-frac must be between 0 and 1.0 when using float")
-            test_size = int(total_rows * test_split_frac)
-        else:
-            if test_split_frac <= 0 or test_split_frac >= total_rows:
-                raise click.BadParameter(f"--test-split-frac must be between 0 and {total_rows} when using int")
-            test_size = test_split_frac
+        test_size = 0
+        if test_split_frac is not None:
+            if isinstance(test_split_frac, float):
+                if test_split_frac <= 0 or test_split_frac >= 1.0:
+                    raise click.BadParameter("--test-split-frac must be between 0 and 1.0 when using float")
+                test_size = int(total_rows * test_split_frac)
+            else:
+                if test_split_frac <= 0 or test_split_frac >= total_rows:
+                    raise click.BadParameter(f"--test-split-frac must be between 0 and {total_rows} when using int")
+                test_size = test_split_frac
 
-        train_size = total_rows - test_size
+        # Calculate valid split size
+        valid_size = 0
+        if valid_split_frac is not None:
+            if isinstance(valid_split_frac, float):
+                if valid_split_frac <= 0 or valid_split_frac >= 1.0:
+                    raise click.BadParameter("--valid-split-frac must be between 0 and 1.0 when using float")
+                valid_size = int(total_rows * valid_split_frac)
+            else:
+                if valid_split_frac <= 0 or valid_split_frac >= total_rows:
+                    raise click.BadParameter(f"--valid-split-frac must be between 0 and {total_rows} when using int")
+                valid_size = valid_split_frac
+
+        # Validate total split sizes
+        if test_size + valid_size >= total_rows:
+            raise click.BadParameter(
+                f"Combined test ({test_size}) and valid ({valid_size}) sizes exceed total rows ({total_rows})"
+            )
+
+        train_size = total_rows - test_size - valid_size
         click.echo(f"  Train rows: {train_size:,}")
-        click.echo(f"  Test rows: {test_size:,}")
+        if test_size > 0:
+            click.echo(f"  Test rows: {test_size:,}")
+        if valid_size > 0:
+            click.echo(f"  Valid rows: {valid_size:,}")
 
-        # Split rows
+        # Split rows: train first, then test, then valid
         train_rows = all_rows[:train_size]
-        test_rows = all_rows[train_size:]
+        test_rows = all_rows[train_size : train_size + test_size] if test_size > 0 else []
+        valid_rows = all_rows[train_size + test_size :] if valid_size > 0 else []
 
         # Calculate number of files for each split (proportional to data size)
+        # Only count splits that have data
+        active_splits: list[tuple[str, list[bytes], int]] = []
+
+        # Always have train
         train_num_files = max(1, int(num_files * train_size / total_rows))
-        test_num_files = max(1, num_files - train_num_files)
-        click.echo(f"  Train files: {train_num_files}")
-        click.echo(f"  Test files: {test_num_files}")
+        remaining_files = num_files - train_num_files
+        active_splits.append(("train", train_rows, train_num_files))
+
+        if test_size > 0 and valid_size > 0:
+            # Both test and valid - split remaining files proportionally
+            test_num_files = max(1, int(remaining_files * test_size / (test_size + valid_size)))
+            valid_num_files = max(1, remaining_files - test_num_files)
+            active_splits.append(("test", test_rows, test_num_files))
+            active_splits.append(("valid", valid_rows, valid_num_files))
+        elif test_size > 0:
+            test_num_files = max(1, remaining_files)
+            active_splits.append(("test", test_rows, test_num_files))
+        elif valid_size > 0:
+            valid_num_files = max(1, remaining_files)
+            active_splits.append(("valid", valid_rows, valid_num_files))
+
+        for split_name, _, split_num_files in active_splits:
+            click.echo(f"  {split_name.capitalize()} files: {split_num_files}")
 
         # Process each split using helper function
-        for split_name, split_rows, split_num_files in [
-            ("train", train_rows, train_num_files),
-            ("test", test_rows, test_num_files),
-        ]:
+        for split_name, split_rows, split_num_files in active_splits:
             _reshard_rows_to_shards(
                 rows=split_rows,
                 output_dir=output_dir / split_name,
