@@ -309,7 +309,9 @@ done
 ### Step 5: upload the annotated data to S3
 
 ```shell
-s5cmd cp -n -sp "${ROOT_DIR}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_gpt-5-mini_inv_codedoc_verysimple_10_000/"* "s3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_gpt-5-mini_inv_codedoc_verysimple_10_000/"
+s5cmd cp -sp \
+    "${ROOT_DIR}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_${MODEL_NAME}_${RUBRIC_PROMPT}_${MAX_LENGTH}/*" \
+    "s3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_${MODEL_NAME}_${RUBRIC_PROMPT}_${MAX_LENGTH}/"
 ```
 
 ------------------------------------------------------------------------------------------------
@@ -1620,5 +1622,5 @@ uv run bonepick train-model2vec \
     --model-name "${model_path}" \
     --output-dir "${output_dir}" \
     --regression \
-    --label-expression "(.${RUBRIC_PROMPT}.score / 19)"
+    --label-expression ".${RUBRIC_PROMPT}.score"
 ```

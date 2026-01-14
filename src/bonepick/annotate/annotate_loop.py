@@ -23,7 +23,6 @@ with try_import() as extra_dependencies:
 
     # import here to register all the prompts
     from bonepick.annotate import prompt_collections  # noqa: F401
-    from bonepick.annotate.deluge_utils import SqliteInvalidableCache, lm_deluge_monkey_patch
 
 
 class DatasetRow(TypedDict):
@@ -194,6 +193,9 @@ def annotate_dataset(
 ):
     # check if the extra dependencies are installed
     extra_dependencies.check()
+
+    # import these here to avoid annoying warning about plyvel not being installed
+    from bonepick.annotate.deluge_utils import SqliteInvalidableCache, lm_deluge_monkey_patch
 
     # make sure the models available in the registry are updated
     lm_deluge_monkey_patch()

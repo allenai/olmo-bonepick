@@ -333,8 +333,6 @@ class _RegressionLightningModule(pl.LightningModule):
         predictions = head_out.squeeze(-1)
         loss = self.loss_function(predictions, y)
 
-        breakpoint()
-
         # Compute R² for logging
         ss_res = torch.sum((y - predictions) ** 2)
         ss_tot = torch.sum((y - torch.mean(y)) ** 2)
