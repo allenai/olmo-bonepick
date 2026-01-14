@@ -1,5 +1,6 @@
 import os
 import random
+import yaml
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
@@ -195,6 +196,7 @@ def normalize_dataset(
 @click.option("-o", "--output-dir", type=PathParamType(mkdir=True, is_dir=True), required=True)
 @click.option("-p", "--num-proc", type=int, default=os.cpu_count())
 @click.option("-n", "--normalization", type=click.Choice(list_normalizers()), default="whitespace")
+@click.option("--max-length", type=int, default=None, help="Maximum length of text to process")
 def convert_to_fasttext(
     text_field: str | None,
     label_field: str | None,
@@ -204,6 +206,7 @@ def convert_to_fasttext(
     output_dir: Path,
     num_proc: int,
     normalization: str,
+    max_length: int | None,
 ):
     text_expression = field_or_expression(text_field, text_expression)
     label_expression = field_or_expression(label_field, label_expression)
@@ -235,6 +238,7 @@ def convert_to_fasttext(
                         text_expression=text_expression,
                         label_expression=label_expression,
                         normalization=normalization,
+                        max_length=max_length,
                     )
                     futures.append(future)
 
@@ -254,6 +258,25 @@ def convert_to_fasttext(
                     for future in futures:
                         future.cancel()
                     raise e
+
+            report_dict = {
+                "input_dir": str(input_dir),
+                "output_dir": str(output_dir),
+                "text_expression": text_expression,
+                "label_expression": label_expression,
+                "normalization": normalization,
+                "max_length": max_length,
+                "num_proc": num_proc,
+                "num_files": files_pbar.n,
+                "num_rows": rows_pbar.n,
+            }
+
+            files_pbar.close()
+            rows_pbar.close()
+
+            report_file = output_dir / "report.yaml"
+            with open(report_file, "w", encoding="utf-8") as f:
+                yaml.dump(report_dict, f, indent=2)
 
 
 @click.command()

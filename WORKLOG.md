@@ -1626,17 +1626,21 @@ export LABEL_NAME="${RUBRIC_PROMPT}/gpt-5-mini/10k_trimmed"
 export DATASET_DIR_UNSPLIT="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/${LABEL_NAME}"
 export DATASET_DIR_SPLIT="${LOCAL_BASE_DIR}/data-train_test_split/${BASE_NAME_PREFIX}/${LABEL_NAME}"
 
-export MODEL2VEC_MODEL="minishlab/potion-base-32M"
-export MODEL2VEC_MODEL_DIR="${LOCAL_BASE_DIR}/trained_models/model2vec"
-export MODEL2VEC_LABEL_EXPRESSION="(if .${RUBRIC_PROMPT}.score > 13 then \"pos\" else \"neg\" end)"
 export PROGRAMMING_LANGUAGE="Python"
+export LABEL_THRESHOLD=13
 export LOSS_CLASS_WEIGHTS="uniform"
 export MODEL2VEC_NORMALIZER="plsfix"
+export FASTTEXT_NORMALIZER="ultrafine"
 export TEXT_MAX_LENGTH=10_000
+export LABEL_EXPRESSION="(if .${RUBRIC_PROMPT}.score > ${LABEL_THRESHOLD} then \"pos\" else \"neg\" end)"
+export MODEL2VEC_MODEL="minishlab/potion-base-32M"
 
+export MODEL2VEC_MODEL_DIR="${LOCAL_BASE_DIR}/trained_models/model2vec"
 export MODEL2VEC_MODEL_NAME=$(echo "${MODEL2VEC_MODEL}" | awk -F'/' '{print $NF}')
 export MODEL2VEC_DATASET_NAME=$(echo "${DATASET_DIR_SPLIT#"${LOCAL_BASE_DIR}/data-train_test_split/"}" | tr '/' '_')
 export MODEL2VEC_OUTPUT_DIR="${MODEL2VEC_MODEL_DIR}/${MODEL2VEC_DATASET_NAME}/${PROGRAMMING_LANGUAGE}/${MODEL2VEC_MODEL_NAME}/${LOSS_CLASS_WEIGHTS}"
+
+export DATASET_DIR_FASTTEXT="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/fasttext/${FASTTEXT_NORMALIZER}_thr${LABEL_THRESHOLD}"
 ```
 
 
@@ -1655,7 +1659,7 @@ for pl in $(ls --color=never ${DATASET_DIR_UNSPLIT}); do
 done
 ```
 
-Train a model2vec model directly
+Train a model2vec model directly:
 
 ```shell
 uv run bonepick train-model2vec \
@@ -1664,7 +1668,7 @@ uv run bonepick train-model2vec \
     --loss-class-weight "${LOSS_CLASS_WEIGHTS}" \
     --normalizer "${MODEL2VEC_NORMALIZER}" \
     --max-length "${TEXT_MAX_LENGTH}" \
-    --label-expression "${MODEL2VEC_LABEL_EXPRESSION}" \
+    --label-expression "${LABEL_EXPRESSION}" \
     --output-dir "${MODEL2VEC_OUTPUT_DIR}"
 ```
 
@@ -1674,7 +1678,18 @@ Now we eval the models:
 uv run bonepick eval-model2vec \
     --dataset-dir "${DATASET_DIR_SPLIT}/${PROGRAMMING_LANGUAGE}" \
     --model-dir "${MODEL2VEC_OUTPUT_DIR}" \
-    --label-expression "${MODEL2VEC_LABEL_EXPRESSION}" \
+    --label-expression "${LABEL_EXPRESSION}" \
     --max-length "${TEXT_MAX_LENGTH}" \
     --normalizer "${MODEL2VEC_NORMALIZER}"
+```
+
+Make fasttext dataset:
+
+```shell
+uv run bonepick convert-to-fasttext \
+    --input-dir "${DATASET_DIR_SPLIT}/${PROGRAMMING_LANGUAGE}" \
+    --output-dir "${DATASET_DIR_FASTTEXT}/${PROGRAMMING_LANGUAGE}" \
+    --normalization "${FASTTEXT_NORMALIZER}" \
+    --label-expression "${LABEL_EXPRESSION}"
+    --max-length "${TEXT_MAX_LENGTH}"
 ```

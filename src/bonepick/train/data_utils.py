@@ -342,7 +342,8 @@ def convert_single_file_to_fasttext(
     label_expression: str,
     normalization: str,
     print_progress: bool = True,
-    print_every: int = 1_000,
+    print_every: int = 10_000,
+    max_length: int | None = None,
 ) -> list[str]:
     decoder = msgspec.json.Decoder()
     rows: list[str] = []
@@ -366,8 +367,11 @@ def convert_single_file_to_fasttext(
                 print(f"Converted {count:,} rows in {elapsed} ({throughput} rows/s)")
 
             row = decoder.decode(line)
-            text_value = text_field_selector(row)
-            text = normalizer.normalize(str(text_value))
+            text_value = str(text_field_selector(row))
+            if max_length is not None and len(text_value) > max_length:
+                text_value = text_value[:max_length]
+
+            text = normalizer.normalize(text_value)
 
             if "__label__" in text:
                 text = re_remove_extra_labels.sub(r"\1", text)
