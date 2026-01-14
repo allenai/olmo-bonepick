@@ -1611,3 +1611,71 @@ uv run bonepick train-model2vec \
     --regression \
     --label-expression ".${RUBRIC_PROMPT}.score"
 ```
+
+
+## New set of commands
+
+
+All variables (DGX Spark):
+
+
+```shell
+export LOCAL_BASE_DIR="${HOME}/ai2-llm/classifiers/code-quality"
+export RUBRIC_PROMPT="countup_criteria_v2"
+export LABEL_NAME="${RUBRIC_PROMPT}/gpt-5-mini/10k_trimmed"
+export DATASET_DIR_UNSPLIT="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/${LABEL_NAME}"
+export DATASET_DIR_SPLIT="${LOCAL_BASE_DIR}/data-train_test_split/${BASE_NAME_PREFIX}/${LABEL_NAME}"
+
+export MODEL2VEC_MODEL="minishlab/potion-base-32M"
+export MODEL2VEC_MODEL_DIR="${LOCAL_BASE_DIR}/trained_models/model2vec"
+export MODEL2VEC_LABEL_EXPRESSION="(if .${RUBRIC_PROMPT}.score > 13 then \"pos\" else \"neg\" end)"
+export PROGRAMMING_LANGUAGE="Python"
+export LOSS_CLASS_WEIGHTS="uniform"
+export MODEL2VEC_NORMALIZER="plsfix"
+export TEXT_MAX_LENGTH=10_000
+
+export MODEL2VEC_MODEL_NAME=$(echo "${MODEL2VEC_MODEL}" | awk -F'/' '{print $NF}')
+export MODEL2VEC_DATASET_NAME=$(echo "${DATASET_DIR_SPLIT#"${LOCAL_BASE_DIR}/data-train_test_split/"}" | tr '/' '_')
+export MODEL2VEC_OUTPUT_DIR="${MODEL2VEC_MODEL_DIR}/${MODEL2VEC_DATASET_NAME}/${PROGRAMMING_LANGUAGE}/${MODEL2VEC_MODEL_NAME}/${LOSS_CLASS_WEIGHTS}"
+```
+
+
+Reshard the data:
+
+
+```shell
+for pl in $(ls --color=never ${DATASET_DIR_UNSPLIT}); do
+    echo "Processing ${pl}..."
+    uv run bonepick reshard-dataset \
+        --dataset-dir "${DATASET_DIR_UNSPLIT}/${pl}" \
+        --output-dir "${DATASET_DIR_SPLIT}/${pl}" \
+        --num-files 20 \
+        --test-split-frac 10_000 \
+        --valid-split-frac 10_000
+done
+```
+
+Train a model2vec model directly
+
+```shell
+
+
+uv run bonepick train-model2vec \
+    --dataset-dir "${DATASET_DIR_SPLIT}/${PROGRAMMING_LANGUAGE}" \
+    --model-name "${MODEL2VEC_MODEL}" \
+    --loss-class-weight "${LOSS_CLASS_WEIGHTS}" \
+    --normalizer "${MODEL2VEC_NORMALIZER}" \
+    --max-length "${TEXT_MAX_LENGTH}" \
+    --label-expression "${MODEL2VEC_LABEL_EXPRESSION}" \
+    --output-dir "${MODEL2VEC_OUTPUT_DIR}"
+```
+
+Now we eval the models:
+
+```shell
+uv run bonepick eval-model2vec \
+    --dataset-dir "${DATASET_DIR_SPLIT}/${PROGRAMMING_LANGUAGE}" \
+    --model-dir "${MODEL2VEC_OUTPUT_DIR}" \
+    --max-length "${TEXT_MAX_LENGTH}" \
+    --normalizer "${MODEL2VEC_NORMALIZER}"
+```

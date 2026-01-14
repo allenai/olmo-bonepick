@@ -15,7 +15,7 @@ from bonepick.cli import PathParamType
 from bonepick.train.fasttext_utils import check_fasttext_binary
 from bonepick.train.model2vec_utils import StaticModelForClassification, StaticModelForRegression
 from bonepick.train.jq_utils import add_field_or_expression_command_options, field_or_expression
-
+from bonepick.train.normalizers import list_normalizers
 
 @click.command()
 @add_field_or_expression_command_options
@@ -57,6 +57,18 @@ from bonepick.train.jq_utils import add_field_or_expression_command_options, fie
     default=False,
     help="Train a regression model instead of classification",
 )
+@click.option(
+    "--normalizer",
+    type=click.Choice(list_normalizers()),
+    default=None,
+    help="Normalizer to use for text processing",
+)
+@click.option(
+    "--max-length",
+    type=int,
+    default=None,
+    help="Maximum length of text to process",
+)
 def train_model2vec(
     text_field: str | None,
     label_field: str | None,
@@ -72,25 +84,34 @@ def train_model2vec(
     early_stopping_patience: int,
     loss_class_weight: str,
     regression: bool,
+    normalizer: str | None,
+    max_length: int | None,
 ):
     task_type = "regression" if regression else "classification"
-    click.echo(f"Starting model2vec {task_type} training...")
-    click.echo(f"  Dataset directories: {', '.join(str(d) for d in dataset_dir)}")
-    click.echo(f"  Output directory: {output_dir}")
-    click.echo(f"  Text field: {text_field}")
-    click.echo(f"  Label field: {label_field}")
-    click.echo(f"  Model name: {model_name}")
-    click.echo(f"  Task: {task_type}")
-
-    click.echo(f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}...")
 
     text_expression = field_or_expression(text_field, text_expression)
     label_expression = field_or_expression(label_field, label_expression)
+
+    click.echo(f"Starting model2vec {task_type} training...")
+    click.echo(f"  Dataset directories: {', '.join(str(d) for d in dataset_dir)}")
+    click.echo(f"  Output directory: {output_dir}")
+    click.echo(f"  Model name: {model_name}")
+    click.echo(f"  Task: {task_type}")
+    click.echo(f"  Text expression: {text_expression}")
+    click.echo(f"  Label expression: {label_expression}")
+    if max_length is not None:
+        click.echo(f"  Max length: {max_length}")
+    if normalizer is not None:
+        click.echo(f"  Normalizer: {normalizer}")
+
+    click.echo(f"\nLoading dataset from {len(dataset_dir)} director{'y' if len(dataset_dir) == 1 else 'ies'}...")
 
     dataset_tuple = load_jsonl_dataset(
         dataset_dirs=list(dataset_dir),
         text_field_expression=text_expression,
         label_field_expression=label_expression,
+        normalizer_name=normalizer,
+        text_max_length=max_length,
     )
     click.echo("Dataset loaded successfully.")
     click.echo(f"  Train samples: {len(dataset_tuple.train.text)}")

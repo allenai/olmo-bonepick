@@ -189,6 +189,7 @@ def normalize_dataset(
         pbar.close()
 
 
+
 @click.command()
 @add_field_or_expression_command_options
 @click.option("-i", "--input-dir", type=PathParamType(exists=True, is_dir=True), required=True)

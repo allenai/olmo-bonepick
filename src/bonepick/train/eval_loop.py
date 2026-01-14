@@ -19,6 +19,7 @@ from bonepick.train.fasttext_utils import fasttext_dataset_signature
 from bonepick.cli import PathParamType
 from bonepick.train.fasttext_utils import check_fasttext_binary
 from bonepick.train.jq_utils import add_field_or_expression_command_options, field_or_expression
+from bonepick.train.normalizers import list_normalizers
 
 def _compute_metrics_from_predictions(
     y_true: np.ndarray,
@@ -194,11 +195,25 @@ def result_to_text(dataset_dir: tuple[Path, ...], model_dir: Path, results: dict
     type=PathParamType(exists=True, is_dir=True),
     required=True,
 )
+@click.option(
+    "--max-length",
+    type=int,
+    default=None,
+    help="Maximum length of text to process",
+)
+@click.option(
+    "--normalizer",
+    type=click.Choice(list_normalizers()),
+    default=None,
+    help="Normalizer to use for text processing",
+)
 def eval_model2vec(
     text_field: str | None,
     label_field: str | None,
     text_expression: str,
     label_expression: str,
+    max_length: int | None,
+    normalizer: str | None,
     dataset_dir: tuple[Path, ...],
     model_dir: Path,
 ):
@@ -210,6 +225,10 @@ def eval_model2vec(
     click.echo(f"  Model directory: {model_dir}")
     click.echo(f"  Text field: {text_field}")
     click.echo(f"  Label field: {label_field}")
+    if max_length is not None:
+        click.echo(f"  Max length: {max_length}")
+    if normalizer is not None:
+        click.echo(f"  Normalizer: {normalizer}")
 
     pipeline_dir = model_dir / "model"
     click.echo(f"\nLoading model from {pipeline_dir}...")
@@ -221,6 +240,8 @@ def eval_model2vec(
         dataset_dirs=list(dataset_dir),
         text_field_expression=text_expression,
         label_field_expression=label_expression,
+        normalizer_name=normalizer,
+        text_max_length=max_length,
     )
     click.echo("Dataset loaded successfully.")
     click.echo(f"  Test samples: {len(dt.test.text)}")

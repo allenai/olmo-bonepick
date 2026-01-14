@@ -156,6 +156,8 @@ def _load_single_json_dataset_file(
     text_field_expression: str,
     label_field_expression: str,
     allow_missing_label: bool = False,
+    normalizer_name: str | None = None,
+    text_max_length: int | None = None,
 ) -> tuple[list[str], list[str | None]]:
     texts: list[str] = []
     labels: list[str | None] = []
@@ -163,15 +165,22 @@ def _load_single_json_dataset_file(
     text_field_selector = compile_jq(text_field_expression)
     label_field_selector = compile_jq(label_field_expression)
     decoder = msgspec.json.Decoder()
+    normalizer = get_normalizer(normalizer_name) if normalizer_name is not None else None
 
     with smart_open.open(file_path, "rb") as f:  # pyright: ignore
         for line in f:
             row = decoder.decode(line)
-            text_value = text_field_selector(row)
+
+            # Step 1: process text
+            text_value = str(text_field_selector(row))
+            if text_max_length is not None and len(text_value) > text_max_length:
+                text_value = text_value[:text_max_length]
+            if normalizer is not None:
+                text_value = normalizer.normalize(text_value)
+            texts.append(text_value)
+
+            # Step 2: process label
             label_value = label_field_selector(row)
-
-            texts.append(str(text_value))
-
             if allow_missing_label:
                 label_value = str(label_value) if label_value is not None else None
             elif label_value is not None:
@@ -196,6 +205,8 @@ def load_jsonl_dataset(
     test_split_required: bool = True,
     allow_missing_label: bool = False,
     max_workers: int | None = None,
+    normalizer_name: str | None = None,
+    text_max_length: int | None = None,
 ) -> DatasetTuple:
     """Load dataset from one or more directories.
 
@@ -248,10 +259,12 @@ def load_jsonl_dataset(
             for file_path in all_files:
                 future = pool.submit(
                     _load_single_json_dataset_file,
-                    file_path,
-                    text_field_expression,
-                    label_field_expression,
-                    allow_missing_label,
+                    file_path=file_path,
+                    text_field_expression=text_field_expression,
+                    label_field_expression=label_field_expression,
+                    allow_missing_label=allow_missing_label,
+                    normalizer_name=normalizer_name,
+                    text_max_length=text_max_length,
                 )
                 futures.append(future)
 
