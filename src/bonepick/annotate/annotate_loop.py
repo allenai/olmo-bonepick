@@ -345,9 +345,10 @@ def annotate_dataset(
             # annotate batches in chunk on `annotation_batch_size`` rows at the time
             for i in range(0, len(batch_prompts), annotation_batch_size):
                 batch_prompts_chunk = batch_prompts[i : i + annotation_batch_size]
+                batch_input_chunk = batch_input[i : i + annotation_batch_size]
 
                 # we have to use the async cuz the sync APIs don't support service tier
-                responses = asyncio.run(
+                batch_responses = asyncio.run(
                     client.process_prompts_async(
                         batch_prompts_chunk,
                         service_tier=ServiceTier(service_tier).value if service_tier else None,
@@ -357,7 +358,7 @@ def annotate_dataset(
                 )
 
                 # write responses to output file
-                for response, row in zip(responses, batch_input):
+                for response, row in zip(batch_responses, batch_input_chunk):
                     if response is None or response.completion is None:
                         failed_docs_cnt += 1
                         continue
