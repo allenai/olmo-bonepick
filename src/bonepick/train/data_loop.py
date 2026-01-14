@@ -764,8 +764,8 @@ def _reshard_rows_to_shards(
         pbar = tqdm(total=len(futures), desc=desc, unit="file")
         for future in as_completed(futures):
             try:
-                rows, bytes_written = future.result()
-                total_rows += len(rows)
+                rows_written, bytes_written = future.result()
+                total_rows += rows_written
                 total_bytes += bytes_written
                 pbar.set_postfix(rows=f"{total_rows:,}", size=pretty_size(total_bytes))
             except Exception as e:
