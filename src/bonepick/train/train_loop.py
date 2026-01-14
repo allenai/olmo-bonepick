@@ -13,7 +13,7 @@ from sklearn.preprocessing import LabelEncoder
 from bonepick.train.data_utils import load_jsonl_dataset
 from bonepick.cli import PathParamType
 from bonepick.train.fasttext_utils import check_fasttext_binary
-from bonepick.train.model2vec_utils import BetterStaticModelForClassification, StaticModelForRegression
+from bonepick.train.model2vec_utils import StaticModelForClassification, StaticModelForRegression
 
 
 @click.command()
@@ -176,7 +176,7 @@ def train_model2vec(
         else:
             click.echo("\nNo output directory specified, skipping model save.")
     else:
-        model = BetterStaticModelForClassification.from_pretrained(model_name=model_name)
+        model = StaticModelForClassification.from_pretrained(model_name=model_name)
         click.echo("Pretrained classification model loaded.")
 
         if loss_class_weight != "uniform":

@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from lightning.pytorch.callbacks import Callback, EarlyStopping
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
-from model2vec.train import StaticModelForClassification
+from model2vec.train import StaticModelForClassification as _StaticModelForClassification
 from model2vec.train.classifier import LabelType
 from model2vec.train.base import FinetunableStaticModel, TextDataset
 from sklearn.model_selection import train_test_split
@@ -30,7 +30,7 @@ logger.setLevel(logging.INFO)
 _RANDOM_SEED = 42
 
 
-class BetterStaticModelForClassification(StaticModelForClassification):
+class StaticModelForClassification(_StaticModelForClassification):
     def _prepare_dataset(
         self,
         X: list[str],
