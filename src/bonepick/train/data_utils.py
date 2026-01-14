@@ -16,6 +16,7 @@ import jq
 import msgspec
 import smart_open
 from tqdm import tqdm
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
 from bonepick.train.normalizers import get_normalizer
 
@@ -169,6 +170,41 @@ class DatasetTuple:
         return cls(train=DatasetSplit.new(), valid=DatasetSplit.new(), test=DatasetSplit.new())
 
 
+def _load_single_json_dataset_file(
+    file_path: Path,
+    text_field_expression: str,
+    label_field_expression: str,
+    allow_missing_label: bool = False,
+) -> tuple[list[str], list[str | None]]:
+    texts: list[str] = []
+    labels: list[str | None] = []
+
+    text_field_selector = compile_jq(text_field_expression)
+    label_field_selector = compile_jq(label_field_expression)
+    decoder = msgspec.json.Decoder()
+
+    with smart_open.open(file_path, "rb") as f:  # pyright: ignore
+        for line in f:
+            row = decoder.decode(line)
+            text_value = text_field_selector(row)
+            label_value = label_field_selector(row)
+
+            texts.append(str(text_value))
+
+            if allow_missing_label:
+                label_value = str(label_value) if label_value is not None else None
+            elif label_value is not None:
+                label_value = str(label_value)
+            else:
+                raise ValueError(f"Label expression {label_field_expression} yielded None for row {row}")
+
+            labels.append(label_value)
+
+    return texts, labels
+
+
+
+
 def load_jsonl_dataset(
     dataset_dirs: Path | list[Path],
     train_split_name: str = "train",
@@ -180,21 +216,22 @@ def load_jsonl_dataset(
     valid_split_required: bool = False,
     test_split_required: bool = True,
     allow_missing_label: bool = False,
+    max_workers: int | None = None,
 ) -> DatasetTuple:
     """Load dataset from one or more directories.
 
     Each directory should have train/ and test/ subdirectories containing JSONL files.
     When multiple directories are provided, the data is concatenated.
     """
+
+    # use all available workers by default
+    max_workers = max_workers or os.cpu_count() or 1
+
     # Normalize to list
     if isinstance(dataset_dirs, Path):
         dataset_dirs = [dataset_dirs]
 
     dataset_tuple = DatasetTuple.new()
-    decoder = msgspec.json.Decoder()
-
-    text_field_selector = compile_jq(text_field_expression)
-    label_field_selector = compile_jq(label_field_expression)
 
     for dataset_split, split_name, is_required in (
         (dataset_tuple.train, train_split_name, train_split_required),
@@ -221,28 +258,29 @@ def load_jsonl_dataset(
             if is_required and not all_files:
                 raise FileNotFoundError(f"No files found for {split_name} split")
 
-        for file_path in tqdm(
-            all_files,
-            desc=f"Loading {split_name} split",
-            unit=" files",
-            unit_scale=True,
-        ):
-            with smart_open.open(file_path, "rb") as f:  # pyright: ignore
-                for line in f:
-                    row = decoder.decode(line)
-                    text_value = text_field_selector(row)
-                    label_value = label_field_selector(row)
+        futures = []
+        with ExitStack() as stack:
+            pool_cls = ProcessPoolExecutor if max_workers > 1 else ThreadPoolExecutor
+            pool = stack.enter_context(pool_cls(max_workers=max_workers))
+            pbar = stack.enter_context(tqdm(total=len(all_files), desc=f"Loading {split_name} split", unit=" files", unit_scale=True))
 
-                    dataset_split.text.append(str(text_value))
+            for file_path in all_files:
+                future = pool.submit(
+                    _load_single_json_dataset_file,
+                    file_path, text_field_expression, label_field_expression, allow_missing_label
+                )
+                futures.append(future)
 
-                    if allow_missing_label:
-                        label_value = str(label_value) if label_value is not None else None
-                    elif label_value is not None:
-                        label_value = str(label_value)
-                    else:
-                        raise ValueError(f"Label expression {label_field_expression} yielded None for row {row}")
-
-                    dataset_split.label.append(label_value)
+            for future in as_completed(futures):
+                try:
+                    texts, labels = future.result()
+                    dataset_split.text.extend(texts)
+                    dataset_split.label.extend(labels)
+                except Exception as e:
+                    for future in futures:
+                        future.cancel()
+                    raise e
+                pbar.update(1)
 
     return dataset_tuple
 
