@@ -57,7 +57,8 @@ This is a CLI tool for training efficient quality classifiers (Model2Vec and Fas
 
 ### Training Methods
 
-- **train-model2vec**: Standard classification using Model2Vec static embeddings with sklearn-style `.fit()`
+- **train-model2vec**: Classification or regression using Model2Vec static embeddings with PyTorch Lightning training
+  - Use `--regression` flag to train a regression model instead of classification
 - **train-fasttext**: Shells out to the fasttext binary for training
 - **distill-model**: Distills a Sentence Transformer model to a Model2Vec static embedding model
 
@@ -95,6 +96,8 @@ Requires `uv sync --extra annotate` to enable. Uses `lm-deluge` library for asyn
 - `train/eval_loop.py`: Evaluation CLI commands (`eval-model2vec`, `eval-fasttext`) with detailed probability-based metrics
 - `train/data_loop.py`: Dataset loading, transformation, balancing, sampling, resharding, format conversion, and token counting CLI commands
 - `train/data_utils.py`: Helper functions for file I/O, label counting, sample reading, file sampling, resharding, and token counting; includes `load_jsonl_dataset()` and `load_fasttext_dataset()` with support for multiple dataset directories; `sample_single_file()` for random sampling; `reshard_single_output()` for combining files; `count_tokens_in_file()` for parallel token counting; `pretty_size()` for human-readable size formatting
+- `train/model2vec_utils.py`: Custom Model2Vec classes including `BetterStaticModelForClassification` (parallel tokenization) and `StaticModelForRegression` (regression with MSE loss)
+- `train/tokenization_utils.py`: Parallel tokenization utilities using multiprocessing
 - `train/normalizers.py`: Text normalizer registry with implementations (whitespace, plsfix, tokenizer, ultrafine, ultrafine-plus, potion)
 - `train/fasttext_utils.py`: FastText binary detection and dataset signature utilities
 
@@ -136,9 +139,10 @@ Available text normalizers (used with `normalize-dataset` and `convert-to-fastte
 
 **Model2Vec:**
 - Static embeddings (no GPU needed for inference)
-- Fast classification head training with sklearn
+- Classification or regression head training with PyTorch Lightning
 - Supports custom normalizers
-- Probability-based evaluation
+- Probability-based evaluation for classification
+- MSE/RMSE/MAE/R² metrics for regression
 
 **FastText:**
 - Requires `fasttext` binary in PATH
@@ -160,6 +164,7 @@ Available text normalizers (used with `normalize-dataset` and `convert-to-fastte
 5. **Distilling custom embeddings**: distill-model from Sentence Transformer → use in train-model2vec
 6. **LLM annotation pipeline**: import → annotate-dataset → balance → normalize → train → eval
 7. **Token analysis**: count-tokens on dataset(s) to understand size and token distribution before training
+8. **Regression model**: import → normalize → train-model2vec --regression (labels should be numeric)
 
 ### Tips
 

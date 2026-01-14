@@ -256,7 +256,7 @@ done
 ### Step 4: lets run annotation pipeline
 
 ```shell
-RUBRIC_PROMPT="inv_codedoc_verysimple"
+RUBRIC_PROMPT="countup_criteria_v2"
 MODEL_NAME="gpt-5-mini"
 MAX_LENGTH=10_000
 LIMIT_ROWS=500_000
@@ -1181,6 +1181,125 @@ done
 }
 ```
 
+
+### We are gonna use countup_criteria_v2 for now.
+
+```text
+Annotation Agreement Analysis
+
+Dataset 1:
+  - path:       tmp/data/spring2code_python-annotated-countup_criteria_v2-gpt-5.2-high
+  - label expr: .countup_criteria_v2.score
+  - key expr:   .text
+
+Dataset 2:
+  - path:       tmp/data/spring2code_python-annotated-countup_criteria_v2-gpt-5-mini
+  - label expr: .countup_criteria_v2.score
+  - key expr:   .text
+
+Loading annotations from dataset 1...
+Loaded 1,996 annotations from dataset 1
+
+Loading annotations from dataset 2...
+Loaded 2,000 annotations from dataset 2
+
+Dataset Coverage:
+┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Metric               ┃ Count ┃
+┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ Samples in dataset 1 │ 1,996 │
+│ Samples in dataset 2 │ 2,000 │
+│ Common samples       │ 1,996 │
+│ Only in dataset 1    │     0 │
+│ Only in dataset 2    │     4 │
+└──────────────────────┴───────┘
+
+Computing agreement metrics...
+
+╭────────── Agreement Metrics ───────────╮
+│ Agreement Rate: 23.60%                 │
+│ Weighted Kappa (quadratic): 0.6144     │
+│ Mean Absolute Error (MAE): 1.3282      │
+│ Root Mean Squared Error (RMSE): 1.7357 │
+│ Pearson Correlation: 0.6147            │
+│ Agreements: 471 / 1,996                │
+│ Disagreements: 1,525 / 1,996           │
+╰────────────────────────────────────────╯
+
+Weighted Kappa interpretation: Substantial
+
+Difference Histogram (Dataset 2 - Dataset 1):
+Negative values: Dataset 1 rated higher | Positive values: Dataset 2 rated higher
+
+   Difference     Count  Bar
+           -7  1 (0.1%)
+           -6  2 (0.1%)
+           -5  3 (0.2%)
+           -4        36  ████
+                 (1.8%)
+           -3        93  ███████████
+                 (4.7%)
+           -2       221  ████████████████████████████
+                (11.1%)
+           -1       416  ████████████████████████████████████████████████████
+                (20.8%)
+           +0       471  ████████████████████████████████████████████████████████████
+                (23.6%)
+           +1       391  █████████████████████████████████████████████████
+                (19.6%)
+           +2       205  ██████████████████████████
+                (10.3%)
+           +3       107  █████████████
+                 (5.4%)
+           +4        38  ████
+                 (1.9%)
+           +5        10  █
+                 (0.5%)
+           +6  2 (0.1%)
+
+Label Distribution:
+┏━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Label ┃   Dataset 1 ┃   Dataset 2 ┃
+┡━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ 6     │    0 (0.0%) │    4 (0.2%) │
+│ 7     │   10 (0.5%) │   17 (0.9%) │
+│ 8     │   21 (1.1%) │   26 (1.3%) │
+│ 9     │   68 (3.4%) │   79 (4.0%) │
+│ 10    │  130 (6.5%) │   55 (2.8%) │
+│ 11    │ 295 (14.8%) │ 254 (12.7%) │
+│ 12    │ 363 (18.2%) │ 406 (20.3%) │
+│ 13    │ 388 (19.4%) │ 462 (23.1%) │
+│ 14    │ 293 (14.7%) │ 264 (13.2%) │
+│ 15    │ 238 (11.9%) │ 303 (15.2%) │
+│ 16    │  138 (6.9%) │   87 (4.4%) │
+│ 17    │   42 (2.1%) │   30 (1.5%) │
+│ 18    │    9 (0.5%) │    7 (0.4%) │
+│ 19    │    1 (0.1%) │    2 (0.1%) │
+└───────┴─────────────┴─────────────┘
+
+Confusion Matrix:
+(rows=dataset1, columns=dataset2)
+
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━┳━━━┳━━━┳━━━━┳━━━━┳━━━━┳━━━━━┳━━━━━┳━━━━┳━━━━┳━━━━┳━━━━┳━━━━┳━━━━┓
+┃ Dataset 1 \ Dataset 2 ┃ 6 ┃ 7 ┃ 8 ┃  9 ┃ 10 ┃ 11 ┃  12 ┃  13 ┃ 14 ┃ 15 ┃ 16 ┃ 17 ┃ 18 ┃ 19 ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━╇━━━╇━━━╇━━━━╇━━━━╇━━━━╇━━━━━╇━━━━━╇━━━━╇━━━━╇━━━━╇━━━━╇━━━━╇━━━━┩
+│ 6                     │ 0 │ 0 │ 0 │  0 │  0 │  0 │   0 │   0 │  0 │  0 │  0 │  0 │  0 │  0 │
+│ 7                     │ 1 │ 1 │ 1 │  1 │  2 │  3 │   1 │   0 │  0 │  0 │  0 │  0 │  0 │  0 │
+│ 8                     │ 3 │ 5 │ 3 │  3 │  0 │  3 │   2 │   0 │  2 │  0 │  0 │  0 │  0 │  0 │
+│ 9                     │ 0 │ 5 │ 7 │  9 │  7 │ 14 │  15 │  11 │  0 │  0 │  0 │  0 │  0 │  0 │
+│ 10                    │ 0 │ 4 │ 2 │ 17 │  3 │ 37 │  27 │  27 │  6 │  7 │  0 │  0 │  0 │  0 │
+│ 11                    │ 0 │ 2 │ 6 │ 29 │ 13 │ 51 │  85 │  64 │ 29 │ 14 │  2 │  0 │  0 │  0 │
+│ 12                    │ 0 │ 0 │ 3 │ 13 │ 17 │ 68 │ 106 │ 101 │ 32 │ 21 │  2 │  0 │  0 │  0 │
+│ 13                    │ 0 │ 0 │ 1 │  7 │ 10 │ 43 │  99 │ 115 │ 61 │ 46 │  6 │  0 │  0 │  0 │
+│ 14                    │ 0 │ 0 │ 2 │  0 │  3 │ 22 │  42 │  80 │ 63 │ 65 │ 12 │  4 │  0 │  0 │
+│ 15                    │ 0 │ 0 │ 1 │  0 │  0 │ 11 │  20 │  51 │ 53 │ 81 │ 18 │  3 │  0 │  0 │
+│ 16                    │ 0 │ 0 │ 0 │  0 │  0 │  2 │   9 │  12 │ 15 │ 54 │ 31 │ 11 │  4 │  0 │
+│ 17                    │ 0 │ 0 │ 0 │  0 │  0 │  0 │   0 │   1 │  3 │ 12 │ 14 │  8 │  2 │  2 │
+│ 18                    │ 0 │ 0 │ 0 │  0 │  0 │  0 │   0 │   0 │  0 │  3 │  2 │  4 │  0 │  0 │
+│ 19                    │ 0 │ 0 │ 0 │  0 │  0 │  0 │   0 │   0 │  0 │  0 │  0 │  0 │  1 │  0 │
+└───────────────────────┴───┴───┴───┴────┴────┴────┴─────┴─────┴────┴────┴────┴────┴────┴────┘
+```
+
 ## Data storing
 
 ```shell
@@ -1205,10 +1324,13 @@ export SRC_CLAUDE_RUBRIC_DIR="${BASE_SRC_DIR}_annotated_gpt-5-mini_claude_rubric
 export DST_CLAUDE_RUBRIC_DIR="${BASE_DST_DIR}/claude_rubric_code/gpt-5-mini/32k_trimmed"
 export SRC_VERY_SIMPLE_DIR="${BASE_SRC_DIR}_annotated_gpt-5-mini_inv_codedoc_verysimple_10_000"
 export DST_VERY_SIMPLE_DIR="${BASE_DST_DIR}/inv_codedoc_verysimple/gpt-5-mini/10k_trimmed"
+export SRC_COUNTUP_CRITERIA_V2_DIR="${BASE_SRC_DIR}_annotated_gpt-5-mini_countup_criteria_v2_10_000"
+export DST_COUNTUP_CRITERIA_V2_DIR="${BASE_DST_DIR}/countup_criteria_v2/gpt-5-mini/10k_trimmed"
 
 s5cmd cp -sp "${SRC_TO_ANNOTATE_DIR}/*" "${DST_ANNOTATED_DIR}/"
 s5cmd cp -sp "${SRC_CLAUDE_RUBRIC_DIR}/*" "${DST_CLAUDE_RUBRIC_DIR}/"
 s5cmd cp -sp "${SRC_VERY_SIMPLE_DIR}/*" "${DST_VERY_SIMPLE_DIR}/"
+s5cmd cp -sp "${SRC_COUNTUP_CRITERIA_V2_DIR}/*" "${DST_COUNTUP_CRITERIA_V2_DIR}/"
 ```
 
 ### Step 1: Copy down the data from S3
@@ -1222,48 +1344,51 @@ s5cmd cp -sp "${S3_BASE_DIR}/*" "${LOCAL_BASE_DIR}/"
 
 export CLAUDE_RUBRIC_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/claude_rubric_code/gpt-5-mini/32k_trimmed"
 export VERY_SIMPLE_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/inv_codedoc_verysimple/gpt-5-mini/10k_trimmed"
+export COUNTUP_CRITERIA_V2_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/countup_criteria_v2/gpt-5-mini/10k_trimmed"
 ```
+
 
 ### Step 2: Gotta binarize the data. We usee >3 as the threshold.
 
 ```shell
-export RUBRIC_PROMPT="inv_codedoc_verysimple"
+export RUBRIC_PROMPT="countup_criteria_v2"
 export LABEL_NAME="${RUBRIC_PROMPT}/gpt-5-mini/10k_trimmed"
-export VERY_SIMPLE_DIR_UNSPLIT="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/${LABEL_NAME}"
-export VERY_SIMPLE_DIR_SPLIT="${LOCAL_BASE_DIR}/data-train_test_split/${BASE_NAME_PREFIX}/${LABEL_NAME}"
-for pl in $(ls --color=never ${VERY_SIMPLE_DIR_UNSPLIT}); do
+export DATASET_DIR_UNSPLIT="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/${LABEL_NAME}"
+export DATASET_DIR_SPLIT="${LOCAL_BASE_DIR}/data-train_test_split/${BASE_NAME_PREFIX}/${LABEL_NAME}"
+for pl in $(ls --color=never ${DATASET_DIR_UNSPLIT}); do
     echo "Processing ${pl}..."
     uv run bonepick reshard-dataset \
-        --dataset-dir "${VERY_SIMPLE_DIR_UNSPLIT}/${pl}" \
-        --output-dir "${VERY_SIMPLE_DIR_SPLIT}/${pl}" \
+        --dataset-dir "${DATASET_DIR_UNSPLIT}/${pl}" \
+        --output-dir "${DATASET_DIR_SPLIT}/${pl}" \
         --num-files 5 \
-        --test-split-frac 10_000
+        --test-split-frac 10_000 \
+        --valid-split-frac 10_000
 done
 
-export VERY_SIMPLE_DIR_JSONL="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/jsonl"
-for pl in $(ls --color=never ${VERY_SIMPLE_DIR_SPLIT}); do
-    echo "Processing ${pl}..."
-    uv run bonepick transform-dataset \
-        --input-dir "${VERY_SIMPLE_DIR_SPLIT}/${pl}" \
-        --output-dir "${VERY_SIMPLE_DIR_JSONL}/${pl}" \
-        --label-transform "{score: (if .${RUBRIC_PROMPT}.score > 3 then \"pos\" else \"neg\" end)}"
-done
+# export DATASET_DIR_JSONL="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/jsonl"
+# for pl in $(ls --color=never ${DATASET_DIR_SPLIT}); do
+#     echo "Processing ${pl}..."
+#     uv run bonepick transform-dataset \
+#         --input-dir "${DATASET_DIR_SPLIT}/${pl}" \
+#         --output-dir "${DATASET_DIR_JSONL}/${pl}" \
+#         --label-transform "{score: (if .${RUBRIC_PROMPT}.score > 3 then \"pos\" else \"neg\" end)}"
+# done
 
-export VERY_SIMPLE_DIR_JSONL_FASTTEXT="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/fasttext"
-for pl in $(ls --color=never ${VERY_SIMPLE_DIR_JSONL}); do
+export DATASET_DIR_JSONL_FASTTEXT="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/fasttext"
+for pl in $(ls --color=never ${DATASET_DIR_JSONL}); do
     echo "Processing ${pl}..."
     uv run bonepick convert-to-fasttext \
-        --input-dir "${VERY_SIMPLE_DIR_JSONL}/${pl}" \
-        --output-dir "${VERY_SIMPLE_DIR_JSONL_FASTTEXT}/${pl}" \
+        --input-dir "${DATASET_DIR_JSONL}/${pl}" \
+        --output-dir "${DATASET_DIR_JSONL_FASTTEXT}/${pl}" \
         --normalization ultrafine-plus
 done
 
-export VERY_SIMPLE_DIR_JSONL_MODEL2VEC="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/model2vec"
-for pl in $(ls --color=never ${VERY_SIMPLE_DIR_JSONL}); do
+export DATASET_DIR_JSONL_MODEL2VEC="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_3pos/model2vec"
+for pl in $(ls --color=never ${DATASET_DIR_JSONL}); do
     echo "Processing ${pl}..."
     uv run bonepick normalize-dataset \
-        --input-dir "${VERY_SIMPLE_DIR_JSONL}/${pl}" \
-        --output-dir "${VERY_SIMPLE_DIR_JSONL_MODEL2VEC}/${pl}" \
+        --input-dir "${DATASET_DIR_JSONL}/${pl}" \
+        --output-dir "${DATASET_DIR_JSONL_MODEL2VEC}/${pl}" \
         --normalization plsfix
 done
 ```
@@ -1292,13 +1417,13 @@ for pl in "${programming_languages[@]}"; do
     for model_path in "${model_paths[@]}"; do
         for loss_class_weights in "${all_loss_class_weights[@]}"; do
             model_name=$(echo "${model_path}" | awk -F'/' '{print $NF}')
-            dataset_name=$(echo "${VERY_SIMPLE_DIR_JSONL_MODEL2VEC#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
+            dataset_name=$(echo "${DATASET_DIR_JSONL_MODEL2VEC#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
             output_dir="${MODEL2VEC_MODEL_DIR}/${dataset_name}/${pl}/${model_name}/${loss_class_weights}"
 
             echo "${pl}: Training ${model_name} on ${dataset_name}"
 
             uv run bonepick train-model2vec \
-                --dataset-dir ${VERY_SIMPLE_DIR_JSONL_MODEL2VEC}/${pl} \
+                --dataset-dir ${DATASET_DIR_JSONL_MODEL2VEC}/${pl} \
                 --model-name "${model_path}" \
                 --output-dir "${output_dir}" \
                 --loss-class-weight "${loss_class_weights}"
@@ -1315,13 +1440,13 @@ for pl in "${programming_languages[@]}"; do
     for model_path in "${model_paths[@]}"; do
         for loss_class_weights in "${all_loss_class_weights[@]}"; do
             model_name=$(echo "${model_path}" | awk -F'/' '{print $NF}')
-            dataset_name=$(echo "${VERY_SIMPLE_DIR_JSONL_MODEL2VEC#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
+            dataset_name=$(echo "${DATASET_DIR_JSONL_MODEL2VEC#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
             model_dir="${MODEL2VEC_MODEL_DIR}/${dataset_name}/${pl}/${model_name}/${loss_class_weights}"
 
             echo "${pl}: Training ${model_name} on ${dataset_name}"
 
             uv run bonepick eval-model2vec \
-                --dataset-dir ${VERY_SIMPLE_DIR_JSONL_MODEL2VEC}/${pl} \
+                --dataset-dir ${DATASET_DIR_JSONL_MODEL2VEC}/${pl} \
                 --model-dir "${model_dir}"
         done
     done
@@ -1337,10 +1462,10 @@ First we train the models:
 export FASTTEXT_MODEL_DIR="${LOCAL_BASE_DIR}/trained_models/fasttext"
 
 for pl in "${programming_languages[@]}"; do
-    dataset_name=$(echo "${VERY_SIMPLE_DIR_JSONL_FASTTEXT#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
+    dataset_name=$(echo "${DATASET_DIR_JSONL_FASTTEXT#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
 
     uv run bonepick train-fasttext \
-        --dataset-dir "${VERY_SIMPLE_DIR_JSONL_FASTTEXT}/${pl}" \
+        --dataset-dir "${DATASET_DIR_JSONL_FASTTEXT}/${pl}" \
         --output-dir "${FASTTEXT_MODEL_DIR}/${dataset_name}/${pl}"
 done
 ```
@@ -1349,11 +1474,11 @@ Now we eval the models:
 
 ```shell
 for pl in "${programming_languages[@]}"; do
-    dataset_name=$(echo "${VERY_SIMPLE_DIR_JSONL_FASTTEXT#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
+    dataset_name=$(echo "${DATASET_DIR_JSONL_FASTTEXT#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
     model_dir="${FASTTEXT_MODEL_DIR}/${dataset_name}/${pl}"
 
     uv run bonepick eval-fasttext \
-        --dataset-dir "${VERY_SIMPLE_DIR_JSONL_FASTTEXT}/${pl}" \
+        --dataset-dir "${DATASET_DIR_JSONL_FASTTEXT}/${pl}" \
         --model-dir "${model_dir}"
 done
 ```
