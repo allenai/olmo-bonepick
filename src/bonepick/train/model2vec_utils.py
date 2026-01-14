@@ -87,6 +87,7 @@ class StaticModelForRegression(FinetunableStaticModel):
         token_mapping: list[int] | None = None,
         weights: torch.Tensor | None = None,
         freeze: bool = False,
+        out_dim: int | None = None,  # Ignored, always 1 for regression
     ) -> None:
         """Initialize a regression model.
 
@@ -98,7 +99,9 @@ class StaticModelForRegression(FinetunableStaticModel):
         :param token_mapping: Token mapping for the embeddings.
         :param weights: Pre-trained token weights.
         :param freeze: Whether to freeze embeddings during training.
+        :param out_dim: Ignored (always 1 for regression).
         """
+        del out_dim  # Always 1 for regression
         self.n_layers = n_layers
         self.hidden_dim = hidden_dim
         super().__init__(
@@ -280,6 +283,7 @@ class StaticModelForRegression(FinetunableStaticModel):
             max_chunk_size=max_chunk_size,
         )
         targets_tensor = torch.tensor(y, dtype=torch.float32)
+
         return TextDataset(tokenized, targets_tensor)
 
     def evaluate(self, X: list[str], y: list[float] | np.ndarray, batch_size: int = 1024) -> dict[str, float]:
