@@ -20,7 +20,7 @@ uv sync
 The `annotate` extra provides tools for using LLM APIs to label data:
 
 ```shell
-uv sync --extra annotate
+uv sync --extra annotate --extra distill
 ```
 
 This enables the `annotate-dataset` and `list-prompts` commands for automated data annotation using LLM providers via the `lm-deluge` library.
