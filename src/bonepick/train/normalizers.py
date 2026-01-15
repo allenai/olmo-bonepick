@@ -8,6 +8,8 @@ from anyascii import anyascii
 
 from tokenizers import Tokenizer
 
+from bonepick.train.indent_utils import convert_spaces_to_tabs
+
 
 __all__ = [
     "register_normalizer",
@@ -211,66 +213,30 @@ class PotionNormalizer(BaseRowNormalizer):
         return text
 
 
+
 @register_normalizer("potion-code")
 class PotionCodeNormalizer(BaseRowNormalizer):
     def __init__(self):
         self.remove_extra_newlines_re = re.compile(r"\n{3,}")
-        self.space_before_special_re = re.compile(r"(\n\r\t)")
-        self.whitespace_re = re.compile(r"[^\S\n\r\t]+")
-
-        # now replace leading spaces with most likely tab indentation
-
-    def _replace_leading_spaces(self, match: re.Match, indentation: int) -> str:
-        spaces = match.group(1)
-        num_indents = len(spaces) // indentation
-        remainder = len(spaces) % indentation
-        return "\t" * num_indents + " " * remainder
-
-    def _replace_tabs_with_spaces(self, text: str) -> str:
-        """Replace tabs with spaces in the text."""
-
-        indentation_lengths = [
-            len(match.group(1))
-            for line in text.split("\n")
-            # at least 2 spaces
-            if (match := re.match(r"^( {2,})", line)) is not None
-        ]
-
-        if len(indentation_lengths) == 0:
-            # likely uses tabs!
-            return text
-
-        # find the most likely indentation. to do that, find how many
-        # lines have indentation that is a multiple of the candidate.
-        indentation_candidates = {
-            k: sum(1 if line_indentation % k == 0 else 0 for line_indentation in indentation_lengths)
-            # assumption: the indentation is at least 2 spaces
-            for k in range(2, max(indentation_lengths) + 1, 2)
-        }
-
-        # a bit hacky, but i'll pick which candidates are most likely
-        # by checking if they are within sqrt of the highest candidate.
-        most_likely_indentation, _ = max(indentation_candidates.items(), key=lambda x: max(sqrt(x[1]), x[0]))
-
-        fn = partial(self._replace_leading_spaces, indentation=most_likely_indentation)
-        return re.sub(r"^( +)", fn, text, flags=re.MULTILINE)
+        self.encode_newlines_re = re.compile(r"\r?\n")
+        self.encode_tabs_re = re.compile(r"\t")
 
     def normalize(self, text: str) -> str:
         # 1. fix text
         text = cut_and_ftfy_text(text)
 
         # 2. remove multiple newlines
-        text = re.sub(r"\n{3,}", "\n\n", text)
+        text = self.remove_extra_newlines_re.sub("\n\n", text)
 
         # 3. remove diacritics
         text = "".join(c for c in unicodedata.normalize("NFKD", text) if unicodedata.category(c) != "Mn")
 
-        # 5. replace the most likely indentation in space
-        text = self._replace_tabs_with_spaces(text)
+        # 4. replace the most likely indentation in space
+        text = convert_spaces_to_tabs(text)
 
-        # 6. escape spacing characters
-        text = re.sub(r"\r?\n", "¶", text)  # end of paragraph marker for multiple newlines
-        text = re.sub(r"\t", "↦", text)  # use ↦ for tabs
+        # 5. escape spacing characters
+        text = self.encode_newlines_re.sub("¶", text)  # end of paragraph marker for multiple newlines
+        text = self.encode_tabs_re.sub("↦", text)  # use ↦ for tabs
         text = text.strip()
 
         return text
