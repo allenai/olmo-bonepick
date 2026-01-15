@@ -137,33 +137,33 @@ class TestRealWorldExamples:
         assert has_space_indentation(text) is True
 
     def test_javascript_2_space(self):
-        text = '''function foo() {
+        text = """function foo() {
   if (true) {
     console.log("hello");
   }
   return 42;
 }
-'''
+"""
         assert detect_indentation(text) == 2
         assert has_space_indentation(text) is True
 
     def test_yaml_2_space(self):
-        text = '''root:
+        text = """root:
   child1:
     nested: value
   child2:
     - item1
     - item2
-'''
+"""
         assert detect_indentation(text) == 2
 
     def test_json_like(self):
-        text = '''{
+        text = """{
     "key": {
         "nested": "value"
     }
 }
-'''
+"""
         assert detect_indentation(text) == 4
 
 

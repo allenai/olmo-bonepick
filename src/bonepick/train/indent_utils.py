@@ -28,10 +28,10 @@ def has_space_indentation(text: str, sample_size: int = 4096) -> bool:
 
     # Check for newline followed by 2+ spaces (indented line)
     # Also check start of text in case first line is indented
-    if sample.startswith('  '):
+    if sample.startswith("  "):
         return True
 
-    return '\n  ' in sample
+    return "\n  " in sample
 
 
 def detect_indentation(text: str) -> int | None:
@@ -53,10 +53,10 @@ def detect_indentation(text: str) -> int | None:
     """
     result_gcd = 0
 
-    for line in text.split('\n'):
+    for line in text.split("\n"):
         # Count leading spaces efficiently
-        stripped = line.lstrip(' ')
-        if stripped and stripped[0] != '\t':  # Skip empty lines and tab-indented
+        stripped = line.lstrip(" ")
+        if stripped and stripped[0] != "\t":  # Skip empty lines and tab-indented
             leading_spaces = len(line) - len(stripped)
             if leading_spaces > 0:
                 result_gcd = gcd(result_gcd, leading_spaces)
@@ -86,21 +86,21 @@ def convert_spaces_to_tabs(text: str, indent_size: int | None = None) -> str:
         if indent_size is None:
             return text  # No indentation detected, return as-is
 
-    lines = text.split('\n')
+    lines = text.split("\n")
     result = []
 
     for line in lines:
-        if not line or line[0] != ' ':
+        if not line or line[0] != " ":
             result.append(line)
             continue
 
         # Count leading spaces
-        stripped = line.lstrip(' ')
+        stripped = line.lstrip(" ")
         leading_spaces = len(line) - len(stripped)
 
         # Convert to tabs + remainder spaces
         num_tabs = leading_spaces // indent_size
         remainder = leading_spaces % indent_size
-        result.append('\t' * num_tabs + ' ' * remainder + stripped)
+        result.append("\t" * num_tabs + " " * remainder + stripped)
 
-    return '\n'.join(result)
+    return "\n".join(result)

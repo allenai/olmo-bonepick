@@ -145,12 +145,13 @@ class UltraFineWebNormalizer(BaseRowNormalizer):
 
 @register_normalizer("ultrafine-plus")
 class UltraFineWebPlusNormalizer(BaseRowNormalizer):
-
     def __init__(self):
         self.remove_extra_newlines_re = re.compile(r"\n{3,}")
         self.segment_symbols_re = re.compile(r"([\t\r\n]+)")
         self.replace_spaces_re = re.compile(r"(\s+)")
-        self.tokenizer: Tokenizer = Tokenizer.from_pretrained("allenai/dolma2-tokenizer")  # equivalent to cl100k_base
+        self.tokenizer: Tokenizer = Tokenizer.from_pretrained(
+            "allenai/dolma2-tokenizer"
+        )  # equivalent to cl100k_base
 
     def normalize(self, text: str) -> str:
         # 1. fix text with faster version of ftfy
@@ -195,7 +196,6 @@ class UltraFineWebPlusNormalizer(BaseRowNormalizer):
 
 @register_normalizer("ultrafine-plus-code")
 class UltraFineWebPlusCodeNormalizer(UltraFineWebPlusNormalizer):
-
     def normalize(self, text: str) -> str:
         # 1. fix text with faster version of ftfy
         text = cut_and_ftfy_text(text)
@@ -262,7 +262,6 @@ class PotionNormalizer(BaseRowNormalizer):
         text = text.strip()
 
         return text
-
 
 
 @register_normalizer("potion-code")

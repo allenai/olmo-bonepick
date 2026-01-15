@@ -345,7 +345,7 @@ def pretty_length(length: int) -> int:
         raise ValueError(f"Length must be non-negative, got {length}")
 
     pos = max(0, floor(log10(length) - 1))
-    bucket = 10 ** pos
+    bucket = 10**pos
     return round(length / bucket) * bucket
 
 
