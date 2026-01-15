@@ -143,8 +143,8 @@ class UltraFineWebNormalizer(BaseRowNormalizer):
         return text
 
 
-@register_normalizer("ultrafine-plus")
-class UltraFineWebPlusNormalizer(BaseRowNormalizer):
+@register_normalizer("hyperfine")
+class HyperFineNormalizer(BaseRowNormalizer):
     def __init__(self):
         self.remove_extra_newlines_re = re.compile(r"\n{3,}")
         self.segment_symbols_re = re.compile(r"([\t\r\n]+)")
@@ -194,8 +194,8 @@ class UltraFineWebPlusNormalizer(BaseRowNormalizer):
         return text
 
 
-@register_normalizer("ultrafine-plus-code")
-class UltraFineWebPlusCodeNormalizer(UltraFineWebPlusNormalizer):
+@register_normalizer("hyperfine-code")
+class HyperFineCodeNormalizer(HyperFineNormalizer):
     def normalize(self, text: str) -> str:
         # 1. fix text with faster version of ftfy
         text = cut_and_ftfy_text(text)

@@ -153,7 +153,7 @@ uv run bonepick normalize-dataset \
     -n plsfix
 ```
 
-Available normalizers: `whitespace`, `plsfix`, `tokenizer`, `ultrafine`, `ultrafine-plus`, `potion`
+Available normalizers: `whitespace`, `plsfix`, `tokenizer`, `ultrafine`, `hyperfine`, `hyperfine-code`, `potion`, `potion-code`
 
 ### 4b. Convert to FastText Format (for FastText)
 

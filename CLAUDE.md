@@ -35,6 +35,7 @@ uv run bonepick eval-fasttext --help
 # Annotation (requires --extra annotate)
 uv run bonepick annotate-dataset --help
 uv run bonepick list-prompts --help
+uv run bonepick annotation-agreement --help
 
 # Utility
 uv run bonepick version
@@ -51,7 +52,7 @@ This is a CLI tool for training efficient quality classifiers (Model2Vec and Fas
 3. **Balance**: `balance-dataset` - Balances datasets so each label has equal representation (supports multiple input directories)
 4. **Sample**: `sample-dataset` - Creates a random sample of a dataset by sampling rate or target size (supports multiple input directories)
 5. **Reshard**: `reshard-dataset` - Combines multiple small files into a specified number of larger files with roughly equal sizes (uses greedy bin packing algorithm, supports parallel processing)
-6. **Normalize**: `normalize-dataset` - Applies text normalization (whitespace, plsfix, tokenizer-based, ultrafine, potion)
+6. **Normalize**: `normalize-dataset` - Applies text normalization (whitespace, plsfix, tokenizer, ultrafine, hyperfine, hyperfine-code, potion, potion-code)
 7. **Convert**: `convert-to-fasttext` - Converts JSONL to FastText format (`__label__<label> <text>`)
 8. **Count Tokens**: `count-tokens` - Counts total tokens in dataset directories using a specified tokenizer (supports multiple input directories, parallel processing)
 
@@ -86,6 +87,7 @@ Requires `uv sync --extra annotate` to enable. Uses `lm-deluge` library for asyn
 
 - **annotate-dataset**: Annotates datasets using LLM APIs (OpenAI, etc.) with configurable prompts
 - **list-prompts**: Lists available task and system prompts for annotation
+- **annotation-agreement**: Compares annotations between two datasets and computes agreement metrics (Cohen's Kappa, weighted Kappa for ordinal data, MAE, RMSE, Pearson correlation)
 - Key features: rate limiting, caching (SQLite), batch processing, supports both text and conversation formats
 
 ### Key Components
@@ -98,18 +100,25 @@ Requires `uv sync --extra annotate` to enable. Uses `lm-deluge` library for asyn
 - `train/data_utils.py`: Helper functions for file I/O, label counting, sample reading, file sampling, resharding, and token counting; includes `load_jsonl_dataset()` and `load_fasttext_dataset()` with support for multiple dataset directories; `sample_single_file()` for random sampling; `reshard_single_output()` for combining files; `count_tokens_in_file()` for parallel token counting; `pretty_size()` for human-readable size formatting
 - `train/model2vec_utils.py`: Custom Model2Vec classes including `BetterStaticModelForClassification` (parallel tokenization) and `StaticModelForRegression` (regression with MSE loss)
 - `train/tokenization_utils.py`: Parallel tokenization utilities using multiprocessing
-- `train/normalizers.py`: Text normalizer registry with implementations (whitespace, plsfix, tokenizer, ultrafine, ultrafine-plus, potion)
+- `train/normalizers.py`: Text normalizer registry with implementations (whitespace, plsfix, tokenizer, ultrafine, hyperfine, hyperfine-code, potion, potion-code)
 - `train/fasttext_utils.py`: FastText binary detection and dataset signature utilities
+- `train/indent_utils.py`: Indentation detection and space-to-tab conversion utilities
+- `train/jq_utils.py`: JQ expression compilation and field/expression helpers
 
 **Annotation Modules (Optional):**
 - `annotate/annotate_loop.py`: Annotation CLI commands (`annotate-dataset`, `list-prompts`)
+- `annotate/agreement_loop.py`: Annotation agreement CLI command (`annotation-agreement`)
 - `annotate/annotate_utils.py`: Annotation helper functions
 - `annotate/prompts.py`: Base classes for annotation prompts
 - `annotate/deluge_utils.py`: LM-deluge integration and caching utilities
+- `annotate/pydantic_utils.py`: Pydantic utilities for annotation
+- `annotate/prompt_collections/`: Directory containing prompt implementations (sft_filtering, code_rubrics)
 
 **CLI Infrastructure:**
 - `cli.py`: Click CLI setup and custom parameter types (PathParamType, FloatOrIntParamType, ByteSizeParamType, PCADimTypeParamType)
 - `__init__.py`: Command registration hub
+- `version.py`: Package version
+- `logger.py`: Logging initialization utilities
 
 ### Data Format
 
@@ -129,11 +138,13 @@ All training and evaluation commands support multiple `--dataset-dir` options to
 
 Available text normalizers (used with `normalize-dataset` and `convert-to-fasttext`):
 - `whitespace`: Basic whitespace normalization
-- `plsfix`: PlsFix normalization
-- `tokenizer`: Tokenizer-based normalization
-- `ultrafine`: Ultrafine normalization
-- `ultrafine-plus`: Enhanced ultrafine normalization
-- `potion`: Potion normalization
+- `plsfix`: PlsFix text fixing normalization
+- `tokenizer`: Tokenizer-based normalization (dolma2-tokenizer)
+- `ultrafine`: UltraFineWeb normalization (lowercase, diacritics removal, tokenization)
+- `hyperfine`: Enhanced ultrafine normalization with plsfix and dolma2-tokenizer
+- `hyperfine-code`: Like hyperfine but preserves case and converts space indentation to tabs
+- `potion`: Potion normalization with special unicode markers for whitespace
+- `potion-code`: Like potion but preserves case and converts space indentation to tabs
 
 ### Model Types
 
@@ -175,3 +186,4 @@ Available text normalizers (used with `normalize-dataset` and `convert-to-fastte
 - Evaluation results are saved as YAML in the model directory
 - Multiple dataset directories are concatenated before processing
 - jq expressions in `transform-dataset` can reshape any field structure
+- Always run `uv format` after making code edits to ensure consistent formatting
