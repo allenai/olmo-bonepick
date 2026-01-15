@@ -145,11 +145,12 @@ class UltraFineWebNormalizer(BaseRowNormalizer):
 
 @register_normalizer("ultrafine-plus")
 class UltraFineWebPlusNormalizer(BaseRowNormalizer):
+
     def __init__(self):
         self.remove_extra_newlines_re = re.compile(r"\n{3,}")
         self.segment_symbols_re = re.compile(r"([\t\r\n]+)")
         self.replace_spaces_re = re.compile(r"(\s+)")
-        self.tokenizer = Tokenizer.from_pretrained("allenai/dolma2-tokenizer")  # equivalent to cl100k_base
+        self.tokenizer: Tokenizer = Tokenizer.from_pretrained("allenai/dolma2-tokenizer")  # equivalent to cl100k_base
 
     def normalize(self, text: str) -> str:
         # 1. fix text with faster version of ftfy
@@ -173,21 +174,63 @@ class UltraFineWebPlusNormalizer(BaseRowNormalizer):
         )
 
         # 6. this replaces multiple spaces with a single one
-        escaped_segments = [self.replace_spaces_re.sub(r"\\1", str(segment)) for segment in segments]
+        escaped_segments = [self.replace_spaces_re.sub(" ", str(segment)).strip() for segment in segments]
 
         # 7. this encodes each segment with a tokenizer
-        encoded_segments = self.tokenizer.encode(escaped_segments, add_special_tokens=False)
+        #    (can't use encode_batch_fast because it won't return tokens)
+        encoded_segments = self.tokenizer.encode_batch(escaped_segments, add_special_tokens=False)
 
         # 8. this escapes \n, \t, and \r to \\n, \\t, and \\r
-        escaped_spaces = [str(space).encode("unicode_escape").decode("ascii") for space in spaces]
+        #    the " ".join puts spaces between the escaped characters
+        escaped_spaces = [" ".join(str(space).encode("unicode_escape").decode("ascii")) for space in spaces]
 
-        # 9. put the string back together
-        text = "".join(
+        # 9. put the string back together (strip ensures no stray spaces)
+        text = " ".join(
             (" ".join(encoded_segment.tokens) + " " + escaped_space)
             for encoded_segment, escaped_space in zip(encoded_segments, escaped_spaces)
         ).strip()
 
-        breakpoint()
+        return text
+
+
+@register_normalizer("ultrafine-plus-code")
+class UltraFineWebPlusCodeNormalizer(UltraFineWebPlusNormalizer):
+
+    def normalize(self, text: str) -> str:
+        # 1. fix text with faster version of ftfy
+        text = cut_and_ftfy_text(text)
+
+        # 2. remove multiple newlines
+        text = self.remove_extra_newlines_re.sub("\n\n", text)
+
+        # 3. remove diacritics
+        text = "".join(c for c in unicodedata.normalize("NFKD", text) if unicodedata.category(c) != "Mn")
+
+        # 4. if text has space indentation, we convert it to tabs
+        text = convert_spaces_to_tabs(text)
+
+        # 5. split into segments
+        segments, spaces = zip(
+            # we need the + [""] to handle the fact that we always have one fewer element in the
+            # \n\t\r block, even when a string ends with e.g. \n.
+            # for example `self.segment_symbols_re.split('\n')` returns ['', '\n', '']
+            *batched(self.segment_symbols_re.split(text) + [""], 2)
+        )
+
+        # 6. this encodes each segment with a tokenizer
+        #    (can't use encode_batch_fast because it won't return tokens)
+        encoded_segments = self.tokenizer.encode_batch(segments, add_special_tokens=False)
+
+        # 7. this escapes \n, \t, and \r to \\n, \\t, and \\r
+        #    the " ".join puts spaces between the escaped characters
+        escaped_spaces = [" ".join(str(space).encode("unicode_escape").decode("ascii")) for space in spaces]
+
+        # 8. put the string back together (strip ensures no stray spaces)
+        text = " ".join(
+            (" ".join(encoded_segment.tokens) + " " + escaped_space)
+            for encoded_segment, escaped_space in zip(encoded_segments, escaped_spaces)
+        ).strip()
+
         return text
 
 
