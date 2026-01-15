@@ -210,10 +210,15 @@ def convert_to_fasttext(
 ):
     text_expression = field_or_expression(text_field, text_expression)
     label_expression = field_or_expression(label_field, label_expression)
-    for split in ("train", "test"):
+    row_count: dict[str, int] = {}
+
+    for split, must_exist in (("train", True), ("valid", False), ("test", True)):
         split_dir = input_dir / split
-        assert split_dir.exists(), f"Split directory {split_dir} does not exist"
-        assert split_dir.is_dir(), f"Split directory {split_dir} is not a directory"
+
+        if not split_dir.exists():
+            if must_exist:
+                raise FileNotFoundError(f"Split directory {split_dir} does not exist")
+            continue
 
         with ExitStack() as stack:
             # this will handle executing the conversion in parallel
@@ -259,24 +264,22 @@ def convert_to_fasttext(
                         future.cancel()
                     raise e
 
-            report_dict = {
-                "input_dir": str(input_dir),
-                "output_dir": str(output_dir),
-                "text_expression": text_expression,
-                "label_expression": label_expression,
-                "normalization": normalization,
-                "max_length": max_length,
-                "num_proc": num_proc,
-                "num_files": files_pbar.n,
-                "num_rows": rows_pbar.n,
-            }
+            row_count[split] = rows_pbar.n
 
-            files_pbar.close()
-            rows_pbar.close()
+    report_dict = {
+        "input_dir": str(input_dir),
+        "output_dir": str(output_dir),
+        "text_expression": text_expression,
+        "label_expression": label_expression,
+        "normalization": normalization,
+        "max_length": max_length,
+        "num_rows": row_count,
+    }
 
-            report_file = output_dir / "report.yaml"
-            with open(report_file, "w", encoding="utf-8") as f:
-                yaml.dump(report_dict, f, indent=2)
+    report_file = output_dir / "report.yaml"
+    with open(report_file, "w", encoding="utf-8") as f:
+        yaml.dump(report_dict, f, indent=2)
+    click.echo(f"Report saved to: {report_file}")
 
 
 @click.command()

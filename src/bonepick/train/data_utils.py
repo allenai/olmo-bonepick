@@ -1,4 +1,6 @@
+from collections import defaultdict
 import dataclasses as dt
+from math import log10, floor
 import time
 import pickle
 import shutil
@@ -21,6 +23,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 
 from bonepick.train.normalizers import get_normalizer
 from bonepick.train.jq_utils import compile_jq
+from bonepick.logger import LOGGER
 
 
 FILE_SUFFIXES = [
@@ -331,9 +334,19 @@ def pretty_time(seconds: float) -> str:
     if seconds < 60:
         return f"{seconds:.2f}s"
     elif seconds < 3600:
-        return f"{seconds // 60:.2f}m {seconds % 60:.2f}s"
+        return f"{int(seconds // 60):,}m {seconds % 60:.2f}s"
     else:
-        return f"{seconds // 3600:.2f}h {seconds % 3600 // 60:.2f}m {seconds % 60:.2f}s"
+        return f"{int(seconds // 3600):,}h {int(seconds % 3600 // 60):,}m {seconds % 60:.2f}s"
+
+
+def pretty_length(length: int) -> int:
+    """Round it to closest bucket values"""
+    if length < 0:
+        raise ValueError(f"Length must be non-negative, got {length}")
+
+    pos = max(0, floor(log10(length) - 1))
+    bucket = 10 ** pos
+    return round(length / bucket) * bucket
 
 
 def convert_single_file_to_fasttext(
@@ -342,7 +355,7 @@ def convert_single_file_to_fasttext(
     label_expression: str,
     normalization: str,
     print_progress: bool = True,
-    print_every: int = 10_000,
+    print_every: int = 5_000,
     max_length: int | None = None,
 ) -> list[str]:
     decoder = msgspec.json.Decoder()
@@ -364,7 +377,7 @@ def convert_single_file_to_fasttext(
                 now = time.time()
                 elapsed = pretty_time(now - start_time)
                 throughput = f"{count / (now - start_time):.2f}"
-                print(f"Converted {count:,} rows in {elapsed} ({throughput} rows/s)")
+                LOGGER.info(f"Converted {count:,} rows in {elapsed} ({throughput} rows/s)")
 
             row = decoder.decode(line)
             text_value = str(text_field_selector(row))
@@ -378,6 +391,7 @@ def convert_single_file_to_fasttext(
 
             label_value = label_field_selector(row)
             label = normalize_label(str(label_value))
+
             rows.append(f"__label__{label} {text}")
     return rows
 

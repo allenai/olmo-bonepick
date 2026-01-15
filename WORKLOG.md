@@ -1626,8 +1626,8 @@ export LABEL_NAME="${RUBRIC_PROMPT}/gpt-5-mini/10k_trimmed"
 export DATASET_DIR_UNSPLIT="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/${LABEL_NAME}"
 export DATASET_DIR_SPLIT="${LOCAL_BASE_DIR}/data-train_test_split/${BASE_NAME_PREFIX}/${LABEL_NAME}"
 
-export PROGRAMMING_LANGUAGE="Python"
-export LABEL_THRESHOLD=13
+export PROGRAMMING_LANGUAGE="Markdown"
+export LABEL_THRESHOLD=10
 export LOSS_CLASS_WEIGHTS="uniform"
 export MODEL2VEC_NORMALIZER="plsfix"
 export FASTTEXT_NORMALIZER="ultrafine"
@@ -1641,6 +1641,8 @@ export MODEL2VEC_DATASET_NAME=$(echo "${DATASET_DIR_SPLIT#"${LOCAL_BASE_DIR}/dat
 export MODEL2VEC_OUTPUT_DIR="${MODEL2VEC_MODEL_DIR}/${MODEL2VEC_DATASET_NAME}/${PROGRAMMING_LANGUAGE}/${MODEL2VEC_MODEL_NAME}/${LOSS_CLASS_WEIGHTS}"
 
 export DATASET_DIR_FASTTEXT="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/fasttext/${FASTTEXT_NORMALIZER}_thr${LABEL_THRESHOLD}"
+export FASTTEXT_DATASET_NAME=$(echo "${DATASET_DIR_FASTTEXT#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
+export FASTTEXT_OUTPUT_DIR="${LOCAL_BASE_DIR}/trained_models/fasttext/${FASTTEXT_DATASET_NAME}/${PROGRAMMING_LANGUAGE}"
 ```
 
 
@@ -1692,4 +1694,21 @@ uv run bonepick convert-to-fasttext \
     --normalization "${FASTTEXT_NORMALIZER}" \
     --label-expression "${LABEL_EXPRESSION}"
     --max-length "${TEXT_MAX_LENGTH}"
+```
+
+
+Train a fasttext model directly:
+
+```shell
+uv run bonepick train-fasttext \
+    --dataset-dir "${DATASET_DIR_FASTTEXT}/${PROGRAMMING_LANGUAGE}" \
+    --output-dir "${FASTTEXT_OUTPUT_DIR}"
+```
+
+Now we eval the models:
+
+```shell
+uv run bonepick eval-fasttext \
+    --dataset-dir "${DATASET_DIR_FASTTEXT}/${PROGRAMMING_LANGUAGE}" \
+    --model-dir "${FASTTEXT_OUTPUT_DIR}"
 ```
