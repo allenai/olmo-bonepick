@@ -1712,3 +1712,60 @@ uv run bonepick eval-fasttext \
     --dataset-dir "${DATASET_DIR_FASTTEXT}/${PROGRAMMING_LANGUAGE}" \
     --model-dir "${FASTTEXT_OUTPUT_DIR}"
 ```
+
+
+### Some fasttext results
+
+#### Markdown, threshold >10, hyperfine normalization
+
+```yaml
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/fasttext/hyperfine_thr10/Markdown
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB_countup_criteria_v2_gpt-5-mini_10k_trimmed_fasttext_hyperfine_thr10/Markdown
+overall_results:
+  macro_precision: 0.7827
+  macro_recall: 0.7868
+  macro_f1: 0.7844
+  macro_auc: 0.8831
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.835
+  recall: 0.8051
+  f1: 0.8198
+  support: 5926
+  auc: null
+- class_name: __label__pos
+  precision: 0.7305
+  recall: 0.7685
+  f1: 0.749
+  support: 4074
+  auc: 0.8831
+```
+
+#### Python, threshold >13, hyperfine normalization
+
+(ultrafine-plus normalization is same as hyperfine; renamed it to hyperfine recently)
+
+```yaml
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/fasttext/ultrafine-plus_thr13/Python
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB_countup_criteria_v2_gpt-5-mini_10k_trimmed_fasttext_ultrafine-plus_thr13/Python
+overall_results:
+  macro_precision: 0.8218
+  macro_recall: 0.8171
+  macro_f1: 0.8193
+  macro_auc: 0.9054
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.8592
+  recall: 0.8765
+  f1: 0.8678
+  support: 6277
+  auc: null
+- class_name: __label__pos
+  precision: 0.7845
+  recall: 0.7577
+  f1: 0.7709
+  support: 3723
+  auc: 0.9054
+```
