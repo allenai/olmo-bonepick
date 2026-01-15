@@ -1626,11 +1626,11 @@ export LABEL_NAME="${RUBRIC_PROMPT}/gpt-5-mini/10k_trimmed"
 export DATASET_DIR_UNSPLIT="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/${LABEL_NAME}"
 export DATASET_DIR_SPLIT="${LOCAL_BASE_DIR}/data-train_test_split/${BASE_NAME_PREFIX}/${LABEL_NAME}"
 
-export PROGRAMMING_LANGUAGE="Markdown"
-export LABEL_THRESHOLD=10
+export PROGRAMMING_LANGUAGE="Python"
+export LABEL_THRESHOLD=13
 export LOSS_CLASS_WEIGHTS="uniform"
 export MODEL2VEC_NORMALIZER="plsfix"
-export FASTTEXT_NORMALIZER="ultrafine"
+export FASTTEXT_NORMALIZER="ultrafine-plus"
 export TEXT_MAX_LENGTH=10_000
 export LABEL_EXPRESSION="(if .${RUBRIC_PROMPT}.score > ${LABEL_THRESHOLD} then \"pos\" else \"neg\" end)"
 export MODEL2VEC_MODEL="minishlab/potion-base-32M"
@@ -1692,7 +1692,7 @@ uv run bonepick convert-to-fasttext \
     --input-dir "${DATASET_DIR_SPLIT}/${PROGRAMMING_LANGUAGE}" \
     --output-dir "${DATASET_DIR_FASTTEXT}/${PROGRAMMING_LANGUAGE}" \
     --normalization "${FASTTEXT_NORMALIZER}" \
-    --label-expression "${LABEL_EXPRESSION}"
+    --label-expression "${LABEL_EXPRESSION}" \
     --max-length "${TEXT_MAX_LENGTH}"
 ```
 

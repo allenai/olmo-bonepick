@@ -1,4 +1,5 @@
 from functools import partial
+from itertools import batched
 import re
 from typing import Callable, Generic, TypeVar
 import unicodedata
@@ -146,12 +147,12 @@ class UltraFineWebNormalizer(BaseRowNormalizer):
 class UltraFineWebPlusNormalizer(BaseRowNormalizer):
     def __init__(self):
         self.remove_extra_newlines_re = re.compile(r"\n{3,}")
-        self.space_before_special_re = re.compile(r"(\n\r\t)")
-        self.whitespace_re = re.compile(r"[^\S\n\r\t]+")
+        self.segment_symbols_re = re.compile(r"([\t\r\n]+)")
+        self.replace_spaces_re = re.compile(r"(\s+)")
         self.tokenizer = Tokenizer.from_pretrained("allenai/dolma2-tokenizer")  # equivalent to cl100k_base
 
     def normalize(self, text: str) -> str:
-        # 1. fix text with faster verson of ftfy
+        # 1. fix text with faster version of ftfy
         text = cut_and_ftfy_text(text)
 
         # 2. remove multiple newlines
@@ -163,24 +164,31 @@ class UltraFineWebPlusNormalizer(BaseRowNormalizer):
         # 4. remove diacritics
         text = "".join(c for c in unicodedata.normalize("NFKD", text) if unicodedata.category(c) != "Mn")
 
-        # 5. add spacing around special characters
-        text = self.space_before_special_re.sub(" \\1 ", text)
+        # 5. split into segments
+        segments, spaces = zip(
+            # we need the + [""] to handle the fact that we always have one fewer element in the
+            # \n\t\r block, even when a string ends with e.g. \n.
+            # for example `self.segment_symbols_re.split('\n')` returns ['', '\n', '']
+            *batched(self.segment_symbols_re.split(text) + [""], 2)
+        )
 
-        # 6. first removal of extra whitespace
-        text = self.whitespace_re.sub(" ", text)
+        # 6. this replaces multiple spaces with a single one
+        escaped_segments = [self.replace_spaces_re.sub(r"\\1", str(segment)) for segment in segments]
 
-        # ?. Convert to ASCII (including romanization of non-ASCII characters)
-        # skipping for now bc it's unproven
-        # text = cut_and_ascii_text(text)
+        # 7. this encodes each segment with a tokenizer
+        encoded_segments = self.tokenizer.encode(escaped_segments, add_special_tokens=False)
 
-        # 7. word segmentation
-        tokens = self.tokenizer.encode(text, add_special_tokens=False)
-        text = " ".join(tokens.tokens)
+        # 8. this escapes \n, \t, and \r to \\n, \\t, and \\r
+        escaped_spaces = [str(space).encode("unicode_escape").decode("ascii") for space in spaces]
 
-        # 8. second removal of extra whitespace
-        text = self.whitespace_re.sub(" ", text)
+        # 9. put the string back together
+        text = "".join(
+            (" ".join(encoded_segment.tokens) + " " + escaped_space)
+            for encoded_segment, escaped_space in zip(encoded_segments, escaped_spaces)
+        ).strip()
 
-        return text.strip()
+        breakpoint()
+        return text
 
 
 @register_normalizer("potion")
