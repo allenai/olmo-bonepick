@@ -1367,12 +1367,14 @@ s5cmd cp -sp "${SRC_COUNTUP_CRITERIA_V2_DIR}/*" "${DST_COUNTUP_CRITERIA_V2_DIR}/
 export LOCAL_BASE_DIR="${HOME}/ai2-llm/classifiers/code-quality"
 export S3_BASE_DIR='s3://ai2-llm/classifiers/code-quality'
 export BASE_NAME_PREFIX="the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB"
-
-export CLAUDE_RUBRIC_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/claude_rubric_code/gpt-5-mini/32k_trimmed"
-export VERY_SIMPLE_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/inv_codedoc_verysimple/gpt-5-mini/10k_trimmed"
 export COUNTUP_CRITERIA_V2_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/countup_criteria_v2/gpt-5-mini/10k_trimmed"
 
-s5cmd cp -sp "${S3_BASE_DIR}/*" "${LOCAL_BASE_DIR}/"
+s5cmd cp -sp "${S3_BASE_DIR}/data/*" "${LOCAL_BASE_DIR}/data/"
+s5cmd cp -sp "${S3_BASE_DIR}/models/*" "${LOCAL_BASE_DIR}/models/"
+
+# we don't use ones below here.
+# export CLAUDE_RUBRIC_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/claude_rubric_code/gpt-5-mini/32k_trimmed"
+# export VERY_SIMPLE_DIR="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/inv_codedoc_verysimple/gpt-5-mini/10k_trimmed"
 ```
 
 

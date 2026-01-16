@@ -1,23 +1,22 @@
-import os
-from pathlib import Path
-from collections import defaultdict, Counter
-from typing import Any
 import hashlib
+import os
+from collections import Counter, defaultdict
+from pathlib import Path
+from typing import Any
 
 import click
 import msgspec
 import smart_open
 from lazy_imports import try_import
 
+from bonepick.cli import PathParamType
 from bonepick.train.data_utils import FILE_SUFFIXES
 from bonepick.train.jq_utils import compile_jq
-from bonepick.cli import PathParamType
-
 
 with try_import() as extra_dependencies:
     from rich.console import Console
-    from rich.table import Table
     from rich.panel import Panel
+    from rich.table import Table
     from sklearn.metrics import cohen_kappa_score, confusion_matrix
 
 
@@ -211,21 +210,21 @@ def display_difference_histogram(labels1: list[Any], labels2: list[Any], console
 
 @click.command()
 @click.option(
-    "--dataset-dir",
+    "-d/--dataset-dir",
     type=PathParamType(exists=True, is_dir=True),
     required=True,
     multiple=True,
     help="Dataset directory (can be specified multiple times)",
 )
 @click.option(
-    "--label-expression",
+    "-l/--label-expression",
     type=str,
     required=True,
     multiple=True,
     help="JQ expression to extract label from each row (e.g., '.label' or '.annotation.category'). Can be specified multiple times if each dataset has a different label expression.",
 )
 @click.option(
-    "--key-expression",
+    "-k/--key-expression",
     type=str,
     required=True,
     multiple=True,
