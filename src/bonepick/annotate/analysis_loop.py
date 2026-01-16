@@ -776,13 +776,15 @@ def display_label_distribution(
 def display_key_length_distribution(
     keys: list[str],
     console: Console,
+    num_buckets: int = 10,
     max_width: int = 50,
 ):
-    """Display distribution of key lengths.
+    """Display distribution of key lengths using buckets.
 
     Args:
         keys: List of keys (strings)
         console: Rich console for output
+        num_buckets: Number of buckets for the histogram
         max_width: Maximum width of histogram bars
     """
     if not keys:
@@ -791,6 +793,7 @@ def display_key_length_distribution(
 
     lengths = [len(k) for k in keys]
     total = len(lengths)
+    min_len, max_len = min(lengths), max(lengths)
 
     console.print("[bold]Key Length Statistics:[/bold]")
 
@@ -801,8 +804,8 @@ def display_key_length_distribution(
     stats_table.add_row("Count", f"{total:,}")
     stats_table.add_row("Mean Length", f"{statistics.mean(lengths):.1f}")
     stats_table.add_row("Std Dev", f"{statistics.stdev(lengths):.1f}" if len(lengths) > 1 else "N/A")
-    stats_table.add_row("Min Length", f"{min(lengths):,}")
-    stats_table.add_row("Max Length", f"{max(lengths):,}")
+    stats_table.add_row("Min Length", f"{min_len:,}")
+    stats_table.add_row("Max Length", f"{max_len:,}")
     stats_table.add_row("Median Length", f"{statistics.median(lengths):.1f}")
 
     # Percentiles
@@ -816,21 +819,27 @@ def display_key_length_distribution(
     console.print(stats_table)
     console.print()
 
-    # Show distribution per length value
-    console.print("[bold]Key Length Distribution:[/bold]")
-    length_counts = Counter(lengths)
-    sorted_length_values = sorted(length_counts.keys())
+    # Show distribution using buckets
+    console.print(f"[bold]Key Length Distribution ({num_buckets} buckets):[/bold]")
 
-    max_count = max(length_counts.values()) if length_counts else 1
+    bucket_size = max((max_len - min_len) / num_buckets, 1)
+    buckets: Counter[int] = Counter()
+    for length in lengths:
+        bucket_idx = min(int((length - min_len) / bucket_size), num_buckets - 1)
+        buckets[bucket_idx] += 1
+
+    max_count = max(buckets.values()) if buckets else 1
     hist_table = Table(show_header=True, box=None)
-    hist_table.add_column("Length", justify="right", style="cyan", width=12)
+    hist_table.add_column("Range", justify="right", style="cyan", width=20)
     hist_table.add_column("Count", justify="right", style="magenta", width=12)
     hist_table.add_column("Percentile", justify="right", style="green", width=10)
     hist_table.add_column("Bar", style="blue")
 
     cumulative = 0
-    for length in sorted_length_values:
-        count = length_counts[length]
+    for i in range(num_buckets):
+        bucket_min = int(min_len + i * bucket_size)
+        bucket_max = int(min_len + (i + 1) * bucket_size)
+        count = buckets.get(i, 0)
         cumulative += count
         percentile = (cumulative / total) * 100
 
@@ -838,7 +847,7 @@ def display_key_length_distribution(
         bar = "█" * bar_width
 
         hist_table.add_row(
-            f"{length:,}",
+            f"[{bucket_min:,}, {bucket_max:,})",
             f"{count:,} ({count / total:.1%})",
             f"{percentile:.1f}%",
             bar,
@@ -877,11 +886,19 @@ def display_key_length_distribution(
     default="ordinal",
     help="Type of label: 'ordinal' (cast to int), 'value' (cast to float for regression), 'text' (cast to string for classification)",
 )
+@click.option(
+    "-b",
+    "--key-length-buckets",
+    type=int,
+    default=10,
+    help="Number of buckets for key length distribution histogram (default: 10)",
+)
 def label_distribution(
     dataset_dir: Path,
     label_expression: str,
     key_expression: str | None,
     label_type: Literal["ordinal", "value", "text"],
+    key_length_buckets: int,
 ):
     """Plot the distribution of labels in an annotated dataset.
 
@@ -940,4 +957,4 @@ def label_distribution(
 
     # Display key length distribution if key expression provided
     if key_expression and keys:
-        display_key_length_distribution(keys, console)
+        display_key_length_distribution(keys, console, num_buckets=key_length_buckets)

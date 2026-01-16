@@ -10,7 +10,6 @@ for lang_dir in "$BASE_DIR"/*/; do
     uv run bonepick label-distribution \
         -d "$lang_dir" \
         -l '.countup_criteria_v2.score' \
-        -k '.text' \
         -t ordinal
     echo ""
 done
