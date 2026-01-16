@@ -1,8 +1,9 @@
 import hashlib
 import os
+import statistics
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import click
 import msgspec
@@ -210,21 +211,24 @@ def display_difference_histogram(labels1: list[Any], labels2: list[Any], console
 
 @click.command()
 @click.option(
-    "-d/--dataset-dir",
+    "-d",
+    "--dataset-dir",
     type=PathParamType(exists=True, is_dir=True),
     required=True,
     multiple=True,
     help="Dataset directory (can be specified multiple times)",
 )
 @click.option(
-    "-l/--label-expression",
+    "-l",
+    "--label-expression",
     type=str,
     required=True,
     multiple=True,
     help="JQ expression to extract label from each row (e.g., '.label' or '.annotation.category'). Can be specified multiple times if each dataset has a different label expression.",
 )
 @click.option(
-    "-k/--key-expression",
+    "-k",
+    "--key-expression",
     type=str,
     required=True,
     multiple=True,
@@ -520,3 +524,357 @@ def annotation_agreement(
                     )
             else:
                 console.print("[green]No disagreements found! Perfect agreement.[/green]\n")
+
+
+def load_labels_and_keys_from_path(
+    dataset_path: Path,
+    label_expression: str,
+    key_expression: str | None,
+    label_type: Literal["ordinal", "value", "text"],
+) -> tuple[list[Any], list[str]]:
+    """Load labels and keys from a dataset path.
+
+    Args:
+        dataset_path: Path to the dataset directory containing JSONL files
+        label_expression: JQ expression to extract label from each row
+        key_expression: JQ expression to extract key from each row (optional)
+        label_type: Type of label ("ordinal" for int, "value" for float, "text" for string)
+
+    Returns:
+        Tuple of (labels, keys) where keys are strings
+    """
+    decoder = msgspec.json.Decoder()
+    label_selector = compile_jq(label_expression)
+    key_selector = compile_jq(key_expression) if key_expression else None
+
+    labels: list[Any] = []
+    keys: list[str] = []
+
+    # Walk through all files in the dataset
+    for root, _, files in os.walk(dataset_path):
+        for file in files:
+            file_path = Path(root) / file
+            if "".join(file_path.suffixes) not in FILE_SUFFIXES:
+                continue
+
+            with smart_open.open(file_path, "rb") as f:  # pyright: ignore
+                for line in f:
+                    row = decoder.decode(line)
+
+                    # Extract label using jq expression
+                    if (label_value := label_selector(row)) is None:
+                        raise ValueError(f"Label expression {label_expression} returned None for row {row}")
+
+                    # Cast label based on type
+                    if label_type == "ordinal":
+                        label_value = int(label_value)
+                    elif label_type == "value":
+                        label_value = float(label_value)
+                    else:  # text
+                        label_value = str(label_value)
+
+                    labels.append(label_value)
+
+                    # Extract key if expression provided
+                    if key_selector is not None:
+                        if (key_value := key_selector(row)) is None:
+                            raise ValueError(f"Key expression {key_expression} returned None for row {row}")
+                        keys.append(str(key_value))
+
+    return labels, keys
+
+
+def display_label_distribution(
+    labels: list[Any],
+    label_type: Literal["ordinal", "value", "text"],
+    console: Console,
+    max_width: int = 50,
+):
+    """Display label distribution with histogram visualization.
+
+    Args:
+        labels: List of labels
+        label_type: Type of label
+        console: Rich console for output
+        max_width: Maximum width of histogram bars
+    """
+    total = len(labels)
+    label_counts = Counter(labels)
+
+    if label_type == "value":
+        # For regression values, show statistics instead of counts
+        console.print("[bold]Label Statistics:[/bold]")
+        labels_float = [float(l) for l in labels]
+
+        stats_table = Table(show_header=True)
+        stats_table.add_column("Statistic", style="cyan")
+        stats_table.add_column("Value", justify="right", style="magenta")
+
+        stats_table.add_row("Count", f"{total:,}")
+        stats_table.add_row("Mean", f"{statistics.mean(labels_float):.4f}")
+        stats_table.add_row("Std Dev", f"{statistics.stdev(labels_float):.4f}" if len(labels_float) > 1 else "N/A")
+        stats_table.add_row("Min", f"{min(labels_float):.4f}")
+        stats_table.add_row("Max", f"{max(labels_float):.4f}")
+        stats_table.add_row("Median", f"{statistics.median(labels_float):.4f}")
+
+        # Percentiles
+        sorted_labels = sorted(labels_float)
+        percentiles = [10, 25, 50, 75, 90]
+        for p in percentiles:
+            idx = int(len(sorted_labels) * p / 100)
+            idx = min(idx, len(sorted_labels) - 1)
+            stats_table.add_row(f"P{p}", f"{sorted_labels[idx]:.4f}")
+
+        console.print(stats_table)
+        console.print()
+
+        # Show histogram buckets for continuous values
+        console.print("[bold]Value Distribution (10 buckets):[/bold]")
+        min_val, max_val = min(labels_float), max(labels_float)
+        bucket_size = (max_val - min_val) / 10 if max_val > min_val else 1
+        buckets: Counter[int] = Counter()
+        for val in labels_float:
+            bucket_idx = min(int((val - min_val) / bucket_size), 9)
+            buckets[bucket_idx] += 1
+
+        max_count = max(buckets.values()) if buckets else 1
+        hist_table = Table(show_header=True, box=None)
+        hist_table.add_column("Range", justify="right", style="cyan", width=20)
+        hist_table.add_column("Count", justify="right", style="magenta", width=12)
+        hist_table.add_column("Percentile", justify="right", style="green", width=10)
+        hist_table.add_column("Bar", style="blue")
+
+        cumulative = 0
+        for i in range(10):
+            bucket_min = min_val + i * bucket_size
+            bucket_max = min_val + (i + 1) * bucket_size
+            count = buckets.get(i, 0)
+            cumulative += count
+            percentile = (cumulative / total) * 100
+
+            bar_width = int((count / max_count) * max_width) if max_count > 0 else 0
+            bar = "█" * bar_width
+
+            hist_table.add_row(
+                f"[{bucket_min:.2f}, {bucket_max:.2f})",
+                f"{count:,} ({count / total:.1%})",
+                f"{percentile:.1f}%",
+                bar,
+            )
+
+        console.print(hist_table)
+
+    else:
+        # For ordinal and text labels, show counts per label
+        console.print("[bold]Label Distribution:[/bold]")
+
+        # Sort labels appropriately
+        if label_type == "ordinal":
+            sorted_labels = sorted(label_counts.keys())
+        else:
+            # Sort by count descending for text labels
+            sorted_labels = [l for l, _ in label_counts.most_common()]
+
+        max_count = max(label_counts.values()) if label_counts else 1
+
+        hist_table = Table(show_header=True, box=None)
+        hist_table.add_column("Label", justify="right", style="cyan", width=20)
+        hist_table.add_column("Count", justify="right", style="magenta", width=12)
+        hist_table.add_column("Percentile", justify="right", style="green", width=10)
+        hist_table.add_column("Bar", style="blue")
+
+        cumulative = 0
+        for label in sorted_labels:
+            count = label_counts[label]
+            cumulative += count
+            percentile = (cumulative / total) * 100
+
+            bar_width = int((count / max_count) * max_width) if max_count > 0 else 0
+            bar = "█" * bar_width
+
+            # Truncate long labels
+            label_str = str(label)
+            if len(label_str) > 18:
+                label_str = label_str[:15] + "..."
+
+            hist_table.add_row(
+                label_str,
+                f"{count:,} ({count / total:.1%})",
+                f"{percentile:.1f}%",
+                bar,
+            )
+
+        console.print(hist_table)
+
+    console.print()
+
+
+def display_key_length_distribution(
+    keys: list[str],
+    console: Console,
+    max_width: int = 50,
+):
+    """Display distribution of key lengths.
+
+    Args:
+        keys: List of keys (strings)
+        console: Rich console for output
+        max_width: Maximum width of histogram bars
+    """
+    if not keys:
+        console.print("[yellow]No keys to analyze[/yellow]")
+        return
+
+    lengths = [len(k) for k in keys]
+    total = len(lengths)
+
+    console.print("[bold]Key Length Statistics:[/bold]")
+
+    stats_table = Table(show_header=True)
+    stats_table.add_column("Statistic", style="cyan")
+    stats_table.add_column("Value", justify="right", style="magenta")
+
+    stats_table.add_row("Count", f"{total:,}")
+    stats_table.add_row("Mean Length", f"{statistics.mean(lengths):.1f}")
+    stats_table.add_row("Std Dev", f"{statistics.stdev(lengths):.1f}" if len(lengths) > 1 else "N/A")
+    stats_table.add_row("Min Length", f"{min(lengths):,}")
+    stats_table.add_row("Max Length", f"{max(lengths):,}")
+    stats_table.add_row("Median Length", f"{statistics.median(lengths):.1f}")
+
+    # Percentiles
+    sorted_lengths = sorted(lengths)
+    percentiles = [10, 25, 50, 75, 90]
+    for p in percentiles:
+        idx = int(len(sorted_lengths) * p / 100)
+        idx = min(idx, len(sorted_lengths) - 1)
+        stats_table.add_row(f"P{p}", f"{sorted_lengths[idx]:,}")
+
+    console.print(stats_table)
+    console.print()
+
+    # Show distribution per length value
+    console.print("[bold]Key Length Distribution:[/bold]")
+    length_counts = Counter(lengths)
+    sorted_length_values = sorted(length_counts.keys())
+
+    max_count = max(length_counts.values()) if length_counts else 1
+    hist_table = Table(show_header=True, box=None)
+    hist_table.add_column("Length", justify="right", style="cyan", width=12)
+    hist_table.add_column("Count", justify="right", style="magenta", width=12)
+    hist_table.add_column("Percentile", justify="right", style="green", width=10)
+    hist_table.add_column("Bar", style="blue")
+
+    cumulative = 0
+    for length in sorted_length_values:
+        count = length_counts[length]
+        cumulative += count
+        percentile = (cumulative / total) * 100
+
+        bar_width = int((count / max_count) * max_width) if max_count > 0 else 0
+        bar = "█" * bar_width
+
+        hist_table.add_row(
+            f"{length:,}",
+            f"{count:,} ({count / total:.1%})",
+            f"{percentile:.1f}%",
+            bar,
+        )
+
+    console.print(hist_table)
+    console.print()
+
+
+@click.command()
+@click.option(
+    "-d",
+    "--dataset-dir",
+    type=PathParamType(exists=True, is_dir=True),
+    required=True,
+    help="Dataset directory containing JSONL files (supports .jsonl, .jsonl.gz, .jsonl.zst)",
+)
+@click.option(
+    "-l",
+    "--label-expression",
+    type=str,
+    required=True,
+    help="JQ expression to extract label from each row (e.g., '.label' or '.annotation.score')",
+)
+@click.option(
+    "-k",
+    "--key-expression",
+    type=str,
+    default=None,
+    help="JQ expression to extract key from each row (e.g., '.text' or '.content'). If provided, shows key length distribution.",
+)
+@click.option(
+    "-t",
+    "--label-type",
+    type=click.Choice(["ordinal", "value", "text"]),
+    default="ordinal",
+    help="Type of label: 'ordinal' (cast to int), 'value' (cast to float for regression), 'text' (cast to string for classification)",
+)
+def label_distribution(
+    dataset_dir: Path,
+    label_expression: str,
+    key_expression: str | None,
+    label_type: Literal["ordinal", "value", "text"],
+):
+    """Plot the distribution of labels in an annotated dataset.
+
+    This command analyzes a dataset directory containing JSONL files and displays
+    the distribution of labels with CLI visualizations, including percentiles
+    and histogram bars.
+
+    Examples:
+
+        # Analyze ordinal labels (default)
+        bonepick label-distribution \\
+            --dataset-dir ./annotated_data \\
+            --label-expression '.annotation.score'
+
+        # Analyze regression values
+        bonepick label-distribution \\
+            --dataset-dir ./annotated_data \\
+            --label-expression '.quality_score' \\
+            --label-type value
+
+        # Analyze text classification labels with key length stats
+        bonepick label-distribution \\
+            --dataset-dir ./annotated_data \\
+            --label-expression '.category' \\
+            --key-expression '.text' \\
+            --label-type text
+    """
+    extra_dependencies.check()
+
+    console = Console()
+
+    console.print("\n[bold cyan]Label Distribution Analysis[/bold cyan]\n")
+    console.print(
+        f"[bold cyan]Dataset:[/bold cyan] {dataset_dir}\n"
+        f"[bold cyan]Label Expression:[/bold cyan] {label_expression}\n"
+        f"[bold cyan]Label Type:[/bold cyan] {label_type}\n"
+    )
+    if key_expression:
+        console.print(f"[bold cyan]Key Expression:[/bold cyan] {key_expression}\n")
+
+    # Load labels and keys
+    console.print("[yellow]Loading data from dataset...[/yellow]")
+    labels, keys = load_labels_and_keys_from_path(
+        dataset_path=dataset_dir,
+        label_expression=label_expression,
+        key_expression=key_expression,
+        label_type=label_type,
+    )
+    console.print(f"Loaded {len(labels):,} samples\n")
+
+    if not labels:
+        console.print("[bold red]No data found in dataset![/bold red]")
+        return
+
+    # Display label distribution
+    display_label_distribution(labels, label_type, console)
+
+    # Display key length distribution if key expression provided
+    if key_expression and keys:
+        display_key_length_distribution(keys, console)

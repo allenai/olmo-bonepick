@@ -8,9 +8,9 @@ import multiprocessing
 import click
 import torch
 
-from bonepick.version import __version__
-
-
+from bonepick.annotate import annotate_dataset, annotation_agreement, label_distribution, list_prompts
+from bonepick.cli import cli  # noqa: E402
+from bonepick.logger import init_logger  # noqa: E402
 from bonepick.train import (
     balance_dataset,
     convert_to_fasttext,
@@ -26,11 +26,7 @@ from bonepick.train import (
     train_model2vec,
     transform_dataset,
 )
-from bonepick.annotate import annotate_dataset, list_prompts, annotation_agreement
-
-
-from bonepick.cli import cli  # noqa: E402
-from bonepick.logger import init_logger  # noqa: E402
+from bonepick.version import __version__
 
 __all__ = ["cli", "__version__"]
 
@@ -62,6 +58,7 @@ cli.add_command(transform_dataset)
 cli.add_command(annotate_dataset)
 cli.add_command(list_prompts)
 cli.add_command(annotation_agreement)
+cli.add_command(label_distribution)
 
 
 @cli.command()
