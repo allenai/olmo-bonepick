@@ -2,6 +2,8 @@ import hashlib
 import os
 import statistics
 from collections import Counter, defaultdict
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any, Literal
 
@@ -9,6 +11,7 @@ import click
 import msgspec
 import smart_open
 from lazy_imports import try_import
+from tqdm import tqdm
 
 from bonepick.cli import PathParamType
 from bonepick.train.data_utils import FILE_SUFFIXES
@@ -526,16 +529,16 @@ def annotation_agreement(
                 console.print("[green]No disagreements found! Perfect agreement.[/green]\n")
 
 
-def load_labels_and_keys_from_path(
-    dataset_path: Path,
+def _load_labels_and_keys_from_single_file(
+    file_path: Path,
     label_expression: str,
     key_expression: str | None,
     label_type: Literal["ordinal", "value", "text"],
 ) -> tuple[list[Any], list[str]]:
-    """Load labels and keys from a dataset path.
+    """Load labels and keys from a single file.
 
     Args:
-        dataset_path: Path to the dataset directory containing JSONL files
+        file_path: Path to the JSONL file
         label_expression: JQ expression to extract label from each row
         key_expression: JQ expression to extract key from each row (optional)
         label_type: Type of label ("ordinal" for int, "value" for float, "text" for string)
@@ -550,36 +553,97 @@ def load_labels_and_keys_from_path(
     labels: list[Any] = []
     keys: list[str] = []
 
-    # Walk through all files in the dataset
+    with smart_open.open(file_path, "rb") as f:  # pyright: ignore
+        for line in f:
+            row = decoder.decode(line)
+
+            # Extract label using jq expression
+            if (label_value := label_selector(row)) is None:
+                raise ValueError(f"Label expression {label_expression} returned None for row {row}")
+
+            # Cast label based on type
+            if label_type == "ordinal":
+                label_value = int(label_value)
+            elif label_type == "value":
+                label_value = float(label_value)
+            else:  # text
+                label_value = str(label_value)
+
+            labels.append(label_value)
+
+            # Extract key if expression provided
+            if key_selector is not None:
+                if (key_value := key_selector(row)) is None:
+                    raise ValueError(f"Key expression {key_expression} returned None for row {row}")
+                keys.append(str(key_value))
+
+    return labels, keys
+
+
+def load_labels_and_keys_from_path(
+    dataset_path: Path,
+    label_expression: str,
+    key_expression: str | None,
+    label_type: Literal["ordinal", "value", "text"],
+    max_workers: int | None = None,
+) -> tuple[list[Any], list[str]]:
+    """Load labels and keys from a dataset path in parallel.
+
+    Args:
+        dataset_path: Path to the dataset directory containing JSONL files
+        label_expression: JQ expression to extract label from each row
+        key_expression: JQ expression to extract key from each row (optional)
+        label_type: Type of label ("ordinal" for int, "value" for float, "text" for string)
+        max_workers: Maximum number of parallel workers (defaults to CPU count)
+
+    Returns:
+        Tuple of (labels, keys) where keys are strings
+    """
+    max_workers = max_workers or os.cpu_count() or 1
+
+    # Collect all files
+    all_files: list[Path] = []
     for root, _, files in os.walk(dataset_path):
         for file in files:
             file_path = Path(root) / file
             if "".join(file_path.suffixes) not in FILE_SUFFIXES:
                 continue
+            all_files.append(file_path)
 
-            with smart_open.open(file_path, "rb") as f:  # pyright: ignore
-                for line in f:
-                    row = decoder.decode(line)
+    if not all_files:
+        return [], []
 
-                    # Extract label using jq expression
-                    if (label_value := label_selector(row)) is None:
-                        raise ValueError(f"Label expression {label_expression} returned None for row {row}")
+    labels: list[Any] = []
+    keys: list[str] = []
 
-                    # Cast label based on type
-                    if label_type == "ordinal":
-                        label_value = int(label_value)
-                    elif label_type == "value":
-                        label_value = float(label_value)
-                    else:  # text
-                        label_value = str(label_value)
+    with ExitStack() as stack:
+        pool_cls = ProcessPoolExecutor if max_workers > 1 else ThreadPoolExecutor
+        pool = stack.enter_context(pool_cls(max_workers=max_workers))
+        pbar = stack.enter_context(
+            tqdm(total=len(all_files), desc="Loading files", unit=" files", unit_scale=True)
+        )
 
-                    labels.append(label_value)
+        futures = []
+        for file_path in all_files:
+            future = pool.submit(
+                _load_labels_and_keys_from_single_file,
+                file_path=file_path,
+                label_expression=label_expression,
+                key_expression=key_expression,
+                label_type=label_type,
+            )
+            futures.append(future)
 
-                    # Extract key if expression provided
-                    if key_selector is not None:
-                        if (key_value := key_selector(row)) is None:
-                            raise ValueError(f"Key expression {key_expression} returned None for row {row}")
-                        keys.append(str(key_value))
+        for future in as_completed(futures):
+            try:
+                file_labels, file_keys = future.result()
+                labels.extend(file_labels)
+                keys.extend(file_keys)
+            except Exception as e:
+                for f in futures:
+                    f.cancel()
+                raise e
+            pbar.update(1)
 
     return labels, keys
 
@@ -859,7 +923,6 @@ def label_distribution(
         console.print(f"[bold cyan]Key Expression:[/bold cyan] {key_expression}\n")
 
     # Load labels and keys
-    console.print("[yellow]Loading data from dataset...[/yellow]")
     labels, keys = load_labels_and_keys_from_path(
         dataset_path=dataset_dir,
         label_expression=label_expression,
