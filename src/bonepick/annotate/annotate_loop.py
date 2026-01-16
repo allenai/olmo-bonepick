@@ -1,24 +1,23 @@
 import asyncio
 import os
-from pathlib import Path
-from tqdm import tqdm
-from enum import Enum
 from contextlib import ExitStack
+from enum import Enum
+from pathlib import Path
 from typing import Literal, TypedDict
 
 import click
-from lazy_imports import try_import
-import smart_open
 import msgspec
+import smart_open
+from lazy_imports import try_import
+from tqdm import tqdm
 
-from bonepick.train.data_utils import compile_jq, FILE_SUFFIXES
-from bonepick.cli import PathParamType
 from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt
-
+from bonepick.cli import PathParamType
+from bonepick.train.data_utils import FILE_SUFFIXES, compile_jq
 
 with try_import() as extra_dependencies:
     # extra imports; they won't fail here, but later when running the command they will
-    from lm_deluge import LLMClient, Conversation, Message
+    from lm_deluge import Conversation, LLMClient, Message
     from platformdirs import user_cache_dir
 
     # import here to register all the prompts
