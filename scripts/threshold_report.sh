@@ -28,7 +28,7 @@ for lang_dir in "$BASE_DIR"/*/; do
             -l '.countup_criteria_v2.score' \
             -k '.text' \
             -t ordinal \
-            -b 10
+            -b 20
         echo ""
     ) 2>&1 | tee "$tmp_file" &
 done
