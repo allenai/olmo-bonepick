@@ -1,1 +1,16 @@
 
+========================================
+Processing: 
+========================================
+
+Label Distribution Analysis
+
+Dataset: 
+/home/lucas/ai2-llm/classifiers/code-quality/data/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/
+C++
+Label Expression: .countup_criteria_v2.score
+Label Type: ordinal
+
+Key Expression: .text
+
+Loading files:   0%|          | 0.00/22.0 [00:00<?, ? files/s]
