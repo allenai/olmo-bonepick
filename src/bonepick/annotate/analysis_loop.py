@@ -773,18 +773,51 @@ def display_label_distribution(
     console.print()
 
 
+def compute_quantile_bucket_boundaries(sorted_values: list[int], num_buckets: int) -> list[int]:
+    """Compute bucket boundaries based on quantiles for roughly equal counts.
+
+    Args:
+        sorted_values: Sorted list of values
+        num_buckets: Target number of buckets
+
+    Returns:
+        List of bucket boundaries (including min and max)
+    """
+    if not sorted_values:
+        return []
+
+    n = len(sorted_values)
+    boundaries = [sorted_values[0]]
+
+    for i in range(1, num_buckets):
+        # Get value at this quantile
+        idx = min(int(n * i / num_buckets), n - 1)
+        val = sorted_values[idx]
+        # Avoid duplicate boundaries
+        if val > boundaries[-1]:
+            boundaries.append(val)
+
+    # Always include max + 1 for the final boundary (exclusive)
+    boundaries.append(sorted_values[-1] + 1)
+
+    return boundaries
+
+
 def display_key_length_distribution(
     keys: list[str],
     console: Console,
     num_buckets: int = 10,
     max_width: int = 50,
 ):
-    """Display distribution of key lengths using buckets.
+    """Display distribution of key lengths using quantile-based buckets.
+
+    Buckets are sized to have roughly similar counts (within an order of magnitude),
+    rather than uniform width.
 
     Args:
         keys: List of keys (strings)
         console: Rich console for output
-        num_buckets: Number of buckets for the histogram
+        num_buckets: Target number of buckets for the histogram
         max_width: Maximum width of histogram bars
     """
     if not keys:
@@ -819,16 +852,26 @@ def display_key_length_distribution(
     console.print(stats_table)
     console.print()
 
-    # Show distribution using buckets
-    console.print(f"[bold]Key Length Distribution ({num_buckets} buckets):[/bold]")
+    # Compute quantile-based bucket boundaries
+    boundaries = compute_quantile_bucket_boundaries(sorted_lengths, num_buckets)
+    actual_num_buckets = len(boundaries) - 1
 
-    bucket_size = max((max_len - min_len) / num_buckets, 1)
-    buckets: Counter[int] = Counter()
+    if actual_num_buckets == 0:
+        console.print("[yellow]All keys have the same length[/yellow]")
+        return
+
+    console.print(f"[bold]Key Length Distribution ({actual_num_buckets} buckets):[/bold]")
+
+    # Count items in each bucket
+    bucket_counts: list[int] = [0] * actual_num_buckets
     for length in lengths:
-        bucket_idx = min(int((length - min_len) / bucket_size), num_buckets - 1)
-        buckets[bucket_idx] += 1
+        # Binary search for the right bucket
+        for i in range(actual_num_buckets):
+            if boundaries[i] <= length < boundaries[i + 1]:
+                bucket_counts[i] += 1
+                break
 
-    max_count = max(buckets.values()) if buckets else 1
+    max_count = max(bucket_counts) if bucket_counts else 1
     hist_table = Table(show_header=True, box=None)
     hist_table.add_column("Range", justify="right", style="cyan", width=20)
     hist_table.add_column("Count", justify="right", style="magenta", width=12)
@@ -836,10 +879,10 @@ def display_key_length_distribution(
     hist_table.add_column("Bar", style="blue")
 
     cumulative = 0
-    for i in range(num_buckets):
-        bucket_min = int(min_len + i * bucket_size)
-        bucket_max = int(min_len + (i + 1) * bucket_size)
-        count = buckets.get(i, 0)
+    for i in range(actual_num_buckets):
+        bucket_min = boundaries[i]
+        bucket_max = boundaries[i + 1]
+        count = bucket_counts[i]
         cumulative += count
         percentile = (cumulative / total) * 100
 
