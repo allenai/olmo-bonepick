@@ -843,7 +843,7 @@ def display_key_length_distribution(
 
     # Percentiles
     sorted_lengths = sorted(lengths)
-    percentiles = [10, 25, 50, 75, 90]
+    percentiles = [10, 25, 50, 75, 90, 95, 99]
     for p in percentiles:
         idx = int(len(sorted_lengths) * p / 100)
         idx = min(idx, len(sorted_lengths) - 1)
