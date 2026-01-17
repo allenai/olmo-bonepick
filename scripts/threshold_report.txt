@@ -13,4 +13,4 @@ Label Type: ordinal
 
 Key Expression: .text
 
-Loading files:   0%|          | 0.00/22.0 [00:00<?, ? files/s]
+Loading files:   0%|          | 0.00/22.0 [00:00<?, ? files/s]Loading files:   5%|▍         | 1.00/22.0 [00:11<03:57, 11.3s/ files]Loading files:   9%|▉         | 2.00/22.0 [00:11<01:35, 4.76s/ files]Loading files:  14%|█▎        | 3.00/22.0 [00:11<00:50, 2.65s/ files]Loading files:  18%|█▊        | 4.00/22.0 [00:11<00:30, 1.67s/ files]Loading files:  23%|██▎       | 5.00/22.0 [00:11<00:19, 1.12s/ files]Loading files:  27%|██▋       | 6.00/22.0 [00:12<00:12, 1.26 files/s]Loading files:  32%|███▏      | 7.00/22.0 [00:12<00:08, 1.70 files/s]Loading files:  36%|███▋      | 8.00/22.0 [00:12<00:06, 2.21 files/s]Loading files:  41%|████      | 9.00/22.0 [00:12<00:04, 2.74 files/s]Loading files:  45%|████▌     | 10.0/22.0 [00:13<00:05, 2.17 files/s]Loading files:  50%|█████     | 11.0/22.0 [00:15<00:09, 1.12 files/s]Loading files:  55%|█████▍    | 12.0/22.0 [00:15<00:08, 1.16 files/s]Loading files:  59%|█████▉    | 13.0/22.0 [00:16<00:06, 1.48 files/s]Loading files:  64%|██████▎   | 14.0/22.0 [00:16<00:04, 1.95 files/s]
