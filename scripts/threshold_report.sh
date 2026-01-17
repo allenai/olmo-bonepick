@@ -10,6 +10,9 @@ echo "" > "$DEST_REPORT"
 rm -rf "$TMP_DIR"
 mkdir -p "$TMP_DIR"
 
+# sync once before parallel runs
+uv sync
+
 # collect all language names for ordering
 langs=()
 
@@ -23,7 +26,7 @@ for lang_dir in "$BASE_DIR"/*/; do
         echo "========================================"
         echo "Processing: $lang"
         echo "========================================"
-        uv run bonepick label-distribution \
+        uv run --frozen bonepick label-distribution \
             -d "$lang_dir" \
             -l '.countup_criteria_v2.score' \
             -k '.text' \
