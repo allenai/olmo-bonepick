@@ -26,7 +26,7 @@ for lang_dir in "$BASE_DIR"/*/; do
         echo "========================================"
         echo "Processing: $lang"
         echo "========================================"
-        uv run --no-sync bonepick label-distribution \
+        uv run --no-sync --frozen bonepick label-distribution \
             -d "$lang_dir" \
             -l '.countup_criteria_v2.score' \
             -k '.text' \
