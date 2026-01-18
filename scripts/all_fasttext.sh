@@ -131,7 +131,7 @@ for i in "${!LANGUAGES[@]}"; do
     echo "Training ${LANGUAGE} with threshold ${THRESHOLD}"
 
     uv run bonepick train-fasttext \
-        --input-dir "${LANGUAGE_DATASET_DIR_FASTTEXT}" \
+        --dataset-dir "${LANGUAGE_DATASET_DIR_FASTTEXT}" \
         --output-dir "${FASTTEXT_OUTPUT_DIR}"
 done
 
@@ -153,8 +153,8 @@ for i in "${!LANGUAGES[@]}"; do
     echo "Evaluating ${LANGUAGE} with threshold ${THRESHOLD}" | tee -a "${REPORT_DESTINATION}"
     echo "-------------------------" | tee -a "${REPORT_DESTINATION}"
 
-    uv run bonepick evaluate-fasttext \
-        --input-dir "${LANGUAGE_DATASET_DIR_FASTTEXT}" \
+    uv run bonepick eval-fasttext \
+        --dataset-dir "${LANGUAGE_DATASET_DIR_FASTTEXT}" \
         --model-dir "${FASTTEXT_OUTPUT_DIR}" | tee -a "${REPORT_DESTINATION}"
 
     echo "=========================" >> "${REPORT_DESTINATION}"
