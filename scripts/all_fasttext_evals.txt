@@ -1,0 +1,691 @@
+=========================
+Evaluating C with threshold 13
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr13/C
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_C/C
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_C/C/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr13/C
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_C/C
+overall_results:
+  macro_precision: 0.7847
+  macro_recall: 0.7786
+  macro_f1: 0.7814
+  macro_auc: 0.8728
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.8325
+  recall: 0.8554
+  f1: 0.8438
+  support: 6341
+  auc: null
+- class_name: __label__pos
+  precision: 0.7369
+  recall: 0.7018
+  f1: 0.7189
+  support: 3659
+  auc: 0.8728
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_C/C/results_07bbe3.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_C/C/results_07bbe3.yaml
+
+Evaluation complete!
+=========================
+Evaluating C++ with threshold 13
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr13/C++
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_C++/C++
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_C++/C++/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr13/C++
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_C++/C++
+overall_results:
+  macro_precision: 0.7789
+  macro_recall: 0.779
+  macro_f1: 0.7789
+  macro_auc: 0.8625
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.8016
+  recall: 0.8003
+  f1: 0.8009
+  support: 5502
+  auc: null
+- class_name: __label__pos
+  precision: 0.7562
+  recall: 0.7577
+  f1: 0.7569
+  support: 4498
+  auc: 0.8625
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_C++/C++/results_5dbcef.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_C++/C++/results_5dbcef.yaml
+
+Evaluation complete!
+=========================
+Evaluating C-Sharp with threshold 14
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr14/C-Sharp
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_C-Sharp/C-Sharp
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_C-Sharp/C-Sharp/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr14/C-Sharp
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_C-Sharp/C-Sharp
+overall_results:
+  macro_precision: 0.8091
+  macro_recall: 0.7959
+  macro_f1: 0.8015
+  macro_auc: 0.8942
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.8439
+  recall: 0.8848
+  f1: 0.8639
+  support: 6416
+  auc: null
+- class_name: __label__pos
+  precision: 0.7742
+  recall: 0.707
+  f1: 0.7391
+  support: 3584
+  auc: 0.8942
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_C-Sharp/C-Sharp/results_c5865d.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_C-Sharp/C-Sharp/results_c5865d.yaml
+
+Evaluation complete!
+=========================
+Evaluating Go with threshold 15
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr15/Go
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr15_Go/Go
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr15_Go/Go/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr15/Go
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr15_Go/Go
+overall_results:
+  macro_precision: 0.7939
+  macro_recall: 0.7545
+  macro_f1: 0.7706
+  macro_auc: 0.893
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.8727
+  recall: 0.9244
+  f1: 0.8978
+  support: 7549
+  auc: null
+- class_name: __label__pos
+  precision: 0.7151
+  recall: 0.5847
+  f1: 0.6433
+  support: 2451
+  auc: 0.893
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr15_Go/Go/results_a138fb.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr15_Go/Go/results_a138fb.yaml
+
+Evaluation complete!
+=========================
+Evaluating Java with threshold 14
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr14/Java
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Java/Java
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Java/Java/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr14/Java
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Java/Java
+overall_results:
+  macro_precision: 0.7936
+  macro_recall: 0.786
+  macro_f1: 0.7894
+  macro_auc: 0.8827
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.8387
+  recall: 0.8654
+  f1: 0.8518
+  support: 6380
+  auc: null
+- class_name: __label__pos
+  precision: 0.7486
+  recall: 0.7066
+  f1: 0.727
+  support: 3620
+  auc: 0.8827
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Java/Java/results_459d14.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Java/Java/results_459d14.yaml
+
+Evaluation complete!
+=========================
+Evaluating JavaScript with threshold 14
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr14/JavaScript
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_JavaScript/JavaScript
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_JavaScript/JavaScript/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr14/JavaScript
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_JavaScript/JavaScript
+overall_results:
+  macro_precision: 0.7963
+  macro_recall: 0.7929
+  macro_f1: 0.7945
+  macro_auc: 0.8862
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.8493
+  recall: 0.8611
+  f1: 0.8552
+  support: 6431
+  auc: null
+- class_name: __label__pos
+  precision: 0.7433
+  recall: 0.7246
+  f1: 0.7338
+  support: 3569
+  auc: 0.8862
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_JavaScript/JavaScript/results_70cd75.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_JavaScript/JavaScript/results_70cd75.yaml
+
+Evaluation complete!
+=========================
+Evaluating Markdown with threshold 10
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr10/Markdown
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr10_Markdown/Markdown
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr10_Markdown/Markdown/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr10/Markdown
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr10_Markdown/Markdown
+overall_results:
+  macro_precision: 0.7855
+  macro_recall: 0.7912
+  macro_f1: 0.7876
+  macro_auc: 0.882
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.8431
+  recall: 0.7987
+  f1: 0.8203
+  support: 5926
+  auc: null
+- class_name: __label__pos
+  precision: 0.728
+  recall: 0.7838
+  f1: 0.7548
+  support: 4074
+  auc: 0.882
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr10_Markdown/Markdown/results_a7865c.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr10_Markdown/Markdown/results_a7865c.yaml
+
+Evaluation complete!
+=========================
+Evaluating PHP with threshold 13
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr13/PHP
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_PHP/PHP
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_PHP/PHP/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr13/PHP
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_PHP/PHP
+overall_results:
+  macro_precision: 0.8691
+  macro_recall: 0.8696
+  macro_f1: 0.8694
+  macro_auc: 0.9466
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.9017
+  recall: 0.8998
+  f1: 0.9007
+  support: 6208
+  auc: null
+- class_name: __label__pos
+  precision: 0.8365
+  recall: 0.8394
+  f1: 0.838
+  support: 3792
+  auc: 0.9466
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_PHP/PHP/results_f44b6d.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_PHP/PHP/results_f44b6d.yaml
+
+Evaluation complete!
+=========================
+Evaluating Python with threshold 13
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr13/Python
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_Python/Python
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_Python/Python/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr13/Python
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_Python/Python
+overall_results:
+  macro_precision: 0.8176
+  macro_recall: 0.8149
+  macro_f1: 0.8162
+  macro_auc: 0.9056
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.8593
+  recall: 0.8698
+  f1: 0.8645
+  support: 6277
+  auc: null
+- class_name: __label__pos
+  precision: 0.7759
+  recall: 0.7599
+  f1: 0.7678
+  support: 3723
+  auc: 0.9056
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_Python/Python/results_1c92a4.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13_Python/Python/results_1c92a4.yaml
+
+Evaluation complete!
+=========================
+Evaluating Ruby with threshold 14
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr14/Ruby
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Ruby/Ruby
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Ruby/Ruby/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr14/Ruby
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Ruby/Ruby
+overall_results:
+  macro_precision: 0.8136
+  macro_recall: 0.8138
+  macro_f1: 0.8137
+  macro_auc: 0.902
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.8481
+  recall: 0.8467
+  f1: 0.8474
+  support: 5910
+  auc: null
+- class_name: __label__pos
+  precision: 0.779
+  recall: 0.7809
+  f1: 0.78
+  support: 4090
+  auc: 0.902
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Ruby/Ruby/results_0a2a43.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Ruby/Ruby/results_0a2a43.yaml
+
+Evaluation complete!
+=========================
+Evaluating Rust with threshold 15
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr15/Rust
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr15_Rust/Rust
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr15_Rust/Rust/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr15/Rust
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr15_Rust/Rust
+overall_results:
+  macro_precision: 0.8147
+  macro_recall: 0.8053
+  macro_f1: 0.8096
+  macro_auc: 0.904
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.8649
+  recall: 0.8893
+  f1: 0.8769
+  support: 6673
+  auc: null
+- class_name: __label__pos
+  precision: 0.7646
+  recall: 0.7214
+  f1: 0.7423
+  support: 3327
+  auc: 0.904
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr15_Rust/Rust/results_fac50e.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr15_Rust/Rust/results_fac50e.yaml
+
+Evaluation complete!
+=========================
+Evaluating Shell with threshold 12
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr12/Shell
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr12_Shell/Shell
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr12_Shell/Shell/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr12/Shell
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr12_Shell/Shell
+overall_results:
+  macro_precision: 0.8216
+  macro_recall: 0.7974
+  macro_f1: 0.8077
+  macro_auc: 0.9055
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.8694
+  recall: 0.9145
+  f1: 0.8914
+  support: 6993
+  auc: null
+- class_name: __label__pos
+  precision: 0.7738
+  recall: 0.6804
+  f1: 0.7241
+  support: 3007
+  auc: 0.9055
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr12_Shell/Shell/results_55ee6b.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr12_Shell/Shell/results_55ee6b.yaml
+
+Evaluation complete!
+=========================
+Evaluating SQL with threshold 12
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr12/SQL
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr12_SQL/SQL
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr12_SQL/SQL/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr12/SQL
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr12_SQL/SQL
+overall_results:
+  macro_precision: 0.7908
+  macro_recall: 0.7908
+  macro_f1: 0.7908
+  macro_auc: 0.8682
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.7979
+  recall: 0.7967
+  f1: 0.7973
+  support: 5159
+  auc: null
+- class_name: __label__pos
+  precision: 0.7837
+  recall: 0.785
+  f1: 0.7843
+  support: 4841
+  auc: 0.8682
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr12_SQL/SQL/results_44d22a.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr12_SQL/SQL/results_44d22a.yaml
+
+Evaluation complete!
+=========================
+Evaluating Swift with threshold 14
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr14/Swift
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Swift/Swift
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Swift/Swift/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr14/Swift
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Swift/Swift
+overall_results:
+  macro_precision: 0.8026
+  macro_recall: 0.8015
+  macro_f1: 0.802
+  macro_auc: 0.887
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.826
+  recall: 0.8351
+  f1: 0.8305
+  support: 5689
+  auc: null
+- class_name: __label__pos
+  precision: 0.7792
+  recall: 0.7678
+  f1: 0.7735
+  support: 4311
+  auc: 0.887
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Swift/Swift/results_1258cd.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_Swift/Swift/results_1258cd.yaml
+
+Evaluation complete!
+=========================
+Evaluating TypeScript with threshold 14
+-------------------------
+Starting fasttext evaluation...
+  Dataset directories: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr14/TypeScript
+  Model directory: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_TypeScript/TypeScript
+  Text field: text
+  Label field: score
+Checking for fasttext binary in PATH...
+Found fasttext binary at: /usr/local/bin/fasttext
+Model file found: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_TypeScript/TypeScript/model.bin
+
+Loading dataset from 1 directory...
+Dataset loaded successfully.
+  Test samples: 10000
+
+Evaluating model on test data...
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/gpt-5-mini/10k_trimmed/fasttext/ultrafine_thr14/TypeScript
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_TypeScript/TypeScript
+overall_results:
+  macro_precision: 0.8106
+  macro_recall: 0.8124
+  macro_f1: 0.8114
+  macro_auc: 0.9008
+per_class_metrics:
+- class_name: __label__neg
+  precision: 0.8451
+  recall: 0.8293
+  f1: 0.8371
+  support: 5736
+  auc: null
+- class_name: __label__pos
+  precision: 0.776
+  recall: 0.7955
+  f1: 0.7856
+  support: 4264
+  auc: 0.9008
+
+
+
+Saving results to /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_TypeScript/TypeScript/results_e1203f.yaml...
+Results saved to: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB__gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr14_TypeScript/TypeScript/results_e1203f.yaml
+
+Evaluation complete!
+=========================
