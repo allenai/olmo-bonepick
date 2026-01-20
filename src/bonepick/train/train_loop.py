@@ -1,21 +1,21 @@
 import json
-import yaml
-from multiprocessing import cpu_count
 import subprocess
+from multiprocessing import cpu_count
 from pathlib import Path
 from typing import cast as typing_cast
 
 import click
-import torch
 import numpy as np
-from sklearn.utils.class_weight import compute_class_weight
+import torch
+import yaml
 from sklearn.preprocessing import LabelEncoder
+from sklearn.utils.class_weight import compute_class_weight
 
-from bonepick.train.data_utils import load_jsonl_dataset
 from bonepick.cli import PathParamType
+from bonepick.train.data_utils import load_jsonl_dataset
 from bonepick.train.fasttext_utils import check_fasttext_binary
-from bonepick.train.model2vec_utils import StaticModelForClassification, StaticModelForRegression
 from bonepick.train.jq_utils import add_field_or_expression_command_options, field_or_expression
+from bonepick.train.model2vec_utils import StaticModelForClassification, StaticModelForRegression
 from bonepick.train.normalizers import list_normalizers
 
 
