@@ -58,13 +58,14 @@ def infer_single_file(
             rows.append(row)
 
             text = str(text_selector(row))
+
+            if max_length is not None and len(text) > max_length:
+                text = text[:max_length]
+
             if normalizer:
                 text = normalizer.normalize(text)
             else:
                 text = text.replace("\n", " ").replace("\r", " ")
-
-            if max_length is not None and len(text) > max_length:
-                text = text[:max_length]
 
             texts.append(text)
 
