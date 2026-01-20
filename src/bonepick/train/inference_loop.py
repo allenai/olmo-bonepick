@@ -25,6 +25,7 @@ def infer_single_file(
     text_expression: str,
     classifier_name: str,
     normalizer_name: str | None = None,
+    max_length: int | None = None,
 ) -> int:
     """Run fasttext inference on a single file and add predictions to metadata.
 
@@ -59,8 +60,12 @@ def infer_single_file(
             text = str(text_selector(row))
             if normalizer:
                 text = normalizer.normalize(text)
-            # FastText expects single-line input
-            text = text.replace("\n", " ").replace("\r", " ")
+            else:
+                text = text.replace("\n", " ").replace("\r", " ")
+
+            if max_length is not None and len(text) > max_length:
+                text = text[:max_length]
+
             texts.append(text)
 
     if not rows:
@@ -111,11 +116,8 @@ def infer_single_file(
             # Build probability dict for all classes (keep __label__ prefix); sort ensures order by label name
             proba_dict = {label: proba for label, proba in sorted(zip(labels, probas))}
 
-            # Add to metadata
-            if "metadata" not in row:
-                row["metadata"] = {}
-
-            row["metadata"][classifier_name] = proba_dict
+            # add to metadata
+            row.setdefault("metadata", {})[classifier_name] = proba_dict
 
     finally:
         os.unlink(temp_input_path)
@@ -174,7 +176,7 @@ def infer_single_file(
 @click.option(
     "--normalizer",
     type=click.Choice(list_normalizers()),
-    default="whitespace",
+    default=None,
     help="Normalizer to apply to text before inference",
 )
 @click.option(
@@ -183,6 +185,7 @@ def infer_single_file(
     default=os.cpu_count() or 1,
     help="Maximum number of parallel workers (default: number of CPUs)",
 )
+@click.option("--max-length", type=int, default=None, help="Maximum length of text to process")
 def infer_fasttext(
     model_dir: Path,
     input_dir: Path,
@@ -190,8 +193,9 @@ def infer_fasttext(
     text_field: str | None,
     text_expression: str,
     classifier_name: str,
-    normalizer: str,
+    normalizer: str | None,
     num_proc: int,
+    max_length: int | None,
 ):
     """Run fasttext inference on JSONL files and add predictions to metadata.
 
@@ -210,6 +214,9 @@ def infer_fasttext(
     click.echo(f"  Classifier name: {classifier_name}")
     if normalizer:
         click.echo(f"  Normalizer: {normalizer}")
+
+    if max_length is not None:
+        click.echo(f"  Maximum text length: {max_length}")
 
     # Check fasttext binary
     fasttext_path = check_fasttext_binary()
@@ -257,6 +264,7 @@ def infer_fasttext(
                 text_expression=text_expression,
                 classifier_name=classifier_name,
                 normalizer_name=normalizer,
+                max_length=max_length,
             )
             futures.append(future)
 
