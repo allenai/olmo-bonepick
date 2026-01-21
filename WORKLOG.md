@@ -1806,3 +1806,28 @@ datamap-rs
 ```text
 import os \n import random \n import time \n import gui as gui \n \n def main (): \n gui . gui (). open window () \n \n if __ name __ == "__ main __ ": \n main () \n
 ```
+
+
+## Comparing ranked prediciton
+
+First infer...
+
+```bash
+uv run bonepick infer-fasttext \
+    -i ~/ai2-llm/classifiers/code-quality/data-train_test_split/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/Python/test \
+    --o tmp/sample_1GB_countup_Python_test \
+    --normalizer ultrafine \
+    -m ~/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB_countup_criteria_v2_gpt-5-mini_10k_trimmed_fasttext_ultrafine_thr13/Python \
+    -c "code_quality" \
+    --max-length 10000
+```
+
+...then compare:
+
+
+```bash
+uv run bonepick eval-predictions \
+    -d  tmp/sample_1GB_countup_Python_test \
+    -p '.metadata.code_quality.__label__pos' \
+    -l '.countup_criteria_v2.score'
+```
