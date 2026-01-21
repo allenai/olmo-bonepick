@@ -64,6 +64,9 @@ def generate_calibration_jq_expression(
 ) -> str:
     """Generate a jq expression to compute a weighted score from a dict.
 
+    The output expression pipes source_expression into the weighted sum,
+    e.g.: source_expression | ((."key1" * w1) + (."key2" * w2) + bias)
+
     Args:
         weights: Component weights
         bias: Bias term
@@ -73,13 +76,13 @@ def generate_calibration_jq_expression(
     Returns:
         JQ expression string that computes the weighted score
     """
-    # Build the sum expression
+    # Build the sum expression using . to reference the piped input
     terms = []
     for name, weight in sorted(weights.items()):
         if weight >= 0:
-            terms.append(f'({source_expression}."{name}" * {weight:.6f})')
+            terms.append(f'(."{name}" * {weight:.6f})')
         else:
-            terms.append(f'({source_expression}."{name}" * ({weight:.6f}))')
+            terms.append(f'(."{name}" * ({weight:.6f}))')
 
     sum_expr = " + ".join(terms)
     if bias >= 0:
@@ -88,11 +91,11 @@ def generate_calibration_jq_expression(
         sum_expr = f"({sum_expr} + ({bias:.6f}))"
 
     if model_type == "linear":
-        # Clamp to [0, 1]
-        return f"[0, [1, {sum_expr}] | min] | max"
+        # Clamp to [0, 1], pipe source_expression into the computation
+        return f"{source_expression} | [0, [1, {sum_expr}] | min] | max"
     else:  # log-linear
-        # Apply sigmoid: 1 / (1 + exp(-x))
-        return f"(1 / (1 + ((-1 * {sum_expr}) | exp)))"
+        # Apply sigmoid: 1 / (1 + exp(-x)), pipe source_expression into the computation
+        return f"{source_expression} | (1 / (1 + ((-1 * {sum_expr}) | exp)))"
 
 
 def add_field_or_expression_command_options(
