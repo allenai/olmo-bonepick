@@ -86,7 +86,10 @@ def train_fasttext(
     seed: int,
     verbose: int,
 ):
-    """Train a fasttext classifier by shelling out to the fasttext binary."""
+    """Train a FastText classifier.
+
+    Shells out to the fasttext binary for fast n-gram based text classification.
+    """
     click.echo("Starting fasttext training...")
     click.echo(f"  Dataset directories: {', '.join(str(d) for d in dataset_dir)}")
     click.echo(f"  Output directory: {output_dir}")
@@ -287,11 +290,9 @@ def infer_fasttext(
     num_proc: int,
     max_length: int | None,
 ):
-    """Run fasttext inference on JSONL files and add predictions to metadata.
+    """Run FastText inference on JSONL files.
 
-    For each row in the input files, extracts text using the text-expression,
-    runs fasttext classification, and stores the result in .metadata.{classifier_name}
-    as a dict mapping labels to probabilities (e.g., {"__label__pos": 0.52, "__label__neg": 0.48}).
+    Adds predictions to .metadata.{classifier_name} as label-probability dicts.
     """
 
     text_expression = field_or_expression(text_field, text_expression)

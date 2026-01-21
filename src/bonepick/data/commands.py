@@ -332,8 +332,10 @@ def balance_dataset(
     seed: int,
     num_proc: int,
 ):
-    """Balance dataset so each label has equal representation in all splits."""
+    """Balance dataset labels via downsampling.
 
+    Ensures each label has equal representation across train/test splits.
+    """
     click.echo("Starting dataset balancing...")
     click.echo(f"  Input directories: {', '.join(str(d) for d in input_dir)}")
     click.echo(f"  Output directory: {output_dir}")
@@ -453,9 +455,9 @@ def sample_dataset(
     seed: int,
     num_proc: int,
 ):
-    """Sample a dataset to a smaller size using random sampling.
+    """Create a random sample of a dataset.
 
-    Either --sampling-rate or --target-size must be specified (but not both).
+    Use --sampling-rate (0-1) or --target-size (e.g., '1GB') to control output size.
     """
     # Validate mutually exclusive options
     if sampling_rate is None and target_size is None:
@@ -634,10 +636,9 @@ def count_tokens(
     input_field_expression: str,
     num_proc: int,
 ):
-    """Count tokens in one or more dataset directories using parallel processing.
+    """Count tokens in dataset directories.
 
-    This command counts the total number of tokens in the specified dataset directories
-    using a specified tokenizer. It processes files in parallel for efficiency.
+    Uses a tokenizer to count total tokens across all JSONL files in parallel.
     """
     from tokenizers import Tokenizer
 
@@ -774,11 +775,11 @@ def reshard_dataset(
     seed: int,
     num_proc: int,
 ):
-    """Reshard a dataset by combining multiple files into exactly num-files output files.
+    """Combine files into N equal-sized shards.
 
-    This command redistributes the data from multiple small files into a specified number
-    of larger files, with output files being roughly equal in size. All files in the input
-    directory and its subdirectories will be combined.
+    Redistributes data from multiple small files into a specified number of larger files,
+    with output files being roughly equal in size. All files in the input directory
+    and its subdirectories will be combined.
 
     If --test-split-frac and/or --valid-split-frac are specified, the data will be split
     into train/, test/, and/or valid/ subdirectories, with num-files distributed

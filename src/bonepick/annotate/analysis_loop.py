@@ -270,10 +270,10 @@ def annotation_agreement(
     max_disagreements: int,
     ordinal: bool,
 ):
-    """Compare annotations between two datasets and compute agreement metrics.
+    """Compute agreement metrics between annotators.
 
-    This command compares annotations from two datasets that contain the same
-    samples annotated by different annotators or systems. It computes various
+    Compares annotations from two datasets containing the same samples
+    annotated by different annotators or systems. Computes various
     agreement metrics including simple agreement rate and Cohen's Kappa.
 
     Examples:
@@ -943,9 +943,9 @@ def label_distribution(
     label_type: Literal["ordinal", "value", "text"],
     key_length_buckets: int,
 ):
-    """Plot the distribution of labels in an annotated dataset.
+    """Show label distribution in a dataset.
 
-    This command analyzes a dataset directory containing JSONL files and displays
+    Analyzes a dataset directory containing JSONL files and displays
     the distribution of labels with CLI visualizations, including percentiles
     and histogram bars.
 

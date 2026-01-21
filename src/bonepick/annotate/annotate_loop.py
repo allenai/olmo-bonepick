@@ -191,7 +191,7 @@ def annotate_dataset(
     show_progress: bool,
     disable_cache: bool,
 ):
-    """Annotate datasets using LLM APIs with configurable prompts.
+    """Annotate dataset rows using LLM APIs.
 
     Supports rate limiting, caching, and batch processing for efficient annotation.
     """

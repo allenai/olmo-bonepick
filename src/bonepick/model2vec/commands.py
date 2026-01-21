@@ -279,9 +279,9 @@ def distill_model2vec(
     vocabulary_quantization: int | None = None,
     pooling: str = "mean",
 ):
-    """Distill a Sentence Transformer to a Model2Vec static embedding.
+    """Distill a transformer to static embeddings.
 
-    Creates fast, lightweight embeddings from larger transformer models.
+    Creates fast, lightweight Model2Vec embeddings from larger transformer models.
     """
     # check if the extra dependencies are installed
     extra_dependencies.check()
@@ -364,7 +364,7 @@ def eval_model2vec(
     dataset_dir: tuple[Path, ...],
     model_dir: Path,
 ):
-    """Evaluate a trained Model2Vec classifier on test data.
+    """Evaluate a Model2Vec classifier on test data.
 
     Computes precision, recall, F1, and AUC metrics per class and macro averages.
     """
