@@ -31,6 +31,7 @@ uv run bonepick distill-model2vec --help
 # Evaluation & Inference
 uv run bonepick eval-model2vec --help
 uv run bonepick eval-fasttext --help
+uv run bonepick eval-predictions --help
 uv run bonepick infer-fasttext --help
 
 # Annotation (requires --extra annotate)
@@ -83,6 +84,15 @@ Key functions in `evals/utils.py`:
 - `compute_detailed_metrics_fasttext()`: FastText evaluation wrapper with subprocess handling
 - `result_to_text()`: Formats results as YAML with dataset paths, macro metrics, and per-class breakdowns
 
+**Prediction Evaluation (`eval-predictions`):**
+- Evaluates scalar predictions (0-1) against ordinal gold labels using jq expressions
+- **AUC Metrics**: Macro, weighted, and ordinal (adjacent pairs) using Mann-Whitney U with tie correction
+- **Rank Correlation**: Spearman, Kendall's Tau-b (handles ties), Pearson
+- **Regression Metrics**: MSE, RMSE, MAE, R-squared (labels normalized to 0-1)
+- **Calibration**: Expected Calibration Error with bin analysis
+- **Visualization**: CLI histograms showing prediction distribution per class and calibration plots
+- Supports multiple dataset directories and outputs results as YAML
+
 ### Annotation System (Optional)
 
 Requires `uv sync --extra annotate` to enable. Uses `lm-deluge` library for async LLM requests.
@@ -112,6 +122,7 @@ Requires `uv sync --extra annotate` to enable. Uses `lm-deluge` library for asyn
 
 **Evaluation Modules (`evals/`):**
 - `evals/utils.py`: Shared evaluation utilities including `compute_detailed_metrics_model2vec()`, `compute_detailed_metrics_fasttext()`, and `result_to_text()`
+- `evals/commands.py`: CLI command `eval-predictions` for evaluating scalar predictions against ordinal labels with AUC, correlation, and calibration metrics
 
 **Annotation Modules (Optional, `annotate/`):**
 - `annotate/annotate_loop.py`: Annotation CLI commands (`annotate-dataset`, `list-prompts`)
@@ -183,6 +194,7 @@ Available text normalizers (used with `normalize-dataset` and `convert-to-fastte
 6. **LLM annotation pipeline**: import → annotate-dataset → balance → normalize → train → eval
 7. **Token analysis**: count-tokens on dataset(s) to understand size and token distribution before training
 8. **Regression model**: import → normalize → train-model2vec --regression (labels should be numeric)
+9. **Prediction evaluation**: infer-fasttext or other inference → eval-predictions (compare scalar predictions against ordinal labels)
 
 ### Tips
 
