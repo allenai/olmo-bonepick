@@ -10,23 +10,19 @@ import torch
 
 from bonepick.annotate import annotate_dataset, annotation_agreement, label_distribution, list_prompts
 from bonepick.cli import cli  # noqa: E402
-from bonepick.logger import init_logger  # noqa: E402
-from bonepick.train import (
+from bonepick.data import (
     balance_dataset,
     convert_to_fasttext,
     count_tokens,
-    distill_model,
-    eval_fasttext,
-    eval_model2vec,
     import_hf_dataset,
-    infer_fasttext,
     normalize_dataset,
     reshard_dataset,
     sample_dataset,
-    train_fasttext,
-    train_model2vec,
     transform_dataset,
 )
+from bonepick.fasttext import eval_fasttext, infer_fasttext, train_fasttext
+from bonepick.logger import init_logger  # noqa: E402
+from bonepick.model2vec import distill_model2vec, eval_model2vec, train_model2vec
 from bonepick.version import __version__
 
 __all__ = ["cli", "__version__"]
@@ -46,7 +42,7 @@ init_logger()
 cli.add_command(balance_dataset)
 cli.add_command(convert_to_fasttext)
 cli.add_command(count_tokens)
-cli.add_command(distill_model)
+cli.add_command(distill_model2vec)
 cli.add_command(eval_fasttext)
 cli.add_command(eval_model2vec)
 cli.add_command(import_hf_dataset)

@@ -1,16 +1,13 @@
-from functools import partial
-from itertools import batched
 import re
-from typing import Callable, Generic, TypeVar
 import unicodedata
-from math import sqrt
-from plsfix import fix_text
-from anyascii import anyascii
+from itertools import batched
+from typing import Callable, Generic, TypeVar
 
+from anyascii import anyascii
+from plsfix import fix_text
 from tokenizers import Tokenizer
 
-from bonepick.train.indent_utils import convert_spaces_to_tabs
-
+from bonepick.data.indentation import convert_spaces_to_tabs
 
 __all__ = [
     "register_normalizer",

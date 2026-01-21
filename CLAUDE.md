@@ -26,7 +26,7 @@ uv run bonepick count-tokens --help
 # Training
 uv run bonepick train-model2vec --help
 uv run bonepick train-fasttext --help
-uv run bonepick distill-model --help
+uv run bonepick distill-model2vec --help
 
 # Evaluation
 uv run bonepick eval-model2vec --help
@@ -61,7 +61,7 @@ This is a CLI tool for training efficient quality classifiers (Model2Vec and Fas
 - **train-model2vec**: Classification or regression using Model2Vec static embeddings with PyTorch Lightning training
   - Use `--regression` flag to train a regression model instead of classification
 - **train-fasttext**: Shells out to the fasttext binary for training
-- **distill-model**: Distills a Sentence Transformer model to a Model2Vec static embedding model
+- **distill-model2vec**: Distills a Sentence Transformer model to a Model2Vec static embedding model
 
 ### Evaluation System
 
@@ -75,9 +75,9 @@ Both `eval-model2vec` and `eval-fasttext` compute detailed classification metric
 - **Output Format**: YAML files saved to model directory as `results_<dataset_signature>.yaml`
 - **Multi-dataset**: Supports multiple `--dataset-dir` options; results computed on combined test sets
 
-Key functions in `eval_loop.py`:
+Key functions in `evals/utils.py`:
 - `_compute_metrics_from_predictions()`: Shared helper that computes all metrics from probability predictions
-- `compute_detailed_metrics()`: Model2Vec evaluation wrapper
+- `compute_detailed_metrics_model2vec()`: Model2Vec evaluation wrapper
 - `compute_detailed_metrics_fasttext()`: FastText evaluation wrapper with subprocess handling
 - `result_to_text()`: Formats results as YAML with dataset paths, macro metrics, and per-class breakdowns
 
@@ -92,23 +92,28 @@ Requires `uv sync --extra annotate` to enable. Uses `lm-deluge` library for asyn
 
 ### Key Components
 
-**Core Modules:**
-- `train/train_loop.py`: Training CLI commands (`train-model2vec`, `train-fasttext`)
-- `train/distill_loop.py`: Model distillation command (`distill-model`)
-- `train/eval_loop.py`: Evaluation CLI commands (`eval-model2vec`, `eval-fasttext`) with detailed probability-based metrics
-- `train/data_loop.py`: Dataset loading, transformation, balancing, sampling, resharding, format conversion, and token counting CLI commands
-- `train/data_utils.py`: Helper functions for file I/O, label counting, sample reading, file sampling, resharding, and token counting; includes `load_jsonl_dataset()` and `load_fasttext_dataset()` with support for multiple dataset directories; `sample_single_file()` for random sampling; `reshard_single_output()` for combining files; `count_tokens_in_file()` for parallel token counting; `pretty_size()` for human-readable size formatting
-- `train/model2vec_utils.py`: Custom Model2Vec classes including `BetterStaticModelForClassification` (parallel tokenization) and `StaticModelForRegression` (regression with MSE loss)
-- `train/tokenization_utils.py`: Parallel tokenization utilities using multiprocessing
-- `train/normalizers.py`: Text normalizer registry with implementations (whitespace, plsfix, tokenizer, ultrafine, hyperfine, hyperfine-code, potion, potion-code)
-- `train/fasttext_utils.py`: FastText binary detection and dataset signature utilities
-- `train/indent_utils.py`: Indentation detection and space-to-tab conversion utilities
-- `train/jq_utils.py`: JQ expression compilation and field/expression helpers
+**Data Modules (`data/`):**
+- `data/commands.py`: Dataset loading, transformation, balancing, sampling, resharding, format conversion, and token counting CLI commands
+- `data/utils.py`: Helper functions for file I/O, label counting, sample reading, file sampling, resharding, and token counting; includes `load_jsonl_dataset()` and `load_fasttext_dataset()` with support for multiple dataset directories; `sample_single_file()` for random sampling; `count_tokens_in_file()` for parallel token counting; `pretty_size()` for human-readable size formatting
+- `data/normalizers.py`: Text normalizer registry with implementations (whitespace, plsfix, tokenizer, ultrafine, hyperfine, hyperfine-code, potion, potion-code)
+- `data/tokenizers.py`: Parallel tokenization utilities using multiprocessing
+- `data/indentation.py`: Indentation detection and space-to-tab conversion utilities
+- `data/expressions.py`: JQ expression compilation and field/expression helpers
 
-**Annotation Modules (Optional):**
+**Model2Vec Modules (`model2vec/`):**
+- `model2vec/commands.py`: Training CLI commands (`train-model2vec`, `distill-model2vec`, `eval-model2vec`)
+- `model2vec/utils.py`: Custom Model2Vec classes including `StaticModelForClassification` (parallel tokenization) and `StaticModelForRegression` (regression with MSE loss)
+
+**FastText Modules (`fasttext/`):**
+- `fasttext/commands.py`: FastText CLI commands (`train-fasttext`, `eval-fasttext`, `infer-fasttext`)
+- `fasttext/utils.py`: FastText binary detection, dataset signature utilities, and inference helpers
+
+**Evaluation Modules (`evals/`):**
+- `evals/utils.py`: Shared evaluation utilities including `compute_detailed_metrics_model2vec()`, `compute_detailed_metrics_fasttext()`, and `result_to_text()`
+
+**Annotation Modules (Optional, `annotate/`):**
 - `annotate/annotate_loop.py`: Annotation CLI commands (`annotate-dataset`, `list-prompts`)
-- `annotate/agreement_loop.py`: Annotation agreement CLI command (`annotation-agreement`)
-- `annotate/annotate_utils.py`: Annotation helper functions
+- `annotate/analysis_loop.py`: Annotation agreement and label distribution CLI commands (`annotation-agreement`, `label-distribution`)
 - `annotate/prompts.py`: Base classes for annotation prompts
 - `annotate/deluge_utils.py`: LM-deluge integration and caching utilities
 - `annotate/pydantic_utils.py`: Pydantic utilities for annotation
@@ -172,7 +177,7 @@ Available text normalizers (used with `normalize-dataset` and `convert-to-fastte
 2. **Balanced training**: import → transform → balance → normalize → train → eval
 3. **Sampling for experiments**: import → sample → normalize → train → eval
 4. **Resharding for efficiency**: import → reshard (per split) → normalize → train → eval
-5. **Distilling custom embeddings**: distill-model from Sentence Transformer → use in train-model2vec
+5. **Distilling custom embeddings**: distill-model2vec from Sentence Transformer → use in train-model2vec
 6. **LLM annotation pipeline**: import → annotate-dataset → balance → normalize → train → eval
 7. **Token analysis**: count-tokens on dataset(s) to understand size and token distribution before training
 8. **Regression model**: import → normalize → train-model2vec --regression (labels should be numeric)

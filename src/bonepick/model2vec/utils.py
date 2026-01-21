@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
@@ -9,23 +8,15 @@ import torch
 from lightning.pytorch.callbacks import Callback, EarlyStopping
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
 from model2vec.train import StaticModelForClassification as _StaticModelForClassification
-from model2vec.train.classifier import LabelType
 from model2vec.train.base import FinetunableStaticModel, TextDataset
+from model2vec.train.classifier import LabelType
 from sklearn.model_selection import train_test_split
 from tokenizers import Tokenizer
 from torch import nn
 from tqdm import trange
 
-from bonepick.train.tokenization_utils import parallel_tokenize
-
-logger = logging.getLogger(__name__)
-if not logger.hasHandlers():
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+from bonepick.data.tokenizers import parallel_tokenize
+from bonepick.logger import LOGGER
 
 _RANDOM_SEED = 42
 
@@ -182,7 +173,7 @@ class StaticModelForRegression(FinetunableStaticModel):
         :return: The fitted model.
         """
         pl.seed_everything(_RANDOM_SEED)
-        logger.info("Re-initializing model.")
+        LOGGER.info("Re-initializing model.")
 
         # Re-initialize the head
         self.head = self.construct_head()
@@ -208,11 +199,11 @@ class StaticModelForRegression(FinetunableStaticModel):
         if batch_size is None:
             base_number = int(min(max(1, (len(train_texts) / 30) // 32), 16))
             batch_size = int(base_number * 32)
-            logger.info("Batch size automatically set to %d.", batch_size)
+            LOGGER.info("Batch size automatically set to %d.", batch_size)
 
-        logger.info("Preparing train dataset.")
+        LOGGER.info("Preparing train dataset.")
         train_dataset = self._prepare_dataset(train_texts, train_targets)
-        logger.info("Preparing validation dataset.")
+        LOGGER.info("Preparing validation dataset.")
         val_dataset = self._prepare_dataset(validation_texts, validation_targets)
 
         lightning_module = _RegressionLightningModule(self, learning_rate=learning_rate)

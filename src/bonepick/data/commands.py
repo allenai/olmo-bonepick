@@ -1,36 +1,35 @@
 import os
 import random
-import yaml
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from functools import partial
-from pathlib import Path
 from math import log10
+from pathlib import Path
 
 import click
 import datasets
 import smart_open
+import yaml
 from tqdm import tqdm
 
 from bonepick.cli import ByteSizeParamType, FloatOrIntParamType, PathParamType
-from bonepick.train.data_utils import (
-    load_jsonl_dataset,
+from bonepick.data.expressions import add_field_or_expression_command_options, field_or_expression
+from bonepick.data.normalizers import list_normalizers
+from bonepick.data.utils import (
+    FILE_SUFFIXES,
     DatasetSplit,
     DatasetTuple,
     batch_save_hf_dataset,
     convert_single_file_to_fasttext,
     count_tokens_in_file,
+    load_jsonl_dataset,
     normalize_single_file,
-    sample_single_file,
-    write_dataset,
-    FILE_SUFFIXES,
-    transform_single_file,
     pretty_size,
+    sample_single_file,
+    transform_single_file,
+    write_dataset,
 )
-from bonepick.train.normalizers import list_normalizers
-from bonepick.train.jq_utils import field_or_expression, add_field_or_expression_command_options
-
 
 __all__ = [
     "balance_dataset",

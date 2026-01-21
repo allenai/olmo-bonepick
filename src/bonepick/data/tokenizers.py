@@ -6,7 +6,7 @@ from functools import partial
 from tokenizers import Tokenizer
 from tqdm import tqdm
 
-from bonepick.train.data_utils import ChunkedDataset, ChunkedDatasetPath
+from bonepick.data.utils import ChunkedDataset, ChunkedDatasetPath
 
 
 def tokenize_chunk(

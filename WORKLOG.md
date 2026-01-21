@@ -1792,3 +1792,17 @@ official
 ```text
 import os \n import random \n import time \n import gui as gui \n \n def main (): \n gui . gui (). open window () \n \n if __ name __ == "__ main __ ": \n main () \n
 ```
+
+----
+
+bonepick
+
+```text
+import os \n import random \n import time \n import gui as gui \n \n def main (): \n gui . gui (). open window () \n \n if __ name __ == "__ main __ ": \n main () \n
+```
+
+datamap-rs
+
+```text
+import os \n import random \n import time \n import gui as gui \n \n def main (): \n gui . gui (). open window () \n \n if __ name __ == "__ main __ ": \n main () \n
+```

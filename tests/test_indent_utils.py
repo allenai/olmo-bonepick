@@ -1,7 +1,8 @@
 """Tests for indentation utilities."""
 
 import pytest
-from bonepick.train.indent_utils import (
+
+from bonepick.data.indentation import (
     convert_spaces_to_tabs,
     detect_indentation,
     has_space_indentation,

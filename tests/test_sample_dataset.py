@@ -9,7 +9,7 @@ import pytest
 import smart_open
 
 from bonepick.cli import ByteSizeParamType
-from bonepick.train.data_utils import sample_single_file
+from bonepick.data.utils import sample_single_file
 
 
 # Test fixtures
@@ -354,7 +354,8 @@ class TestSampleDatasetIntegration:
     def test_sample_with_sampling_rate(self, test_data_dir, output_dir):
         """Test sampling with --sampling-rate option."""
         from click.testing import CliRunner
-        from bonepick.train.data_loop import sample_dataset
+
+        from bonepick.data.commands import sample_dataset
 
         # Get original size
         original_size = sum(f.stat().st_size for f in test_data_dir.rglob("*.jsonl"))
@@ -393,7 +394,8 @@ class TestSampleDatasetIntegration:
     def test_sample_with_target_size(self, test_data_dir, output_dir):
         """Test sampling with --target-size option."""
         from click.testing import CliRunner
-        from bonepick.train.data_loop import sample_dataset
+
+        from bonepick.data.commands import sample_dataset
 
         runner = CliRunner()
         target_bytes = 1024  # 1KB
@@ -423,7 +425,8 @@ class TestSampleDatasetIntegration:
     def test_mutually_exclusive_options(self, test_data_dir, output_dir):
         """Test that sampling-rate and target-size are mutually exclusive."""
         from click.testing import CliRunner
-        from bonepick.train.data_loop import sample_dataset
+
+        from bonepick.data.commands import sample_dataset
 
         runner = CliRunner()
         result = runner.invoke(
@@ -445,7 +448,8 @@ class TestSampleDatasetIntegration:
     def test_requires_one_option(self, test_data_dir, output_dir):
         """Test that either sampling-rate or target-size must be specified."""
         from click.testing import CliRunner
-        from bonepick.train.data_loop import sample_dataset
+
+        from bonepick.data.commands import sample_dataset
 
         runner = CliRunner()
         result = runner.invoke(
@@ -463,7 +467,8 @@ class TestSampleDatasetIntegration:
     def test_preserves_directory_structure(self, test_data_dir, output_dir):
         """Test that directory structure is preserved."""
         from click.testing import CliRunner
-        from bonepick.train.data_loop import sample_dataset
+
+        from bonepick.data.commands import sample_dataset
 
         runner = CliRunner()
         result = runner.invoke(

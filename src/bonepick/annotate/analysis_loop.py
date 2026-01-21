@@ -14,8 +14,8 @@ from lazy_imports import try_import
 from tqdm import tqdm
 
 from bonepick.cli import PathParamType
-from bonepick.train.data_utils import FILE_SUFFIXES
-from bonepick.train.jq_utils import compile_jq
+from bonepick.data.expressions import compile_jq
+from bonepick.data.utils import FILE_SUFFIXES
 
 with try_import() as extra_dependencies:
     from rich.console import Console

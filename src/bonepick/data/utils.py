@@ -1,30 +1,27 @@
-from collections import defaultdict
 import dataclasses as dt
-from math import log10, floor
-import time
-import pickle
-import shutil
-import tempfile
 import hashlib
 import os
-import re
+import pickle
 import random
+import re
+import shutil
+import tempfile
+import time
+import uuid
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from functools import cached_property
+from math import floor, log10
 from pathlib import Path
-from typing import Generator, Self, TypeVar, Generic, ClassVar
-import uuid
-
+from typing import ClassVar, Generator, Generic, Self, TypeVar
 
 import msgspec
 import smart_open
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
-from bonepick.train.normalizers import get_normalizer
-from bonepick.train.jq_utils import compile_jq
+from bonepick.data.expressions import compile_jq
+from bonepick.data.normalizers import get_normalizer
 from bonepick.logger import LOGGER
-
 
 FILE_SUFFIXES = [
     f"{type_}{compr}" for type_ in (".jsonl", ".json") for compr in (".zst", ".zstd", ".gz", ".gzip", "")

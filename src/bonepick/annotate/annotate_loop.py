@@ -13,7 +13,8 @@ from tqdm import tqdm
 
 from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt
 from bonepick.cli import PathParamType
-from bonepick.train.data_utils import FILE_SUFFIXES, compile_jq
+from bonepick.data.expressions import compile_jq
+from bonepick.data.utils import FILE_SUFFIXES
 
 with try_import() as extra_dependencies:
     # extra imports; they won't fail here, but later when running the command they will
