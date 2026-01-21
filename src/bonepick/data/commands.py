@@ -60,6 +60,10 @@ def import_hf_dataset(
     batch_size: int,
     num_proc: int,
 ):
+    """Import a HuggingFace dataset to local JSONL files.
+
+    Downloads and saves to train/ and test/ subdirectories with optional train/test splitting.
+    """
     dataset = datasets.load_dataset(name, name=subset)
     assert isinstance(dataset, datasets.DatasetDict), "Dataset is not a DatasetDict"
 
@@ -97,6 +101,10 @@ def transform_dataset(
     label_transform: str,
     num_proc: int,
 ):
+    """Transform dataset fields using jq expressions.
+
+    Applies jq transformations to reshape text and label fields in JSONL files.
+    """
     input_files: list[Path] = []
     output_files: list[Path] = []
     for root, _, files in os.walk(input_dir):
@@ -150,6 +158,10 @@ def normalize_dataset(
     label_field: str,
     num_proc: int,
 ):
+    """Apply text normalization to a dataset.
+
+    Supports whitespace, plsfix, tokenizer, ultrafine, hyperfine, and potion normalizers.
+    """
     input_files: list[Path] = []
     output_files: list[Path] = []
     for root, _, files in os.walk(input_dir):
@@ -207,6 +219,10 @@ def convert_to_fasttext(
     normalization: str,
     max_length: int | None,
 ):
+    """Convert JSONL dataset to FastText format.
+
+    Outputs __label__<label> <text> format for FastText training.
+    """
     text_expression = field_or_expression(text_field, text_expression)
     label_expression = field_or_expression(label_field, label_expression)
     row_count: dict[str, int] = {}

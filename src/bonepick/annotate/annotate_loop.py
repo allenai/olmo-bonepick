@@ -191,6 +191,10 @@ def annotate_dataset(
     show_progress: bool,
     disable_cache: bool,
 ):
+    """Annotate datasets using LLM APIs with configurable prompts.
+
+    Supports rate limiting, caching, and batch processing for efficient annotation.
+    """
     # check if the extra dependencies are installed
     extra_dependencies.check()
 

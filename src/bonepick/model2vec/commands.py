@@ -92,6 +92,10 @@ def train_model2vec(
     normalizer: str | None,
     max_length: int | None,
 ):
+    """Train a Model2Vec classifier or regressor.
+
+    Uses static embeddings with PyTorch Lightning for efficient CPU-friendly inference.
+    """
     task_type = "regression" if regression else "classification"
 
     text_expression = field_or_expression(text_field, text_expression)
@@ -275,6 +279,10 @@ def distill_model2vec(
     vocabulary_quantization: int | None = None,
     pooling: str = "mean",
 ):
+    """Distill a Sentence Transformer to a Model2Vec static embedding.
+
+    Creates fast, lightweight embeddings from larger transformer models.
+    """
     # check if the extra dependencies are installed
     extra_dependencies.check()
 
@@ -356,6 +364,10 @@ def eval_model2vec(
     dataset_dir: tuple[Path, ...],
     model_dir: Path,
 ):
+    """Evaluate a trained Model2Vec classifier on test data.
+
+    Computes precision, recall, F1, and AUC metrics per class and macro averages.
+    """
     text_expression = field_or_expression(text_field, text_expression)
     label_expression = field_or_expression(label_field, label_expression)
 
