@@ -257,7 +257,7 @@ def eval_calibration(
     "--model-type",
     type=click.Choice(["linear", "log-linear"]),
     default="linear",
-    help="Model type: 'linear' for linear regression, 'log-linear' for logistic",
+    help="Model type: 'linear' for linear regression, 'log-linear' for logistic. Defaults to 'linear'.",
 )
 @click.option(
     "-o",

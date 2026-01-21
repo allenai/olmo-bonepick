@@ -1826,8 +1826,435 @@ uv run bonepick infer-fasttext \
 
 
 ```bash
-uv run bonepick eval-predictions \
+uv run bonepick eval-calibration \
     -d  tmp/sample_1GB_countup_Python_test \
     -p '.metadata.code_quality.__label__pos' \
     -l '.countup_criteria_v2.score'
+```
+
+
+## Try multi-label
+
+Why? cuz calibration was basd
+
+command:
+
+```bash
+uv run bonepick eval-calibration \
+    -d  tmp/sample_1GB_countup_Python_test \
+    -p '.metadata.code_quality.__label__pos' \
+    -l '.countup_criteria_v2.score'
+Uninstalled 1 package in 0.51ms
+Installed 1 package in 2ms
+```
+
+Results:
+
+```
+Prediction Evaluation
+
+Dataset(s): tmp/sample_1GB_countup_Python_test
+Prediction Expression: .metadata.code_quality.__label__pos
+Label Expression: .countup_criteria_v2.score
+
+Loading files: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1.00/1.00 [00:05<00:00, 5.65s/ files]
+Loaded 10,000 samples with 16 unique labels: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+Computing metrics...
+
+
+Prediction Evaluation Results
+
+╭───────────── Overall Metrics ─────────────╮
+│ Macro AUC: 0.8759                         │
+│ Weighted AUC: 0.8529                      │
+│ Ordinal AUC (adjacent pairs): 0.5718      │
+│                                           │
+│ Spearman Correlation: 0.7524 (p=0.00e+00) │
+│ Kendall's Tau-b: 0.5873 (p=0.00e+00)      │
+│ Pearson Correlation: 0.7093 (p=0.00e+00)  │
+│                                           │
+│ MSE: 0.118954                             │
+│ RMSE: 0.344897                            │
+│ MAE: 0.296788                             │
+│ R-squared: -6.0589                        │
+│                                           │
+│ Expected Calibration Error: 0.2896        │
+│                                           │
+│ Total Samples: 10,000                     │
+╰───────────────────────────────────────────╯
+
+Per-Class Statistics:
+┏━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━┓
+┃ Label ┃ Count ┃ Mean Pred ┃ Std Pred ┃    Min ┃ Median ┃    Max ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━┩
+│ 4     │     1 │    0.0021 │   0.0000 │ 0.0021 │ 0.0021 │ 0.0021 │
+│ 5     │     1 │    0.0002 │   0.0000 │ 0.0002 │ 0.0002 │ 0.0002 │
+│ 6     │    25 │    0.0839 │   0.1550 │ 0.0000 │ 0.0177 │ 0.5708 │
+│ 7     │    38 │    0.0833 │   0.1502 │ 0.0000 │ 0.0127 │ 0.6443 │
+│ 8     │   153 │    0.0576 │   0.1269 │ 0.0000 │ 0.0065 │ 0.7307 │
+│ 9     │   332 │    0.0728 │   0.1377 │ 0.0000 │ 0.0141 │ 0.8611 │
+│ 10    │   293 │    0.0769 │   0.1477 │ 0.0000 │ 0.0153 │ 0.9947 │
+│ 11    │ 1,193 │    0.0981 │   0.1537 │ 0.0000 │ 0.0297 │ 0.9746 │
+│ 12    │ 1,945 │    0.1526 │   0.1948 │ 0.0000 │ 0.0743 │ 0.9811 │
+│ 13    │ 2,296 │    0.3119 │   0.2589 │ 0.0000 │ 0.2481 │ 0.9978 │
+│ 14    │ 1,327 │    0.5316 │   0.2612 │ 0.0002 │ 0.5651 │ 0.9994 │
+│ 15    │ 1,700 │    0.7210 │   0.2325 │ 0.0144 │ 0.7879 │ 0.9997 │
+│ 16    │   479 │    0.8395 │   0.1550 │ 0.1568 │ 0.8901 │ 0.9995 │
+│ 17    │   151 │    0.8692 │   0.1234 │ 0.3793 │ 0.9153 │ 0.9964 │
+│ 18    │    46 │    0.9073 │   0.0880 │ 0.6112 │ 0.9305 │ 0.9972 │
+│ 19    │    20 │    0.9350 │   0.0475 │ 0.8070 │ 0.9433 │ 0.9946 │
+└───────┴───────┴───────────┴──────────┴────────┴────────┴────────┘
+
+Prediction Distribution by Class:
+(Shows mean prediction with std dev range)
+
+        Label      Mean  Distribution
+            4     0.002  0[|                                                  ]1
+            5     0.000  0[|                                                  ]1
+            6     0.084  0[----|-------                                       ]1
+            7     0.083  0[----|-------                                       ]1
+            8     0.058  0[--|-------                                         ]1
+            9     0.073  0[---|-------                                        ]1
+           10     0.077  0[---|--------                                       ]1
+           11     0.098  0[----|--------                                      ]1
+           12     0.153  0[-------|----------                                 ]1
+           13     0.312  0[  -------------|-------------                      ]1
+           14     0.532  0[             -------------|-------------           ]1
+           15     0.721  0[                        ------------|-----------   ]1
+           16     0.839  0[                                  -------|-------- ]1
+           17     0.869  0[                                     ------|------ ]1
+           18     0.907  0[                                        -----|---- ]1
+           19     0.935  0[                                            --|--- ]1
+
+Calibration Plot:
+(Perfect calibration: mean prediction = mean label)
+
+             Bin     Count   Mean Pred  Mean Label     Error  Visualization
+      [0.0, 0.1)     3,386       0.028       0.493     0.465  P        L
+      [0.1, 0.2)     1,055       0.148       0.557     0.409    P        L
+      [0.2, 0.3)       756       0.248       0.581     0.334      P      L
+      [0.3, 0.4)       606       0.348       0.603     0.255        P     L
+      [0.4, 0.5)       547       0.449       0.622     0.174          P   L
+      [0.5, 0.6)       605       0.551       0.639     0.088             PL
+      [0.6, 0.7)       634       0.650       0.661     0.012              PL
+      [0.7, 0.8)       701       0.751       0.689     0.062               L P
+      [0.8, 0.9)       761       0.854       0.724     0.130                L  P
+      [0.9, 1.0)       949       0.949       0.756     0.193                 L  P
+L=Label, P=Prediction, ==Match
+```
+
+
+So we convert with new auto flag
+
+```bash
+uv run bonepick convert-to-fasttext \
+    --input-dir ~/ai2-llm/classifiers/code-quality/data-train_test_split/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/Python \
+    --output-dir ~/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/fasttext/ultrafine_auto5 \
+    --normalization ultrafine \
+    --label-expression '.countup_criteria_v2.score' \
+    --max-length 10000 \
+    --auto 5
+```
+
+Now train model
+
+```bash
+uv run bonepick train-fasttext \
+    --dataset-dir ~/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/fasttext/ultrafine_auto5 \
+    --output-dir ~/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB_countup_criteria_v2_gpt-5-mini_10k_trimmed_fasttext_ultrafine_auto5/Python 
+```
+
+Now eval model
+
+```bash
+uv run bonepick eval-fasttext \
+    --dataset-dir ~/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/fasttext/ultrafine_auto5 \
+    --model-dir ~/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB_countup_criteria_v2_gpt-5-mini_10k_trimmed_fasttext_ultrafine_auto5/Python 
+```
+
+Evals look mid, but wait...
+
+```text
+Evaluation results:
+dataset_dir:
+- /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/fastt
+ext/ultrafine_auto5
+model_dir: /home/lucas/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB_countup_criteria_v2_gpt-5-mi
+ni_10k_trimmed_fasttext_ultrafine_auto5/Python
+overall_results:
+  macro_precision: 0.5552
+  macro_recall: 0.4566
+  macro_f1: 0.4515
+  macro_auc: null
+per_class_metrics:
+- class_name: __label__bin_0
+  precision: 0.7472
+  recall: 0.2384
+  f1: 0.3615
+  support: 843
+  auc: null
+- class_name: __label__bin_1
+  precision: 0.568
+  recall: 0.775
+  f1: 0.6555
+  support: 3138
+  auc: null
+- class_name: __label__bin_2
+  precision: 0.4048
+  recall: 0.3537
+  f1: 0.3775
+  support: 2296
+  auc: null
+- class_name: __label__bin_3
+  precision: 0.4316
+  recall: 0.0927
+  f1: 0.1526
+  support: 1327
+  auc: null
+- class_name: __label__bin_4
+  precision: 0.6244
+  recall: 0.823
+  f1: 0.7101
+  support: 2396
+  auc: null
+```
+
+Evaluate with simple binarization strategy (max if label is 2/3/4, 1 - max if label is 0/1)
+
+```bash
+uv run bonepick eval-calibration \
+    -d  tmp/sample_1GB_countup_Python_test_auto5 \
+    -p '.metadata.code_quality_auto5 |
+  to_entries |
+  max_by(.value) |
+  if (.key | test("bin_[234]")) then .value else 1 - .value end' \
+    -l '.countup_criteria_v2.score'
+```
+
+Looks decent:
+
+```
+Prediction Evaluation
+
+Dataset(s): tmp/sample_1GB_countup_Python_test_auto5
+Prediction Expression: .metadata.code_quality_auto5 |
+  to_entries |
+  max_by(.value) |
+  if (.key | test("bin_[234]")) then .value else 1 - .value end
+Label Expression: .countup_criteria_v2.score
+
+Loading files: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1.00/1.00 [00:06<00:00, 6.11s/ files]
+Loaded 10,000 samples with 16 unique labels: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+Warning: Predictions outside [0,1] range: [-0.0000, 0.9872]
+
+Computing metrics...
+
+Prediction Evaluation Results                                                                                                                         13:51:39 [40/9255]
+
+╭───────────── Overall Metrics ─────────────╮
+│ Macro AUC: 0.7747                         │
+│ Weighted AUC: 0.7243                      │
+│ Ordinal AUC (adjacent pairs): 0.5774      │
+│                                           │
+│ Spearman Correlation: 0.4474 (p=0.00e+00) │
+│ Kendall's Tau-b: 0.3319 (p=0.00e+00)      │
+│ Pearson Correlation: 0.5133 (p=0.00e+00)  │
+│                                           │
+│ MSE: 0.038874                             │
+│ RMSE: 0.197164                            │
+│ MAE: 0.163501                             │
+│ R-squared: -1.3068                        │
+│                                           │
+│ Expected Calibration Error: 0.1380        │
+│                                           │
+│ Total Samples: 10,000                     │
+╰───────────────────────────────────────────╯
+
+Per-Class Statistics:
+┏━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┓
+┃ Label ┃ Count ┃ Mean Pred ┃ Std Pred ┃     Min ┃ Median ┃    Max ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━━━┩
+│ 4     │     1 │    0.3123 │   0.0000 │  0.3123 │ 0.3123 │ 0.3123 │
+│ 5     │     1 │    0.4350 │   0.0000 │  0.4350 │ 0.4350 │ 0.4350 │
+│ 6     │    25 │    0.3051 │   0.1832 │  0.0075 │ 0.3467 │ 0.6142 │
+│ 7     │    38 │    0.3076 │   0.1619 │  0.0084 │ 0.3391 │ 0.5594 │
+│ 8     │   153 │    0.3263 │   0.1578 │ -0.0000 │ 0.3507 │ 0.7115 │
+│ 9     │   332 │    0.3688 │   0.1574 │ -0.0000 │ 0.3952 │ 0.7198 │
+│ 10    │   293 │    0.3817 │   0.1323 │  0.0098 │ 0.3778 │ 0.9604 │
+│ 11    │ 1,193 │    0.3876 │   0.1205 │  0.0274 │ 0.3816 │ 0.9209 │
+│ 12    │ 1,945 │    0.4145 │   0.1267 │  0.0460 │ 0.4080 │ 0.9209 │
+│ 13    │ 2,296 │    0.4526 │   0.1212 │  0.0931 │ 0.4352 │ 0.9592 │
+│ 14    │ 1,327 │    0.4745 │   0.1419 │  0.2003 │ 0.4409 │ 0.9872 │
+│ 15    │ 1,700 │    0.5916 │   0.1927 │  0.2494 │ 0.5879 │ 0.9869 │
+│ 16    │   479 │    0.7084 │   0.1810 │  0.2919 │ 0.7462 │ 0.9834 │
+│ 17    │   151 │    0.7583 │   0.1564 │  0.2980 │ 0.7947 │ 0.9725 │
+│ 18    │    46 │    0.8159 │   0.1345 │  0.3658 │ 0.8565 │ 0.9762 │
+│ 19    │    20 │    0.8579 │   0.0888 │  0.6414 │ 0.8694 │ 0.9666 │
+└───────┴───────┴───────────┴──────────┴─────────┴────────┴────────┘
+
+Prediction Distribution by Class:
+(Shows mean prediction with std dev range)
+
+        Label      Mean  Distribution
+            4     0.312  0[               |                                   ]1
+            5     0.435  0[                     |                             ]1
+            6     0.305  0[      ---------|---------                          ]1
+            7     0.308  0[       --------|--------                           ]1
+            8     0.326  0[        --------|--------                          ]1
+            9     0.369  0[          --------|--------                        ]1
+           10     0.382  0[            -------|------                         ]1
+           11     0.388  0[             ------|------                         ]1
+           12     0.415  0[              ------|-------                       ]1
+           13     0.453  0[                ------|------                      ]1
+           14     0.475  0[                -------|-------                    ]1
+           15     0.592  0[                   ----------|----------           ]1
+           16     0.708  0[                          ---------|---------      ]1
+           17     0.758  0[                              -------|--------     ]1
+           18     0.816  0[                                  ------|-------   ]1
+           19     0.858  0[                                      ----|-----   ]1
+
+Calibration Plot:
+(Perfect calibration: mean prediction = mean label)
+
+             Bin     Count   Mean Pred  Mean Label     Error  Visualization
+      [0.0, 0.1)        97       0.046       0.344     0.297  P     L
+      [0.1, 0.2)       182       0.159       0.470     0.311     P     L
+      [0.2, 0.3)       859       0.266       0.522     0.256       P    L
+      [0.3, 0.4)     2,709       0.352       0.572     0.220         P   L
+      [0.4, 0.5)     2,481       0.447       0.572     0.125          P  L
+      [0.5, 0.6)     1,562       0.548       0.595     0.047            PL
+      [0.6, 0.7)       874       0.644       0.651     0.007              PL
+      [0.7, 0.8)       560       0.747       0.721     0.026                =
+      [0.8, 0.9)       432       0.849       0.767     0.082                 LP
+      [0.9, 1.0)       244       0.932       0.776     0.157                 L  P
+L=Label, P=Prediction, ==Match
+```
+
+## fitting calibration model
+
+Make validation data to calibrate over
+
+```bash
+uv run bonepick infer-fasttext \
+    -i /home/lucas/ai2-llm/classifiers/code-quality/data-train_test_split/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/Python/valid/ \
+    --output-dir tmp/sample_1GB_countup_Python_valid_auto5 \
+    --normalizer ultrafine \
+    -m ~/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB_countup_criteria_v2_gpt-5-mini_10k_trimmed_fasttext_ultrafine_auto5/Python/ \
+    -c "code_quality_auto5" \
+    --max-length 10000
+```
+
+Now let's train a linear model
+
+```bash
+uv run bonepick train-calibration \
+    -d  tmp/sample_1GB_countup_Python_valid_auto5 \
+    -p '.metadata.code_quality_auto5' \
+    -l '.countup_criteria_v2.score'
+```
+
+Now on test set, eval
+
+```bash
+uv run bonepick eval-calibration \
+    -d  tmp/sample_1GB_countup_Python_test_auto5 \
+    -p '((.metadata.code_quality_auto5."__label__bin_0" * (-0.288666)) + (.metadata.code_quality_auto5."__label__bin_1" * (-0.066356)) + (.metadata.code_quality_auto5."__label__bin_2" * 0.092443) + (.metadata.code_quality_auto5."__label__bin_3" * 0.024282) + (.metadata.code_quality_auto5."__label__bin_4" * 0.238178) + 0.530797)' \
+    -l '.countup_criteria_v2.score'
+```
+
+
+Very nice calibration: 
+
+```text
+Prediction Evaluation
+
+Dataset(s): tmp/sample_1GB_countup_Python_test_auto5
+Prediction Expression: ((.metadata.code_quality_auto5."__label__bin_0" * (-0.288666)) + (.metadata.code_quality_auto5."__label__bin_1" * (-0.066356)) +
+(.metadata.code_quality_auto5."__label__bin_2" * 0.092443) + (.metadata.code_quality_auto5."__label__bin_3" * 0.024282) + (.metadata.code_quality_auto5."__label__bin_4"
+* 0.238178) + 0.530797)
+Label Expression: .countup_criteria_v2.score
+
+Loading files: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1.00/1.00 [00:05<00:00, 5.86s/ files]
+Loaded 10,000 samples with 16 unique labels: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+Computing metrics...
+
+
+Prediction Evaluation Results
+
+╭───────────── Overall Metrics ─────────────╮
+│ Macro AUC: 0.9009                         │
+│ Weighted AUC: 0.8865                      │
+│ Ordinal AUC (adjacent pairs): 0.5755      │
+│                                           │
+│ Spearman Correlation: 0.7738 (p=0.00e+00) │
+│ Kendall's Tau-b: 0.6168 (p=0.00e+00)      │
+│ Pearson Correlation: 0.7588 (p=0.00e+00)  │
+│                                           │
+│ MSE: 0.008068                             │
+│ RMSE: 0.089824                            │
+│ MAE: 0.069407                             │
+│ R-squared: 0.5212                         │
+│                                           │
+│ Expected Calibration Error: 0.0295        │
+│                                           │
+│ Total Samples: 10,000                     │
+╰───────────────────────────────────────────╯
+
+Per-Class Statistics:
+┏━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━┓
+┃ Label ┃ Count ┃ Mean Pred ┃ Std Pred ┃    Min ┃ Median ┃    Max ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━┩
+│ 4     │     1 │    0.4178 │   0.0000 │ 0.4178 │ 0.4178 │ 0.4178 │
+│ 5     │     1 │    0.3403 │   0.0000 │ 0.3403 │ 0.3403 │ 0.3403 │
+│ 6     │    25 │    0.3892 │   0.1204 │ 0.2438 │ 0.3754 │ 0.6176 │
+│ 7     │    38 │    0.4191 │   0.1113 │ 0.2440 │ 0.4369 │ 0.6492 │
+│ 8     │   153 │    0.4098 │   0.0959 │ 0.2421 │ 0.4259 │ 0.6779 │
+│ 9     │   332 │    0.4231 │   0.0966 │ 0.2421 │ 0.4339 │ 0.6958 │
+│ 10    │   293 │    0.4490 │   0.0800 │ 0.2443 │ 0.4454 │ 0.7599 │
+│ 11    │ 1,193 │    0.4781 │   0.0652 │ 0.2482 │ 0.4727 │ 0.7494 │
+│ 12    │ 1,945 │    0.5121 │   0.0639 │ 0.2812 │ 0.5073 │ 0.7530 │
+│ 13    │ 2,296 │    0.5624 │   0.0674 │ 0.2915 │ 0.5591 │ 0.7606 │
+│ 14    │ 1,327 │    0.6147 │   0.0643 │ 0.3501 │ 0.6145 │ 0.7663 │
+│ 15    │ 1,700 │    0.6679 │   0.0639 │ 0.4060 │ 0.6789 │ 0.7662 │
+│ 16    │   479 │    0.7052 │   0.0464 │ 0.4407 │ 0.7181 │ 0.7655 │
+│ 17    │   151 │    0.7169 │   0.0392 │ 0.5467 │ 0.7275 │ 0.7633 │
+│ 18    │    46 │    0.7310 │   0.0285 │ 0.6450 │ 0.7400 │ 0.7640 │
+│ 19    │    20 │    0.7403 │   0.0179 │ 0.6978 │ 0.7428 │ 0.7621 │
+└───────┴───────┴───────────┴──────────┴────────┴────────┴────────┘
+
+Prediction Distribution by Class:
+(Shows mean prediction with std dev range)
+
+        Label      Mean  Distribution
+            4     0.418  0[                    |                              ]1
+            5     0.340  0[                 |                                 ]1
+            6     0.389  0[             ------|------                         ]1
+            7     0.419  0[               -----|------                        ]1
+            8     0.410  0[               -----|-----                         ]1
+            9     0.423  0[                -----|----                         ]1
+           10     0.449  0[                  ----|----                        ]1
+           11     0.478  0[                    ---|----                       ]1
+           12     0.512  0[                      ---|---                      ]1
+           13     0.562  0[                        ----|---                   ]1
+           14     0.615  0[                           ---|---                 ]1
+           15     0.668  0[                              ---|---              ]1
+           16     0.705  0[                                ---|--             ]1
+           17     0.717  0[                                 --|--             ]1
+           18     0.731  0[                                   -|-             ]1
+           19     0.740  0[                                    -|             ]1
+
+Calibration Plot:
+(Perfect calibration: mean prediction = mean label)
+
+             Bin     Count   Mean Pred  Mean Label     Error  Visualization
+      [0.2, 0.3)       116       0.263       0.314     0.051       PL
+      [0.3, 0.4)       333       0.365       0.409     0.045         PL
+      [0.4, 0.5)     2,343       0.460       0.496     0.037           =
+      [0.5, 0.6)     3,389       0.548       0.578     0.030            PL
+      [0.6, 0.7)     2,482       0.646       0.668     0.022              PL
+      [0.7, 0.8)     1,337       0.730       0.754     0.024                PL
+L=Label, P=Prediction, ==Match
 ```
