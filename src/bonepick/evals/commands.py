@@ -3,12 +3,14 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
+from typing import cast as typing_cast
 
 import click
 import msgspec
 import numpy as np
 import smart_open
 import yaml
+from numpy.typing import NDArray
 from tqdm import tqdm
 
 from bonepick.cli import PathParamType
@@ -130,8 +132,8 @@ def load_predictions_and_labels(
 
 
 def compute_auc_with_ties(
-    predictions: np.ndarray,
-    labels: np.ndarray,
+    predictions: NDArray[np.float64],
+    labels: NDArray[np.int64],
     num_classes: int,
 ) -> dict[str, float | None]:
     """Compute AUC metrics handling ties in ordinal labels.
@@ -220,8 +222,8 @@ def compute_auc_with_ties(
 
 
 def compute_rank_correlation_metrics(
-    predictions: np.ndarray,
-    labels: np.ndarray,
+    predictions: NDArray[np.float64],
+    labels: NDArray[np.int64],
 ) -> dict[str, float]:
     """Compute rank correlation metrics with proper tie handling.
 
@@ -238,25 +240,25 @@ def compute_rank_correlation_metrics(
 
     # Spearman correlation (handles ties via average ranks)
     spearman_corr, spearman_p = stats.spearmanr(predictions, labels)
-    results["spearman_correlation"] = float(spearman_corr)
-    results["spearman_pvalue"] = float(spearman_p)
+    results["spearman_correlation"] = float(typing_cast(NDArray[np.float64], spearman_corr))
+    results["spearman_pvalue"] = float(typing_cast(NDArray[np.float64], spearman_p))
 
     # Kendall's Tau-b (designed for ties)
     kendall_corr, kendall_p = stats.kendalltau(predictions, labels, method="asymptotic")
-    results["kendall_tau_b"] = float(kendall_corr)
-    results["kendall_pvalue"] = float(kendall_p)
+    results["kendall_tau_b"] = float(typing_cast(NDArray[np.float64], kendall_corr))
+    results["kendall_pvalue"] = float(typing_cast(NDArray[np.float64], kendall_p))
 
     # Pearson correlation (for comparison)
     pearson_corr, pearson_p = stats.pearsonr(predictions, labels)
-    results["pearson_correlation"] = float(pearson_corr)
-    results["pearson_pvalue"] = float(pearson_p)
+    results["pearson_correlation"] = float(typing_cast(NDArray[np.float64], pearson_corr))
+    results["pearson_pvalue"] = float(typing_cast(NDArray[np.float64], pearson_p))
 
     return results
 
 
 def compute_regression_metrics(
-    predictions: np.ndarray,
-    labels: np.ndarray,
+    predictions: NDArray[np.float64],
+    labels: NDArray[np.int64],
     num_classes: int,
 ) -> dict[str, float]:
     """Compute regression-style metrics treating ordinal labels as numeric.
@@ -362,8 +364,8 @@ def compute_calibration_metrics(
 
 
 def compute_per_class_metrics(
-    predictions: np.ndarray,
-    labels: np.ndarray,
+    predictions: NDArray[np.float64],
+    labels: NDArray[np.int64],
     unique_labels: list[Any],
 ) -> list[dict[str, Any]]:
     """Compute per-class statistics.
