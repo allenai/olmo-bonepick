@@ -24,6 +24,7 @@ from bonepick.fasttext.utils import check_fasttext_binary, fasttext_dataset_sign
     "--dataset-dir",
     required=True,
     multiple=True,
+    type=PathParamType(mkdir=False, is_dir=True),
     help="Directory containing the dataset (can be specified multiple times)",
 )
 @click.option(
@@ -117,6 +118,7 @@ def train_fasttext(
 
     # Collect all train.txt files from all directories
     train_files: list[Path] = []
+
     for d in dataset_dir:
         train_file = d / "train.txt"
         click.echo(f"Checking for training file: {train_file}")
@@ -181,7 +183,7 @@ def train_fasttext(
     click.echo("\nTraining fasttext model...")
     click.echo(f"Command: {' '.join(train_cmd)}")
 
-    train_result = subprocess.run(train_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    train_result = subprocess.run(train_cmd)
 
     if train_result.returncode != 0:
         raise click.ClickException(f"fasttext training failed with return code {train_result.returncode}")
