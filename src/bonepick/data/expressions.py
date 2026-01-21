@@ -1,7 +1,7 @@
-import click
-from typing import Callable, Any, Protocol, TypeVar
 from functools import reduce
+from typing import Any, Callable, Protocol, TypeVar
 
+import click
 import jq
 
 
@@ -54,6 +54,45 @@ class FieldOrExpressionCommandProtocol(Protocol):
 
 
 T = TypeVar("T", bound=FieldOrExpressionCommandProtocol)
+
+
+def generate_calibration_jq_expression(
+    weights: dict[str, float],
+    bias: float,
+    model_type: str,
+    source_expression: str,
+) -> str:
+    """Generate a jq expression to compute a weighted score from a dict.
+
+    Args:
+        weights: Component weights
+        bias: Bias term
+        model_type: "linear" or "log-linear"
+        source_expression: JQ expression that extracts the source dict
+
+    Returns:
+        JQ expression string that computes the weighted score
+    """
+    # Build the sum expression
+    terms = []
+    for name, weight in sorted(weights.items()):
+        if weight >= 0:
+            terms.append(f'({source_expression}."{name}" * {weight:.6f})')
+        else:
+            terms.append(f'({source_expression}."{name}" * ({weight:.6f}))')
+
+    sum_expr = " + ".join(terms)
+    if bias >= 0:
+        sum_expr = f"({sum_expr} + {bias:.6f})"
+    else:
+        sum_expr = f"({sum_expr} + ({bias:.6f}))"
+
+    if model_type == "linear":
+        # Clamp to [0, 1]
+        return f"[0, [1, {sum_expr}] | min] | max"
+    else:  # log-linear
+        # Apply sigmoid: 1 / (1 + exp(-x))
+        return f"(1 / (1 + ((-1 * {sum_expr}) | exp)))"
 
 
 def add_field_or_expression_command_options(

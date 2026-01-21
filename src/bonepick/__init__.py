@@ -20,7 +20,7 @@ from bonepick.data import (
     sample_dataset,
     transform_dataset,
 )
-from bonepick.evals import eval_predictions
+from bonepick.evals import eval_calibration, train_calibration
 from bonepick.fasttext import eval_fasttext, infer_fasttext, train_fasttext
 from bonepick.logger import init_logger  # noqa: E402
 from bonepick.model2vec import distill_model2vec, eval_model2vec, train_model2vec
@@ -58,7 +58,8 @@ cli.add_command(annotate_dataset)
 cli.add_command(list_prompts)
 cli.add_command(annotation_agreement)
 cli.add_command(label_distribution)
-cli.add_command(eval_predictions)
+cli.add_command(eval_calibration)
+cli.add_command(train_calibration)
 
 
 @cli.command()
