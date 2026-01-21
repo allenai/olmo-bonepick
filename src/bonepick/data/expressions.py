@@ -91,8 +91,8 @@ def generate_calibration_jq_expression(
         sum_expr = f"({sum_expr} + ({bias:.6f}))"
 
     if model_type == "linear":
-        # Clamp to [0, 1], pipe source_expression into the computation
-        return f"{source_expression} | [0, [1, {sum_expr}] | min] | max"
+        # Linear: unbounded weighted sum
+        return f"{source_expression} | {sum_expr}"
     else:  # log-linear
         # Apply sigmoid: 1 / (1 + exp(-x)), pipe source_expression into the computation
         return f"{source_expression} | (1 / (1 + ((-1 * {sum_expr}) | exp)))"
