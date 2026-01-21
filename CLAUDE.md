@@ -28,14 +28,16 @@ uv run bonepick train-model2vec --help
 uv run bonepick train-fasttext --help
 uv run bonepick distill-model2vec --help
 
-# Evaluation
+# Evaluation & Inference
 uv run bonepick eval-model2vec --help
 uv run bonepick eval-fasttext --help
+uv run bonepick infer-fasttext --help
 
 # Annotation (requires --extra annotate)
 uv run bonepick annotate-dataset --help
 uv run bonepick list-prompts --help
 uv run bonepick annotation-agreement --help
+uv run bonepick label-distribution --help
 
 # Utility
 uv run bonepick version

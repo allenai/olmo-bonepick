@@ -5,7 +5,7 @@
 
 
 
-`bonepick` trains efficient text quality classifiers that run on GPU. It supports training [**Model2Vec**][1] (static embeddings) and [**FastText**][2] classifiers.
+`bonepick` trains efficient text quality classifiers that run on CPU. It supports training [**Model2Vec**][1] (static embeddings) and [**FastText**][2] classifiers.
 
 ⚠️ **Warning: Claude-generated documentation below.** ⚠️
 
@@ -440,7 +440,7 @@ The command outputs:
 Distill a Sentence Transformer model to a lightweight Model2Vec static embedding model:
 
 ```shell
-uv run bonepick distill-model \
+uv run bonepick distill-model2vec \
     -m sentence-transformers/all-MiniLM-L6-v2 \
     -o models/distilled-model \
     -d 256 \
@@ -485,7 +485,7 @@ uv run bonepick <command> --help
 |---------|-------------|
 | `train-model2vec` | Train Model2Vec classifier |
 | `train-fasttext` | Train FastText classifier |
-| `distill-model` | Distill Sentence Transformer to Model2Vec |
+| `distill-model2vec` | Distill Sentence Transformer to Model2Vec |
 
 ### Evaluation Commands
 
@@ -493,6 +493,7 @@ uv run bonepick <command> --help
 |---------|-------------|
 | `eval-model2vec` | Evaluate Model2Vec classifier |
 | `eval-fasttext` | Evaluate FastText classifier |
+| `infer-fasttext` | Run FastText inference on JSONL files |
 
 ### Annotation Commands (Requires `annotate` extra)
 
@@ -501,6 +502,7 @@ uv run bonepick <command> --help
 | `annotate-dataset` | Annotate dataset using LLM APIs |
 | `list-prompts` | List available annotation prompts |
 | `annotation-agreement` | Compare annotations between two datasets and compute agreement metrics |
+| `label-distribution` | Show label distribution in a dataset |
 
 ### Utility Commands
 
