@@ -354,7 +354,26 @@ def convert_single_file_to_fasttext(
     print_progress: bool = True,
     print_every: int = 5_000,
     max_length: int | None = None,
+    label_mapper: tuple[list[float], list[str]] | None = None,
 ) -> list[str]:
+    """Convert a JSONL file to FastText format.
+
+    Args:
+        source_path: Path to the source JSONL file.
+        text_expression: JQ expression to extract text field.
+        label_expression: JQ expression to extract label field.
+        normalization: Text normalization method to apply.
+        print_progress: Whether to print progress messages.
+        print_every: Print progress every N rows.
+        max_length: Maximum length of text to process (truncate if longer).
+        label_mapper: Optional tuple of (bin_edges, bin_labels) for auto-binning.
+            bin_edges is a sorted list of N+1 floats defining N bins.
+            bin_labels is a list of N strings for the bin labels.
+            Labels are assigned based on which bin the numeric value falls into.
+
+    Returns:
+        List of FastText formatted rows (__label__<label> <text>).
+    """
     decoder = msgspec.json.Decoder()
     rows: list[str] = []
 
@@ -387,7 +406,28 @@ def convert_single_file_to_fasttext(
                 text = re_remove_extra_labels.sub(r"\1", text)
 
             label_value = label_field_selector(row)
-            label = normalize_label(str(label_value))
+
+            # Apply label mapping if provided
+            if label_mapper is not None:
+                bin_edges, bin_labels = label_mapper
+                numeric_value = float(label_value)
+                # Find the bin this value belongs to
+                label = bin_labels[-1]  # Default to last bin
+                for i in range(len(bin_edges) - 1):
+                    lower, upper = bin_edges[i], bin_edges[i + 1]
+                    # Handle single-value bins (lower == upper) with exact match
+                    if lower == upper:
+                        if numeric_value == lower:
+                            label = bin_labels[i]
+                            break
+                    elif lower <= numeric_value < upper:
+                        label = bin_labels[i]
+                        break
+                # Handle edge case: value equals the max edge
+                if numeric_value == bin_edges[-1]:
+                    label = bin_labels[-1]
+            else:
+                label = normalize_label(str(label_value))
 
             rows.append(f"__label__{label} {text}")
     return rows
@@ -408,6 +448,27 @@ def count_labels_in_file(
             counts[label] = counts.get(label, 0) + 1
 
     return counts
+
+
+def extract_numeric_labels_from_file(
+    source_path: Path,
+    label_expression: str,
+) -> list[float]:
+    """Extract numeric labels from a single file using a jq expression."""
+    decoder = msgspec.json.Decoder()
+    label_selector = compile_jq(label_expression)
+    labels: list[float] = []
+
+    with smart_open.open(source_path, "rb") as f:  # pyright: ignore
+        for line in f:
+            row = decoder.decode(line)
+            label_value = label_selector(row)
+            try:
+                labels.append(float(label_value))
+            except (TypeError, ValueError) as e:
+                raise ValueError(f"Label value {label_value!r} is not numeric: {e}") from e
+
+    return labels
 
 
 def read_samples_from_file(

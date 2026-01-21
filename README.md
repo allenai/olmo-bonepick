@@ -166,6 +166,36 @@ uv run bonepick convert-to-fasttext \
     -n ultrafine
 ```
 
+#### Auto-binning Numeric Labels
+
+For datasets with continuous or many discrete numeric labels, use `--auto N` to automatically bin labels into N equal-count (quantile-based) bins:
+
+```shell
+# Bin numeric scores into 5 quantile-based bins
+uv run bonepick convert-to-fasttext \
+    --input-dir data/scored-dataset \
+    --output-dir data/fasttext-binned \
+    --label-expression '.score' \
+    --auto 5 \
+    -n ultrafine
+```
+
+This performs a two-pass operation:
+1. **Pass 1**: Reads all training labels to compute quantile boundaries
+2. **Pass 2**: Converts data using the computed bins
+
+The output shows bin edges and sample distribution:
+```
+Bin edges and labels (equal-count/quantile bins):
+    bin_0: [0.0000, 11.0000)
+    bin_1: [11.0000, 13.0000)
+    bin_2: [13.0000] (single-value bin)
+    bin_3: (13.0000, 15.0000)
+    bin_4: [15.0000, 19.0000)
+```
+
+Single-value bins (where many samples share the same value) are supported and displayed with `[value]` notation. The bin mapping is saved in the output `report.yaml` for reference.
+
 ### 5. Count Tokens (Optional)
 
 Count the total number of tokens in a dataset using a specified tokenizer. Useful for understanding dataset size and token distribution:

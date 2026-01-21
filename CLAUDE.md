@@ -56,7 +56,7 @@ This is a CLI tool for training efficient quality classifiers (Model2Vec and Fas
 4. **Sample**: `sample-dataset` - Creates a random sample of a dataset by sampling rate or target size (supports multiple input directories)
 5. **Reshard**: `reshard-dataset` - Combines multiple small files into a specified number of larger files with roughly equal sizes (uses greedy bin packing algorithm, supports parallel processing)
 6. **Normalize**: `normalize-dataset` - Applies text normalization (whitespace, plsfix, tokenizer, ultrafine, hyperfine, hyperfine-code, potion, potion-code)
-7. **Convert**: `convert-to-fasttext` - Converts JSONL to FastText format (`__label__<label> <text>`)
+7. **Convert**: `convert-to-fasttext` - Converts JSONL to FastText format (`__label__<label> <text>`); supports `--auto N` for auto-binning numeric labels into N equal-count (quantile) bins
 8. **Count Tokens**: `count-tokens` - Counts total tokens in dataset directories using a specified tokenizer (supports multiple input directories, parallel processing)
 
 ### Training Methods
@@ -195,6 +195,7 @@ Available text normalizers (used with `normalize-dataset` and `convert-to-fastte
 7. **Token analysis**: count-tokens on dataset(s) to understand size and token distribution before training
 8. **Regression model**: import → normalize → train-model2vec --regression (labels should be numeric)
 9. **Prediction evaluation**: infer-fasttext or other inference → eval-predictions (compare scalar predictions against ordinal labels)
+10. **Auto-binned FastText**: import → convert-to-fasttext --auto N (bins numeric labels into N quantile bins) → train-fasttext → eval
 
 ### Tips
 

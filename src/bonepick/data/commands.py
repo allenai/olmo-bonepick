@@ -23,6 +23,7 @@ from bonepick.data.utils import (
     batch_save_hf_dataset,
     convert_single_file_to_fasttext,
     count_tokens_in_file,
+    extract_numeric_labels_from_file,
     load_jsonl_dataset,
     normalize_single_file,
     pretty_size,
@@ -208,6 +209,12 @@ def normalize_dataset(
 @click.option("-p", "--num-proc", type=int, default=os.cpu_count())
 @click.option("-n", "--normalization", type=click.Choice(list_normalizers()), default="whitespace")
 @click.option("--max-length", type=int, default=None, help="Maximum length of text to process")
+@click.option(
+    "--auto",
+    type=int,
+    default=None,
+    help="Auto-bin numeric labels into N equal-count (quantile) bins (requires 2 <= N <= unique labels)",
+)
 def convert_to_fasttext(
     text_field: str | None,
     label_field: str | None,
@@ -218,6 +225,7 @@ def convert_to_fasttext(
     num_proc: int,
     normalization: str,
     max_length: int | None,
+    auto: int | None,
 ):
     """Convert JSONL dataset to FastText format.
 
@@ -226,6 +234,123 @@ def convert_to_fasttext(
     text_expression = field_or_expression(text_field, text_expression)
     label_expression = field_or_expression(label_field, label_expression)
     row_count: dict[str, int] = {}
+
+    # Label mapper for auto-binning (computed from training data if --auto is specified)
+    label_mapper: tuple[list[float], list[str]] | None = None
+
+    if auto is not None:
+        if auto < 2:
+            raise click.BadParameter("--auto must be at least 2", param_hint="--auto")
+
+        click.echo(f"Auto-binning enabled with {auto} bins")
+        click.echo("Pass 1: Extracting labels from training data...")
+
+        # Collect all training files
+        train_dir = input_dir / "train"
+        if not train_dir.exists():
+            raise FileNotFoundError(f"Train directory {train_dir} does not exist")
+
+        train_files: list[Path] = []
+        for root, _, files in os.walk(train_dir):
+            for _fn in files:
+                fn = Path(root) / _fn
+                if "".join(fn.suffixes) not in FILE_SUFFIXES:
+                    continue
+                train_files.append(fn)
+
+        if not train_files:
+            raise click.ClickException(f"No JSONL files found in {train_dir}")
+
+        click.echo(f"  Found {len(train_files)} training files")
+
+        # Extract labels in parallel
+        all_labels: list[float] = []
+        executor_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
+
+        with executor_cls(max_workers=num_proc) as pool:
+            futures = [pool.submit(extract_numeric_labels_from_file, fn, label_expression) for fn in train_files]
+
+            with tqdm(total=len(futures), desc="Extracting labels", unit="file") as pbar:
+                for future in as_completed(futures):
+                    try:
+                        labels = future.result()
+                        all_labels.extend(labels)
+                        pbar.set_postfix(total_labels=f"{len(all_labels):,}")
+                    except Exception as e:
+                        for f in futures:
+                            f.cancel()
+                        raise e
+                    pbar.update(1)
+
+        if not all_labels:
+            raise click.ClickException("No labels extracted from training data")
+
+        # Compute statistics
+        min_label = min(all_labels)
+        max_label = max(all_labels)
+        unique_labels = len(set(all_labels))
+
+        click.echo(f"  Total labels: {len(all_labels):,}")
+        click.echo(f"  Unique labels: {unique_labels:,}")
+        click.echo(f"  Min label: {min_label}")
+        click.echo(f"  Max label: {max_label}")
+
+        if auto > unique_labels:
+            raise click.BadParameter(
+                f"--auto ({auto}) cannot exceed unique labels ({unique_labels})", param_hint="--auto"
+            )
+
+        # Compute equal-count (quantile-based) bins
+        # Sort labels and find quantile boundaries
+        sorted_labels = sorted(all_labels)
+        n = len(sorted_labels)
+        bin_edges: list[float] = [sorted_labels[0]]  # Start with min
+
+        for i in range(1, auto):
+            # Find the index for the i-th quantile boundary
+            idx = int(i * n / auto)
+            bin_edges.append(sorted_labels[idx])
+
+        bin_edges.append(sorted_labels[-1])  # End with max
+
+        # Create bin labels (e.g., "bin_0", "bin_1", ...)
+        bin_labels = [f"bin_{i}" for i in range(auto)]
+
+        click.echo("  Bin edges and labels (equal-count/quantile bins):")
+        for i in range(auto):
+            # Use '(' instead of '[' if previous bin was single-value (to avoid overlap)
+            left_bracket = "(" if i > 0 and bin_edges[i - 1] == bin_edges[i] else "["
+            if bin_edges[i] == bin_edges[i + 1]:
+                click.echo(f"    {bin_labels[i]}: [{bin_edges[i]:.4f}] (single-value bin)")
+            else:
+                click.echo(f"    {bin_labels[i]}: {left_bracket}{bin_edges[i]:.4f}, {bin_edges[i + 1]:.4f})")
+
+        label_mapper = (bin_edges, bin_labels)
+
+        # Count samples per bin for reporting
+        bin_counts: dict[str, int] = {label: 0 for label in bin_labels}
+        for label_value in all_labels:
+            for i in range(len(bin_edges) - 1):
+                lower, upper = bin_edges[i], bin_edges[i + 1]
+                # Handle single-value bins (lower == upper) with exact match
+                if lower == upper:
+                    if label_value == lower:
+                        bin_counts[bin_labels[i]] += 1
+                        break
+                elif lower <= label_value < upper:
+                    bin_counts[bin_labels[i]] += 1
+                    break
+            else:
+                # Handle edge case: value equals max edge
+                if label_value == bin_edges[-1]:
+                    bin_counts[bin_labels[-1]] += 1
+
+        click.echo("  Samples per bin:")
+        for label in bin_labels:
+            pct = 100 * bin_counts[label] / len(all_labels)
+            click.echo(f"    {label}: {bin_counts[label]:,} ({pct:.1f}%)")
+
+        click.echo("\nPass 2: Converting to FastText format...")
 
     for split, must_exist in (("train", True), ("valid", False), ("test", True)):
         split_dir = input_dir / split
@@ -259,6 +384,7 @@ def convert_to_fasttext(
                         label_expression=label_expression,
                         normalization=normalization,
                         max_length=max_length,
+                        label_mapper=label_mapper,
                     )
                     futures.append(future)
 
@@ -281,7 +407,7 @@ def convert_to_fasttext(
 
             row_count[split] = rows_pbar.n
 
-    report_dict = {
+    report_dict: dict = {
         "input_dir": str(input_dir),
         "output_dir": str(output_dir),
         "text_expression": text_expression,
@@ -290,6 +416,14 @@ def convert_to_fasttext(
         "max_length": max_length,
         "num_rows": row_count,
     }
+
+    if auto is not None and label_mapper is not None:
+        bin_edges, bin_labels = label_mapper
+        report_dict["auto_bins"] = {
+            "num_bins": auto,
+            "bin_edges": bin_edges,
+            "bin_labels": bin_labels,
+        }
 
     report_file = output_dir / "report.yaml"
     with open(report_file, "w", encoding="utf-8") as f:
