@@ -355,6 +355,7 @@ def convert_single_file_to_fasttext(
     print_every: int = 5_000,
     max_length: int | None = None,
     label_mapper: tuple[list[float], list[str]] | None = None,
+    multi_label: bool = False,
 ) -> list[str]:
     """Convert a JSONL file to FastText format.
 
@@ -370,6 +371,8 @@ def convert_single_file_to_fasttext(
             bin_edges is a sorted list of N+1 floats defining N bins.
             bin_labels is a list of N strings for the bin labels.
             Labels are assigned based on which bin the numeric value falls into.
+        multi_label: If True, label_expression should return a dict {criterion_name: 0_or_1}.
+            Generates __label__<criterion> for each criterion with value 1.
 
     Returns:
         List of FastText formatted rows (__label__<label> <text>).
@@ -406,6 +409,24 @@ def convert_single_file_to_fasttext(
                 text = re_remove_extra_labels.sub(r"\1", text)
 
             label_value = label_field_selector(row)
+
+            # Multi-label mode: label_value is a dict {criterion_name: 0_or_1_or_bool}
+            if multi_label:
+                if not isinstance(label_value, dict):
+                    raise ValueError(
+                        f"Multi-label mode requires label expression to return a dict, "
+                        f"got {type(label_value).__name__}: {label_value}"
+                    )
+                # Generate labels for each criterion with truthy value (handles 0/1, True/False, etc.)
+                labels = [
+                    f"__label__{normalize_label(str(criterion))}"
+                    for criterion, value in sorted(label_value.items())
+                    if bool(value)
+                ]
+                if labels:
+                    rows.append(f"{' '.join(labels)} {text}")
+                # Skip rows with no true criteria (no labels)
+                continue
 
             # Apply label mapping if provided
             if label_mapper is not None:

@@ -215,6 +215,13 @@ def normalize_dataset(
     default=None,
     help="Auto-bin numeric labels into N equal-count (quantile) bins (requires 2 <= N <= unique labels)",
 )
+@click.option(
+    "--multi-label",
+    is_flag=True,
+    default=False,
+    help="Multi-label mode: label expression should return a dict {criterion_name: 0_or_1}. "
+    "Generates __label__<criterion> for each criterion with value 1.",
+)
 def convert_to_fasttext(
     text_field: str | None,
     label_field: str | None,
@@ -226,6 +233,7 @@ def convert_to_fasttext(
     normalization: str,
     max_length: int | None,
     auto: int | None,
+    multi_label: bool,
 ):
     """Convert JSONL dataset to FastText format.
 
@@ -234,6 +242,10 @@ def convert_to_fasttext(
     text_expression = field_or_expression(text_field, text_expression)
     label_expression = field_or_expression(label_field, label_expression)
     row_count: dict[str, int] = {}
+
+    # Validate mutually exclusive options
+    if multi_label and auto is not None:
+        raise click.BadParameter("--multi-label and --auto are mutually exclusive", param_hint="--multi-label")
 
     # Label mapper for auto-binning (computed from training data if --auto is specified)
     label_mapper: tuple[list[float], list[str]] | None = None
@@ -385,6 +397,7 @@ def convert_to_fasttext(
                         normalization=normalization,
                         max_length=max_length,
                         label_mapper=label_mapper,
+                        multi_label=multi_label,
                     )
                     futures.append(future)
 
@@ -414,6 +427,7 @@ def convert_to_fasttext(
         "label_expression": label_expression,
         "normalization": normalization,
         "max_length": max_length,
+        "multi_label": multi_label,
         "num_rows": row_count,
     }
 

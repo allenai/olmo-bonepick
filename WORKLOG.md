@@ -1957,6 +1957,40 @@ uv run bonepick convert-to-fasttext \
     --auto 5
 ```
 
+Output 
+
+```text
+Auto-binning enabled with 5 bins
+Pass 1: Extracting labels from training data...
+  Found 18 training files
+Extracting labels: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████| 18/18 [00:11<00:00,  1.59file/s, total_labels=480,000]
+  Total labels: 480,000
+  Unique labels: 18
+  Min label: 0.0
+  Max label: 19.0
+  Bin edges and labels (equal-count/quantile bins):
+    bin_0: [0.0000, 11.0000)
+    bin_1: [11.0000, 13.0000)
+    bin_2: [13.0000] (single-value bin)
+    bin_3: (13.0000, 15.0000)
+    bin_4: [15.0000, 19.0000)
+  Samples per bin:
+    bin_0: 38,756 (8.1%)
+    bin_1: 152,475 (31.8%)
+    bin_2: 109,504 (22.8%)
+    bin_3: 64,472 (13.4%)
+    bin_4: 114,793 (23.9%)
+
+Pass 2: Converting to FastText format...
+Writing train rows: 480k rows [01:45, 4.53k rows/s]█████████████████████████████████████████████████████████████████████████████████████████████████| 18/18 [01:45<00:00,  1.55s/file]
+Converting train files: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 18/18 [01:45<00:00,  5.89s/file]
+Writing valid rows: 10.0k rows [00:24, 414 rows/s]████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:24<00:00, 24.16s/file]
+Converting valid files: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:24<00:00, 24.16s/file]
+Writing test rows: 10.0k rows [00:24, 408 rows/s]█████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:24<00:00, 24.50s/file]
+Converting test files: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:24<00:00, 24.50s/file]
+Report saved to: /home/lucas/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/fasttext/ultrafine_auto5/report.yaml
+```
+
 Now train model
 
 ```bash
@@ -2155,6 +2189,50 @@ uv run bonepick train-calibration \
     -l '.countup_criteria_v2.score'
 ```
 
+Output 
+
+```text
+Calibration Model Training
+
+Dataset(s): tmp/sample_1GB_countup_Python_valid_auto5
+Prediction Expression: .metadata.code_quality_auto5
+Label Expression: .countup_criteria_v2.score
+Model Type: linear
+
+Loading files: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1.00/1.00 [00:05<00:00, 5.80s/ files]
+Loaded 10,000 samples with 5 prediction components: ['__label__bin_0', '__label__bin_1', '__label__bin_2', '__label__bin_3', '__label__bin_4']
+
+Gold labels: 15 unique values: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+Normalized labels range: [0.0000, 1.0000]
+
+Fitting calibration model...
+
+╭─ Model Fit Metrics ─╮
+│ R-squared: 0.5677   │
+│ RMSE: 0.091308      │
+│ MAE: 0.068081       │
+│ MSE: 0.008337       │
+│                     │
+│ Bias: 0.530797      │
+╰─────────────────────╯
+
+Learned Weights:
+┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Component      ┃    Weight ┃ Contribution         ┃
+┡━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━┩
+│ __label__bin_0 │ -0.288666 │ -------------------- │
+│ __label__bin_4 │  0.238178 │ ++++++++++++++++     │
+│ __label__bin_2 │  0.092443 │ ++++++               │
+│ __label__bin_1 │ -0.066356 │ ----                 │
+│ __label__bin_3 │  0.024282 │ +                    │
+└────────────────┴───────────┴──────────────────────┘
+
+JQ Expression:
+.metadata.code_quality_auto5 | ((."__label__bin_0" * (-0.288666)) + (."__label__bin_1" * (-0.066356)) + (."__label__bin_2" * 0.092443) + (."__label__bin_3" * 0.024282) +
+(."__label__bin_4" * 0.238178) + 0.530797)
+```
+
 Now on test set, eval
 
 ```bash
@@ -2257,4 +2335,47 @@ Calibration Plot:
       [0.6, 0.7)     2,482       0.646       0.668     0.022              PL
       [0.7, 0.8)     1,337       0.730       0.754     0.024                PL
 L=Label, P=Prediction, ==Match
+```
+
+
+## Trying multilabel
+
+
+"criteria": {
+      "basic_validity": {
+        "not_mostly_empty": true,
+        "has_executable_logic": true,
+        "not_procedurally_generated": true
+      },
+      "code_cleanliness": {
+        "no_boilerplate": true,
+        "no_binary_data": true,
+        "no_commented_out_code": true,
+        "no_placeholder_text": false,
+        "no_debug_artifacts": false
+      },
+      "security": {
+        "no_hardcoded_secrets": true,
+        "no_vulnerabilities": false
+      },
+      "documentation_and_readability": {
+        "has_comments": false,
+        "has_docstrings": true,
+        "good_grammar": true,
+        "has_type_hints": false
+      },
+      "structure_and_organization": {
+        "good_logical_flow": true,
+        "is_modular": true,
+        "no_hardcoded_inputs": false,
+        "has_error_handling": true,
+        "minimal_side_effects": false
+      }
+```bash
+uv run bonepick convert-to-fasttext \
+  -i dataset_dir \
+  -o fasttext_output \
+  --label-expression '.countup_criteria_v2.criteria | {not_mostly_empty: .basic_validity.not_mostly_empty, has_executable_logic: .basic_validity.has_executable_logic, not_procedurally_generated: .basic_validity.not_procedurally_generated, no_boilerplate: .code_cleanliness.no_boilerplate, no_binary_data: .code_cleanliness.no_binary_data, no_commented_out_code: .code_cleanliness.no_commented_out_code, no_placeholder_text: .code_cleanliness.no_placeholder_text, no_debug_artifacts: .code_cleanliness.no_debug_artifacts, no_hardcoded_secrets: .security.no_hardcoded_secrets, no_vulnerabilities: .security.no_vulnerabilities, has_comments: .documentation_and_readability.has_comments, has_docstrings: .documentation_and_readability.has_docstrings, good_grammar: .documentation_and_readability.good_grammar, has_type_hints: .documentation_and_readability.has_type_hints, good_logical_flow: .structure_and_organization.good_logical_flow, is_modular: .structure_and_organization.is_modular, no_hardcoded_inputs: .structure_and_organization.no_hardcoded_inputs, has_error_handling: .structure_and_organization.has_error_handling, minimal_side_effects: .structure_and_organization.minimal_side_effects}' \
+  --text-expression '.text' \
+  --multi-label
 ```
