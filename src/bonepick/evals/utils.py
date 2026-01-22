@@ -113,6 +113,9 @@ def compute_detailed_metrics_fasttext(
     Compute detailed classification metrics for FastText using predict with probabilities.
 
     Returns precision, recall, F1, macro averages, and AUC for each class.
+
+    Note: Labels predicted by FastText that are not present in gold labels are ignored
+    (their probability mass is discarded). Metrics are computed only on gold label classes.
     """
     # Create temporary input file for predictions
     temp_input = temp_dir / "temp_predict_input.txt"
@@ -123,13 +126,14 @@ def compute_detailed_metrics_fasttext(
             f.write(element.text + "\n")
             gold_labels.append(element.label)
 
-    # Encode labels
+    # Encode labels using only gold labels (we only evaluate on classes present in gold)
     label_encoder = LabelEncoder()
     y_true = typing_cast(np.ndarray, label_encoder.fit_transform(gold_labels))
 
-    # Get names of classes
+    # Get names of classes (only those in gold)
     plain_classes = typing_cast(list[str], label_encoder.classes_)
     encoded_classes = typing_cast(np.ndarray, label_encoder.transform(plain_classes)).flatten()
+    gold_label_set = set(plain_classes)
 
     # Run fasttext predict with probabilities (k=-1 means all classes)
     predict_cmd = [
@@ -149,14 +153,18 @@ def compute_detailed_metrics_fasttext(
         )
 
     # Parse predictions - each line contains: __label__X prob __label__Y prob ...
+    # Filter out any predicted labels not in gold labels (their probability is ignored)
     y_proba = np.zeros((len(dataset_split), len(plain_classes)))
     for i, raw_prediction in enumerate(predict_result.stdout.strip().split("\n")):
-        labels, probas = (
-            (arr := raw_prediction.strip().split())[::2],
-            [float(p) for p in arr[1::2]],
-        )
-        labels_enc = np.array(label_encoder.transform(labels))
-        y_proba[i, labels_enc] = np.array(probas)
+        arr = raw_prediction.strip().split()
+        pred_labels = arr[::2]
+        pred_probas = [float(p) for p in arr[1::2]]
+
+        # Filter to only labels present in gold, then encode
+        for label, proba in zip(pred_labels, pred_probas):
+            if label in gold_label_set:
+                label_enc = label_encoder.transform([label])[0]
+                y_proba[i, label_enc] = proba
 
     return _compute_metrics_from_predictions(y_true, y_proba, encoded_classes, plain_classes)
 
