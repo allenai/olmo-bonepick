@@ -7,8 +7,7 @@ This is where I ([@soldni](https://soldaini.net)) keep track of my work on the p
 ### Step 1: manage data
 
 #### Step 1a: import FineWeb dataset
-
-```shell
+```bash
 uv run bonepick import-hf-dataset \
     --name HuggingFaceFW/fineweb-edu-llama3-annotations \
     --output-dir tmp/data/fineweb-edu-llama3-annotations \
@@ -16,8 +15,7 @@ uv run bonepick import-hf-dataset \
 ```
 
 #### Step 1b: copy FineWeb++ annotations
-
-```shell
+```bash
 s5cmd cp -sp \
     's3://ai2-llm/pretraining-data/sources/WebOrganizer/v0/batch_api/fw_pp_ref_mini_o4-mini-batch_medium/quality_jun1/retrieved/*' \
     tmp/data/fw_pp_ref_mini_o4-mini-batch_medium
@@ -30,8 +28,7 @@ s5cmd cp -sp \
 ### Step 2: binarized dataset
 
 #### Step 2a: binarize fineweb
-
-```shell
+```bash
 uv run bonepick transform-dataset \
     --input-dir tmp/data/fineweb-edu-llama3-annotations \
     --output-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg \
@@ -39,8 +36,7 @@ uv run bonepick transform-dataset \
 ```
 
 #### Step 2b: binarize FineWeb++
-
-```shell
+```bash
 uv run bonepick transform-dataset \
     --input-dir tmp/data/fw_pp_ref_mini_o4-mini-batch_medium \
     --output-dir tmp/data/fw_pp_ref_mini_o4-mini-batch_medium-pos-neg \
@@ -55,8 +51,7 @@ uv run bonepick transform-dataset \
 ### Step 3: convert and normalize data
 
 #### Step 3a: FastText format, `ultrafine` normalizer
-
-```shell
+```bash
 uv run bonepick convert-to-fasttext \
     --input-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg \
     --output-dir tmp/data/fasttext-fineweb-edu-llama3-annotations-binary-pos-neg-ultrafine \
@@ -74,8 +69,7 @@ uv run bonepick convert-to-fasttext \
 ```
 
 #### Step 3b: Model2Vec format, `potion` normalizer
-
-```shell
+```bash
 uv run bonepick normalize-dataset \
     --input-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg \
     --output-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion \
@@ -96,8 +90,7 @@ uv run bonepick normalize-dataset \
 
 
 #### Step 4a: train FastText model (only fineweb)
-
-```shell
+```bash
 uv run bonepick train-fasttext \
     --dataset-dir tmp/data/fasttext-fineweb-edu-llama3-annotations-binary-pos-neg-ultrafine \
     --output-dir tmp/models/fasttext-fineweb-edu-llama3-annotations-binary-pos-neg-ultrafine
@@ -105,16 +98,14 @@ uv run bonepick train-fasttext \
 
 #### Step 4b: train a Model2vec model (only fineweb)
 
-
-```shell
+```bash
 uv run bonepick train-model2vec \
     --dataset-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion \
     --output-dir tmp/models/potion-32M-fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion
 ```
 
 #### Step 4c: train a Model2Vec model with extra annotations
-
-```shell
+```bash
 uv run bonepick train-model2vec \
     --dataset-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion \
     --dataset-dir tmp/data/fw_pp_ref_mini_o4-mini-batch_medium-pos-neg-normalized-potion \
@@ -126,8 +117,7 @@ uv run bonepick train-model2vec \
 ### Step 5: eval models
 
 #### Step 5a: eval FastText model
-
-```shell
+```bash
 uv run bonepick eval-fasttext \
     --dataset-dir tmp/data/fasttext-fineweb-edu-llama3-annotations-binary-pos-neg-ultrafine \
     --model-dir tmp/models/fasttext-fineweb-edu-llama3-annotations-binary-pos-neg-ultrafine
@@ -146,8 +136,7 @@ R@1     0.934
 
 #### Step 5b: eval Model2Vec model
 
-
-```shell
+```bash
 uv run bonepick eval-model2vec \
     --dataset-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion \
     --model-dir tmp/models/potion-32M-fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion
@@ -168,8 +157,7 @@ weighted avg       0.93      0.94      0.92     10000
 ```
 
 #### Step 5c: eval UltraFineWeb
-
-```shell
+```bash
 uv run --with=huggingface-hub \
     hf download openbmb/Ultra-FineWeb-classifier \
     --local-dir /tmp/openbmb/Ultra-FineWeb-classifier
@@ -199,8 +187,7 @@ R@1     0.737
 ### Step 6: balance dataset
 
 This ensures same number of positive and negative items
-
-```shell
+```bash
 uv run bonepick balance-dataset \
     --input-dir tmp/data/fineweb-edu-llama3-annotations-binary-pos-neg-normalized-potion \
     --input-dir tmp/data/fw_pp_ref_mini_o4-mini-batch_medium-pos-neg-normalized-potion \
@@ -209,8 +196,7 @@ uv run bonepick balance-dataset \
 ```
 
 ### Step 7: train on balanced dataset
-
-```shell
+```bash
 uv run bonepick train-model2vec \
     --dataset-dir tmp/data/fw-fw_pp-fw_pp_o4-posneg-normalized-potion-balanced \
     --output-dir tmp/models/potion-32M-fw-fw_pp-fw_pp_o4-posneg-normalized-potion-balanced
@@ -219,8 +205,7 @@ uv run bonepick train-model2vec \
 ## Code Quality
 
 ### Step 1: Some test code
-
-```shell
+```bash
 ROOT_DIR="/mnt/raid0"
 BASE_DIR="${ROOT_DIR}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned"
 s5cmd cp -sp \
@@ -230,8 +215,7 @@ s5cmd cp -sp \
 
 
 ### Step 2: reshard the sampled data
-
-```shell
+```bash
 for pl in $(ls --color=never ${BASE_DIR}); do
     echo "Processing ${pl}..."
     uv run bonepick reshard-dataset \
@@ -242,8 +226,7 @@ done
 ```
 
 ### Step 3: sample about 1GB of data per PL
-
-```shell
+```bash
 for pl in $(ls --color=never ${BASE_DIR}_resharded); do
     echo "Processing ${pl}..."
     uv run bonepick sample-dataset \
@@ -254,8 +237,7 @@ done
 ```
 
 ### Step 4: lets run annotation pipeline
-
-```shell
+```bash
 RUBRIC_PROMPT="countup_criteria_v2"
 MODEL_NAME="gpt-5-mini"
 MAX_LENGTH=10_000
@@ -279,9 +261,27 @@ for pl in "Markdown" "Python"; do
 done
 ```
 
-Doing another round with 100_000 but all PLs
+Okay doing this from spark
+```bash
+TO_ANNOTATE=$HOME/ai2-llm/classifiers/code-quality/data/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/Python
+RUBRIC="stack_edu_python"
+DESTINATION_ANNOTATED=$(echo ${TO_ANNOTATE} | sed "s/countup_criteria_v2/${RUBRIC}/g")
 
-```shell
+uv run --extra=annotate bonepick annotate-dataset \
+    --dataset-dir ${TO_ANNOTATE} \
+    --output-dir ${DESTINATION_ANNOTATED} \
+    --model-name gpt-5-mini \
+    --service-tier flex \
+    --annotation-task-prompt "${RUBRIC}" \
+    --max-concurrent-requests 5_000 \
+    --max-new-tokens 4096 \
+    --annotation-system-prompt 'code_system' \
+    --max-text-length 100000 
+
+```
+
+Doing another round with 100_000 but all PLs
+```bash
 LIMIT_ROWS=100_000
 
 for pl in $(ls --color=never ${BASE_DIR}_1GB_sample_to_annotate); do
@@ -307,8 +307,7 @@ done
 ```
 
 ### Step 5: upload the annotated data to S3
-
-```shell
+```bash
 s5cmd cp -sp \
     "${ROOT_DIR}/ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_${MODEL_NAME}_${RUBRIC_PROMPT}_${MAX_LENGTH}/*" \
     "s3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned_1GB_sample_annotated_${MODEL_NAME}_${RUBRIC_PROMPT}_${MAX_LENGTH}/"
@@ -320,8 +319,7 @@ s5cmd cp -sp \
 
 
 Copy the one python file we have been using for testing
-
-```shell
+```bash
 s5cmd cp -sp 's3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated_reshard/Python/step_final/shard_00007001.jsonl.zst' "tmp/data/spring2code_python/train/shard_00007001.jsonl.zst"
 ```
 
@@ -329,8 +327,7 @@ s5cmd cp -sp 's3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/
 
 
 We are gonna test annotating with v1 of the claude prompt and compare GPT-5.2, GPT-5.2-medium and GPT-5.2-mini.
-
-```shell
+```bash
 # 5.2
 uv run --extra=annotate bonepick annotate-dataset \
     --dataset-dir tmp/data/spring2code_python \
@@ -373,8 +370,7 @@ uv run --extra=annotate bonepick annotate-dataset \
 ```
 
 Okay now we compare full agreement:
-
-```shell
+```bash
 # Binary agreement
 
 uv run bonepick annotation-agreement \
@@ -441,8 +437,7 @@ Confusion Matrix:
 ```
 
 Okay now we compare scores:
-
-```shell
+```bash
 # Scores agreement
 
 uv run bonepick annotation-agreement \
@@ -584,8 +579,7 @@ Confusion Matrix:
 
 
 Now we compare gpt 5.2 and gpt 5.2 medium (full scores agreement):
-
-```shell
+```bash
 # Scores agreement
 
 uv run bonepick annotation-agreement \
@@ -660,8 +654,7 @@ Confusion Matrix:
 ```
 
 Much tighter! What's the agreement if we run gpt-5.2 twice?
-
-```shell
+```bash
  uv run --extra=annotate bonepick annotate-dataset \
     --dataset-dir tmp/data/spring2code_python \
     --output-dir tmp/data/spring2code_python-annotated-gpt-5.2-twice \
@@ -744,8 +737,7 @@ So 75% agreement on this labeling task is best we can do.
 ### Prompt: claude_progressive_rubric_code
 
 We are gonna test annotating with v2 of the claude prompt and compare GPT-5.2, GPT-5.2-medium and GPT-5.2-mini.
-
-```shell
+```bash
 # 5.2
 
 export RUBRIC_PROMPT="claude_progressive_rubric_code"
@@ -790,8 +782,7 @@ done
 
 
 Calculate agreement between 5.2 and 5-mini:
-
-```shell
+```bash
 uv run bonepick annotation-agreement \
     --dataset1 tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5.2 \
     --dataset2 tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5-mini \
@@ -864,8 +855,7 @@ Going from 57.6% to 62.9% agreement!
 
 
 ### Prompt: simplified_code_rubric
-
-```shell
+```bash
 export RUBRIC_PROMPT="simplified_code_rubric"
 export MAX_TEXT_LENGTH=10000
 
@@ -914,8 +904,7 @@ done
 
 
 ### Prompt: `inv_codedoc_verysimple` (like this one!)
-
-```shell
+```bash
 export RUBRIC_PROMPT="inv_codedoc_verysimple"
 export MAX_TEXT_LENGTH=10000
 
@@ -961,8 +950,7 @@ done
 ```
 
 Now we check full and binary agreement between 5.2 and 5-mini:
-
-```shell
+```bash
 uv run bonepick annotation-agreement \
     --dataset-dir tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5.2 \
     --dataset-dir tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5-mini \
@@ -1041,8 +1029,7 @@ Confusion Matrix:
 ```
 
 Now onto binary agreement:
-
-```shell
+```bash
 uv run bonepick annotation-agreement \
     --dataset-dir tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5.2 \
     --dataset-dir tmp/data/spring2code_python-annotated-${RUBRIC_PROMPT}-gpt-5-mini \
@@ -1114,8 +1101,7 @@ Confusion Matrix:
 
 
 ### Prompt: `countup_criteria` (like this one!)
-
-```shell
+```bash
 export RUBRIC_PROMPT="countup_criteria"
 export MAX_TEXT_LENGTH=10000
 
@@ -1329,8 +1315,7 @@ Confusion Matrix:
 ```
 
 ## Data storing
-
-```shell
+```bash
  s5cmd cp -sp 'tmp/data/*' 's3://ai2-lucas/annotations-code-bonepick-diff-prompts/'
  ```
 
@@ -1338,8 +1323,7 @@ Confusion Matrix:
 ## Let's train models on Python/Markdown data
 
 ### Step 0: Let's first store data in a proper location (one time operation)
-
-```shell
+```bash
 export LOCAL_BASE_DIR='/mnt/raid0'
 export S3_BASE_DIR='s3://ai2-llm/classifiers/code-quality'
 
@@ -1362,8 +1346,7 @@ s5cmd cp -sp "${SRC_COUNTUP_CRITERIA_V2_DIR}/*" "${DST_COUNTUP_CRITERIA_V2_DIR}/
 ```
 
 ### Step 1: Copy down the data from S3
-
-```shell
+```bash
 export LOCAL_BASE_DIR="${HOME}/ai2-llm/classifiers/code-quality"
 export S3_BASE_DIR='s3://ai2-llm/classifiers/code-quality'
 export BASE_NAME_PREFIX="the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB"
@@ -1379,8 +1362,7 @@ s5cmd cp -sp "${S3_BASE_DIR}/models/*" "${LOCAL_BASE_DIR}/models/"
 
 
 ### Step 2: Make train/test/valid splits and preprocess the data
-
-```shell
+```bash
 export RUBRIC_PROMPT="countup_criteria_v2"
 export LABEL_NAME="${RUBRIC_PROMPT}/gpt-5-mini/10k_trimmed"
 export DATASET_DIR_UNSPLIT="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/${LABEL_NAME}"
@@ -1390,7 +1372,7 @@ for pl in $(ls --color=never ${DATASET_DIR_UNSPLIT}); do
     uv run bonepick reshard-dataset \
         --dataset-dir "${DATASET_DIR_UNSPLIT}/${pl}" \
         --output-dir "${DATASET_DIR_SPLIT}/${pl}" \
-        --num-files 5 \
+        --num-files 22 \
         --test-split-frac 10_000 \
         --valid-split-frac 10_000
 done
@@ -1403,8 +1385,7 @@ done
 I've looked at stats to get maybe 50/50?
 
 For Python data:
-
-```shell
+```bash
 $ zstdcat Python/* | grep -oP '"score":\d+' | sed 's/"score"://g' | uv run --with=tqdm tqdm | sort | uniq -c | sort -k2,2n | awk '
 {scores[NR]=$2; counts[NR]=$1; total+=$1}
 END {
@@ -1438,8 +1419,7 @@ score count cumul cdf
 ```
 
 
-for Markdown data:
-```shell
+for Markdown data:```bash
 $ zstdcat Markdown/* | grep -oP '"score":\d+' | sed 's/"score"://g' | uv run --with=tqdm tqdm | sort | uniq -c | sort -k2,2n | awk '
 {scores[NR]=$2; counts[NR]=$1; total+=$1}
 END {
@@ -1493,8 +1473,7 @@ done
 ```
 
 ### Step 4: convert to FastText and Model2Vec format
-
-```shell
+```bash
 export FASTTEXT_NORMALIZATION="ultrafine"
 export DATASET_DIR_JSONL_FASTTEXT="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/${LABEL_NAME}/binary_threshold/fasttext/${FASTTEXT_NORMALIZATION}"
 
@@ -1519,8 +1498,7 @@ done
 ```
 
 ### Step 3: Train/eval a model2vec model
-
-```shell
+```bash
 # model_paths=(
 #     "minishlab/potion-base-32M"
 #     "${LOCAL_BASE_DIR}/models/model2vec/Qwen3-Embedding-4B"
@@ -1554,8 +1532,7 @@ uv run bonepick train-model2vec \
 ```
 
 Now we eval the models:
-
-```shell
+```bash
 uv run bonepick eval-model2vec \
     --dataset-dir ${DATASET_DIR_JSONL_MODEL2VEC}/${programming_language} \
     --model-dir "${model_dir}"
@@ -1565,8 +1542,7 @@ uv run bonepick eval-model2vec \
 ### Step 4: Train/eval a fasttext model
 
 First we train the models:
-
-```shell
+```bash
 export FASTTEXT_MODEL_DIR="${LOCAL_BASE_DIR}/trained_models/fasttext"
 
 for pl in "${programming_languages[@]}"; do
@@ -1579,8 +1555,7 @@ done
 ```
 
 Now we eval the models:
-
-```shell
+```bash
 for pl in "${programming_languages[@]}"; do
     dataset_name=$(echo "${DATASET_DIR_JSONL_FASTTEXT#"${LOCAL_BASE_DIR}/preprocessed/"}" | tr '/' '_')
     model_dir="${FASTTEXT_MODEL_DIR}/${dataset_name}/${pl}"
@@ -1595,8 +1570,7 @@ done
 ### Step 5: Train a regression model
 
 Let's train a regression model too:
-
-```shell
+```bash
 export REGRESSION_MODEL_DIR="${LOCAL_BASE_DIR}/trained_models/model2vec_regression"
 
 model_path="minishlab/potion-base-32M"
@@ -1620,8 +1594,7 @@ uv run bonepick train-model2vec \
 
 All variables (DGX Spark):
 
-
-```shell
+```bash
 export LOCAL_BASE_DIR="${HOME}/ai2-llm/classifiers/code-quality"
 export RUBRIC_PROMPT="countup_criteria_v2"
 export LABEL_NAME="${RUBRIC_PROMPT}/gpt-5-mini/10k_trimmed"
@@ -1650,8 +1623,7 @@ export FASTTEXT_OUTPUT_DIR="${LOCAL_BASE_DIR}/trained_models/fasttext/${FASTTEXT
 
 Reshard the data:
 
-
-```shell
+```bash
 for pl in $(ls --color=never ${DATASET_DIR_UNSPLIT}); do
     echo "Processing ${pl}..."
     uv run bonepick reshard-dataset \
@@ -1664,8 +1636,7 @@ done
 ```
 
 Train a model2vec model directly:
-
-```shell
+```bash
 uv run bonepick train-model2vec \
     --dataset-dir "${DATASET_DIR_SPLIT}/${PROGRAMMING_LANGUAGE}" \
     --model-name "${MODEL2VEC_MODEL}" \
@@ -1677,8 +1648,7 @@ uv run bonepick train-model2vec \
 ```
 
 Now we eval the models:
-
-```shell
+```bash
 uv run bonepick eval-model2vec \
     --dataset-dir "${DATASET_DIR_SPLIT}/${PROGRAMMING_LANGUAGE}" \
     --model-dir "${MODEL2VEC_OUTPUT_DIR}" \
@@ -1688,8 +1658,7 @@ uv run bonepick eval-model2vec \
 ```
 
 Make fasttext dataset:
-
-```shell
+```bash
 uv run bonepick convert-to-fasttext \
     --input-dir "${DATASET_DIR_SPLIT}/${PROGRAMMING_LANGUAGE}" \
     --output-dir "${DATASET_DIR_FASTTEXT}/${PROGRAMMING_LANGUAGE}" \
@@ -1700,16 +1669,14 @@ uv run bonepick convert-to-fasttext \
 
 
 Train a fasttext model directly:
-
-```shell
+```bash
 uv run bonepick train-fasttext \
     --dataset-dir "${DATASET_DIR_FASTTEXT}/${PROGRAMMING_LANGUAGE}" \
     --output-dir "${FASTTEXT_OUTPUT_DIR}"
 ```
 
 Now we eval the models:
-
-```shell
+```bash
 uv run bonepick eval-fasttext \
     --dataset-dir "${DATASET_DIR_FASTTEXT}/${PROGRAMMING_LANGUAGE}" \
     --model-dir "${FASTTEXT_OUTPUT_DIR}"
@@ -2352,4 +2319,72 @@ uv run bonepick convert-to-fasttext \
     --multi-label \
     --normalization ultrafine \
     --max-length 10000
+```
+
+TODO: complete
+
+## Trying StackEdu
+
+Annotate first
+
+```sh
+TO_ANNOTATE=$HOME/ai2-llm/classifiers/code-quality/data/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/Python
+RUBRIC="stack_edu_python"
+DESTINATION_ANNOTATED=$(echo ${TO_ANNOTATE} | sed "s/countup_criteria_v2/${RUBRIC}/g")
+
+uv run --extra=annotate bonepick annotate-dataset \
+    --dataset-dir ${TO_ANNOTATE} \
+    --output-dir ${DESTINATION_ANNOTATED} \
+    --model-name gpt-5-mini \
+    --service-tier flex \
+    --annotation-task-prompt "${RUBRIC}" \
+    --max-concurrent-requests 5_000 \
+    --max-new-tokens 4096 \
+    --annotation-system-prompt 'code_system' \
+    --max-text-length 100000
+```
+
+
+Then split train/valid/test
+
+```sh
+export LOCAL_BASE_DIR="${HOME}/ai2-llm/classifiers/code-quality"
+export BASE_NAME_PREFIX="the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB"
+export RUBRIC_PROMPT="stack_edu_python"
+export LABEL_NAME="${RUBRIC_PROMPT}/gpt-5-mini/10k_trimmed"
+export DATASET_DIR_UNSPLIT="${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/${LABEL_NAME}"
+export DATASET_DIR_SPLIT="${LOCAL_BASE_DIR}/data-train_test_split/${BASE_NAME_PREFIX}/${LABEL_NAME}"
+
+for pl in $(ls --color=never ${DATASET_DIR_UNSPLIT}); do
+    echo "Processing ${pl}..."
+    uv run bonepick reshard-dataset \
+        --dataset-dir "${DATASET_DIR_UNSPLIT}/${pl}" \
+        --output-dir "${DATASET_DIR_SPLIT}/${pl}" \
+        --num-files 22 \
+        --test-split-frac 10_000 \
+        --valid-split-frac 10_000
+done
+```
+
+
+Then convert to 5 bins labeling problem (we will do linear interpolation after)
+
+
+```bash
+uv run bonepick convert-to-fasttext \
+    --input-dir ~/ai2-llm/classifiers/code-quality/data-train_test_split/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/stack_edu_python/gpt-5-mini/10k_trimmed/Python/ \
+    --output-dir ~/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/stack_edu_python/gpt-5-mini/10k_trimmed/fasttext/ultrafine_bin5/Python \
+    --normalization ultrafine \
+    --label-expression '"bin\([[.stack_edu_python.score // 1, 1] | max, 5] | min)"' \
+    --max-length 10000
+```
+
+
+Train a fasttext
+
+```bash
+uv run bonepick train-fasttext \
+    --dataset-dir ~/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/fasttext/ultrafine_auto5/Python \
+    --output-dir ~/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB_countup_criteria_v2_gpt-5-mini_10k_trimmed_fasttext_ultrafine_auto5L/Python/  --word-ngrams 5 --window-size 10 --epoch 10 --dimension
+512
 ```
