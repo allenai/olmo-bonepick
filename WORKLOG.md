@@ -2384,7 +2384,268 @@ Train a fasttext
 
 ```bash
 uv run bonepick train-fasttext \
-    --dataset-dir ~/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/countup_criteria_v2/gpt-5-mini/10k_trimmed/fasttext/ultrafine_auto5/Python \
-    --output-dir ~/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB_countup_criteria_v2_gpt-5-mini_10k_trimmed_fasttext_ultrafine_auto5L/Python/  --word-ngrams 5 --window-size 10 --epoch 10 --dimension
-512
+    --dataset-dir ~/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/stack_edu_python/gpt-5-mini/10k_trimmed/fasttext/ultrafine_bin5/Python \
+    --output-dir ~/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB_stack_edu_python_gpt-5-mini_10k_trimmed_fasttext_ultrafine_bin5L/Python/  \
+    --word-ngrams 5 \
+    --window-size 10 \
+    --epoch 10 \
+    --dimension 512
+```
+
+Evaluate
+
+```bash
+uv run bonepick evaluate-fasttext \
+    --dataset-dir ~/ai2-llm/classifiers/code-quality/preprocessed/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/stack_edu_python/gpt-5-mini/10k_trimmed/fasttext/ultrafine_bin5/Python \
+    --model-dir ~/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB_stack_edu_python_gpt-5-mini_10k_trimmed_fasttext_ultrafine_bin5L/Python 
+```
+
+Now do inference so you can test calibration
+
+```sh
+for split in "valid" "test"; do
+    uv run bonepick infer-fasttext \
+        -i "$HOME/ai2-llm/classifiers/code-quality/data-train_test_split/the-stack-v2/spring2code_v2/minhash_v2_annotated/sample_1GB/stack_edu_python/gpt-5-mini/10k_trimmed/Python/${split}" \
+        -o "tmp/sample_1GB_stack_edu_python_${split}" \
+        --normalizer ultrafine \
+        -m ~/ai2-llm/classifiers/code-quality/trained_models/fasttext/the-stack-v2_spring2code_v2_minhash_v2_annotated_sample_1GB_stack_edu_python_gpt-5-mini_10k_trimmed_fasttext_ultrafine_bin5L/Python \
+        -c "stack_edu" \
+        --max-length 10000
+done 
+```
+
+
+Train linear model 
+
+```sh
+uv run bonepick train-calibration \
+    -d  tmp/sample_1GB_stack_edu_python_valid \
+    -p '.metadata.stack_edu' \
+    -l '.stack_edu_python.score'
+```
+
+Result
+
+```text
+Calibration Model Training
+
+Dataset(s): tmp/sample_1GB_stack_edu_python_valid
+Prediction Expression: .metadata.stack_edu
+Label Expression: .stack_edu_python.score
+Model Type: linear
+
+Loading files: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1.00/1.00 [00:06<00:00, 6.21s/ files]
+Loaded 10,000 samples with 5 prediction components: ['__label__bin1', '__label__bin2', '__label__bin3', '__label__bin4', '__label__bin5']
+
+Gold labels: 5 unique values: [1, 2, 3, 4, 5]
+
+Normalized labels range: [0.0000, 1.0000]
+
+Fitting calibration model...
+
+╭─ Model Fit Metrics ─╮
+│ R-squared: 0.4498   │
+│ RMSE: 0.146389      │
+│ MAE: 0.112548       │
+│ MSE: 0.021430       │
+│                     │
+│ Bias: 0.392923      │
+╰─────────────────────╯
+
+Learned Weights:
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Component     ┃    Weight ┃ Contribution         ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━┩
+│ __label__bin1 │ -0.371592 │ -------------------- │
+│ __label__bin4 │  0.347447 │ ++++++++++++++++++   │
+│ __label__bin2 │ -0.125690 │ ------               │
+│ __label__bin3 │  0.099918 │ +++++                │
+│ __label__bin5 │  0.050993 │ ++                   │
+└───────────────┴───────────┴──────────────────────┘
+
+JQ Expression:
+.metadata.stack_edu | ((."__label__bin1" * (-0.371592)) + (."__label__bin2" * (-0.125690)) + (."__label__bin3" * 0.099918) + (."__label__bin4" * 0.347447) + (."__label__bin5" * 0.050993) + 0.392923)
+```
+
+Eval calibration
+
+```sh
+uv run bonepick eval-calibration \
+    -d  tmp/sample_1GB_stack_edu_python_test \
+    -p '.metadata.stack_edu | ((."__label__bin1" * (-0.371592)) + (."__label__bin2" * (-0.125690)) + (."__label__bin3" * 0.099918) + (."__label__bin4" * 0.347447) + (."__label__bin5" * 0.050993) + 0.392923)' \
+    -l '.stack_edu_python.score'
+```
+
+result
+
+
+```
+Prediction Evaluation
+
+Dataset(s): tmp/sample_1GB_stack_edu_python_test
+Prediction Expression: .metadata.stack_edu | ((."__label__bin1" * (-0.371592)) + (."__label__bin2" * (-0.125690)) + (."__label__bin3" * 0.099918) + (."__label__bin4" * 0.347447) + (."__label__bin5" * 0.050993) + 0.392923)
+Label Expression: .stack_edu_python.score
+
+Loading files: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1.00/1.00 [00:05<00:00, 5.92s/ files]
+Loaded 10,000 samples with 5 unique labels: [1, 2, 3, 4, 5]
+
+Computing metrics...
+
+
+Prediction Evaluation Results
+
+╭───────────── Overall Metrics ─────────────╮
+│ Macro AUC: 0.8699                         │
+│ Weighted AUC: 0.8553                      │
+│ Ordinal AUC (adjacent pairs): 0.7862      │
+│                                           │
+│ Spearman Correlation: 0.6484 (p=0.00e+00) │
+│ Kendall's Tau-b: 0.5291 (p=0.00e+00)      │
+│ Pearson Correlation: 0.6589 (p=0.00e+00)  │
+│                                           │
+│ MSE: 0.022460                             │
+│ RMSE: 0.149867                            │
+│ MAE: 0.115486                             │
+│ R-squared: 0.4341                         │
+│                                           │
+│ Expected Calibration Error: 0.0055        │
+│                                           │
+│ Total Samples: 10,000                     │
+╰───────────────────────────────────────────╯
+
+Per-Class Statistics:
+┏━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━┓
+┃ Label ┃ Count ┃ Mean Pred ┃ Std Pred ┃    Min ┃ Median ┃    Max ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━┩
+│ 1     │   214 │    0.2221 │   0.1835 │ 0.0213 │ 0.2129 │ 0.7172 │
+│ 2     │ 3,046 │    0.3779 │   0.1022 │ 0.0214 │ 0.3620 │ 0.7238 │
+│ 3     │ 4,281 │    0.4899 │   0.0933 │ 0.1317 │ 0.4907 │ 0.7356 │
+│ 4     │ 2,430 │    0.5903 │   0.0960 │ 0.2365 │ 0.6015 │ 0.7365 │
+│ 5     │    29 │    0.6762 │   0.0465 │ 0.5274 │ 0.6905 │ 0.7336 │
+└───────┴───────┴───────────┴──────────┴────────┴────────┴────────┘
+
+Prediction Distribution by Class:
+(Shows mean prediction with std dev range)
+
+        Label      Mean  Distribution
+            1     0.222  0[ ----------|---------                              ]1
+            2     0.378  0[             -----|------                          ]1
+            3     0.490  0[                   -----|-----                     ]1
+            4     0.590  0[                        -----|-----                ]1
+            5     0.676  0[                               --|---              ]1
+
+Calibration Plot:
+(Perfect calibration: mean prediction = mean label)
+
+             Bin     Count   Mean Pred  Mean Label     Error  Visualization
+      [0.0, 0.1)        85       0.035       0.032     0.003  =
+      [0.1, 0.2)        51       0.159       0.118     0.041    LP
+      [0.2, 0.3)     1,005       0.273       0.271     0.002       =
+      [0.3, 0.4)     1,702       0.352       0.361     0.009         =
+      [0.4, 0.5)     2,810       0.455       0.451     0.005           =
+      [0.5, 0.6)     2,458       0.544       0.550     0.005            =
+      [0.6, 0.7)     1,507       0.647       0.643     0.004              =
+      [0.7, 0.8)       382       0.716       0.707     0.009                =
+L=Label, P=Prediction, ==Match
+```
+
+but how does it compare with the countup? 
+
+```sh
+uv run bonepick eval-calibration \
+    -d  tmp/sample_1GB_stack_edu_python_test \
+    -p '.metadata.stack_edu | ((."__label__bin1" * (-0.371592)) + (."__label__bin2" * (-0.125690)) + (."__label__bin3" * 0.099918) + (."__label__bin4" * 0.347447) + (."__label__bin5" * 0.050993) + 0.392923)' \
+    -l '.countup_criteria_v2.score'
+```
+
+pretty similar actually:
+
+```text
+Prediction Evaluation
+
+Dataset(s): tmp/sample_1GB_stack_edu_python_test
+Prediction Expression: .metadata.stack_edu | ((."__label__bin1" * (-0.371592)) + (."__label__bin2" * (-0.125690)) + (."__label__bin3" * 0.099918) + (."__label__bin4" * 0.347447) + (."__label__bin5" * 0.050993) + 0.392923)
+Label Expression: .countup_criteria_v2.score
+
+Loading files: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1.00/1.00 [00:06<00:00, 6.03s/ files]
+Loaded 10,000 samples with 15 unique labels: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+Computing metrics...
+
+
+Prediction Evaluation Results
+
+╭───────────── Overall Metrics ─────────────╮
+│ Macro AUC: 0.6680                         │
+│ Weighted AUC: 0.6697                      │
+│ Ordinal AUC (adjacent pairs): 0.5585      │
+│                                           │
+│ Spearman Correlation: 0.1588 (p=1.89e-57) │
+│ Kendall's Tau-b: 0.1142 (p=2.59e-57)      │
+│ Pearson Correlation: 0.2027 (p=3.02e-93)  │
+│                                           │
+│ MSE: 0.037976                             │
+│ RMSE: 0.194873                            │
+│ MAE: 0.158565                             │
+│ R-squared: -0.9790                        │
+│                                           │
+│ Expected Calibration Error: 0.1193        │
+│                                           │
+│ Total Samples: 10,000                     │
+╰───────────────────────────────────────────╯
+
+Per-Class Statistics:
+┏━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━┓
+┃ Label ┃ Count ┃ Mean Pred ┃ Std Pred ┃    Min ┃ Median ┃    Max ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━┩
+│ 5     │     1 │    0.2628 │   0.0000 │ 0.2628 │ 0.2628 │ 0.2628 │
+│ 6     │    22 │    0.4025 │   0.1673 │ 0.0216 │ 0.4100 │ 0.6604 │
+│ 7     │    35 │    0.4311 │   0.1483 │ 0.0215 │ 0.4584 │ 0.6539 │
+│ 8     │   145 │    0.3630 │   0.1934 │ 0.0213 │ 0.3787 │ 0.7119 │
+│ 9     │   344 │    0.3887 │   0.1610 │ 0.0213 │ 0.3998 │ 0.7158 │
+│ 10    │   271 │    0.4012 │   0.1522 │ 0.0218 │ 0.4123 │ 0.7340 │
+│ 11    │ 1,200 │    0.4439 │   0.1298 │ 0.0216 │ 0.4442 │ 0.7356 │
+│ 12    │ 1,946 │    0.4851 │   0.1284 │ 0.0225 │ 0.4882 │ 0.7351 │
+│ 13    │ 2,280 │    0.4884 │   0.1300 │ 0.0224 │ 0.4921 │ 0.7365 │
+│ 14    │ 1,358 │    0.4787 │   0.1223 │ 0.1932 │ 0.4832 │ 0.7344 │
+│ 15    │ 1,702 │    0.4771 │   0.1210 │ 0.1993 │ 0.4815 │ 0.7333 │
+│ 16    │   490 │    0.5374 │   0.1012 │ 0.2730 │ 0.5333 │ 0.7335 │
+│ 17    │   123 │    0.5450 │   0.0837 │ 0.3182 │ 0.5490 │ 0.7138 │
+│ 18    │    56 │    0.5745 │   0.0690 │ 0.4122 │ 0.5837 │ 0.7236 │
+│ 19    │    27 │    0.5838 │   0.0686 │ 0.4537 │ 0.5679 │ 0.7182 │
+└───────┴───────┴───────────┴──────────┴────────┴────────┴────────┘
+
+Prediction Distribution by Class:
+(Shows mean prediction with std dev range)
+
+        Label      Mean  Distribution
+            5     0.263  0[             |                                     ]1
+            6     0.403  0[           ---------|--------                      ]1
+            7     0.431  0[              -------|-------                      ]1
+            8     0.363  0[        ----------|---------                       ]1
+            9     0.389  0[           --------|--------                       ]1
+           10     0.401  0[            --------|-------                       ]1
+           11     0.444  0[               -------|------                      ]1
+           12     0.485  0[                 -------|------                    ]1
+           13     0.488  0[                 -------|------                    ]1
+           14     0.479  0[                 ------|-------                    ]1
+           15     0.477  0[                 ------|------                     ]1
+           16     0.537  0[                     -----|-----                   ]1
+           17     0.545  0[                       ----|----                   ]1
+           18     0.575  0[                         ---|----                  ]1
+           19     0.584  0[                         ----|---                  ]1
+
+Calibration Plot:
+(Perfect calibration: mean prediction = mean label)
+
+             Bin     Count   Mean Pred  Mean Label     Error  Visualization
+      [0.0, 0.1)        85       0.035       0.312     0.277  P     L
+      [0.1, 0.2)        51       0.159       0.399     0.240     P   L
+      [0.2, 0.3)     1,005       0.273       0.529     0.256       P    L
+      [0.3, 0.4)     1,702       0.352       0.550     0.199         P   L
+      [0.4, 0.5)     2,810       0.455       0.568     0.113           P L
+      [0.5, 0.6)     2,458       0.544       0.591     0.046            PL
+      [0.6, 0.7)     1,507       0.647       0.589     0.058             LP
+      [0.7, 0.8)       382       0.716       0.600     0.115              L P
+L=Label, P=Prediction, ==Match
 ```
