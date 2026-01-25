@@ -6,13 +6,13 @@ from .code_rubrics import BetterTruncationCodePrompt
 
 
 @dt.dataclass(frozen=True)
-class StackEduOutput:
+class BaseStackEduReduxOutput:
     justification: str
     score: int
 
 
 @dt.dataclass(frozen=True)
-class BaseStackEduPrompt(BetterTruncationCodePrompt):
+class BaseStackEduReduxPrompt(BetterTruncationCodePrompt):
     instructions: str = """
 After examining the extract, respond with a JSON object with the following format:
 
@@ -25,21 +25,33 @@ After examining the extract, respond with a JSON object with the following forma
 """
 
     def format_text(self, text: str, max_text_length: int | None = None) -> str:
-        text = text.strip()
+        # save 40 characters for the info about chopped text
+        max_text_length = max_text_length - 80 if max_text_length is not None else None
+
         if max_text_length is not None and len(text) > max_text_length:
-            text = text[:max_text_length]
-        return f"The extract:\n\n{text.strip()}\n\n"
+            # find the closest "\n" before the max_text_length
+            closest_newline = p if (p := text.rfind("\n", 0, max_text_length)) > -1 else max_text_length
+            text = text[:closest_newline]
+            remaining_text = text[closest_newline:]
+
+            remaining_chars = len(remaining_text)
+            remaining_lines = remaining_text.count("\n")
+            text = f"{text.strip()}\n<... truncated {remaining_chars:,} characters, {remaining_lines:,} lines ...>"
+
+        return (
+            f"\n\n=========== BEGIN OF EXTRACT ===========\n{text}\n=========== END OF EXTRACT =============\n\n"
+        )
 
     def format_instructions(self) -> str:
         return self.instructions.strip()
 
-    output_type: type[DataclassType] = StackEduOutput
+    output_type: type[DataclassType] = BaseStackEduReduxOutput
 
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduCPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_c"
+class StackEduReduxCPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_c"
     preamble: str = """
 Below is an extract from a C program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -57,8 +69,8 @@ Below is an extract from a C program. Evaluate whether it has a high educational
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduCSharpPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_csharp"
+class StackEduReduxCSharpPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_csharp"
     preamble: str = """
 Below is an extract from a C# program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -76,8 +88,8 @@ Below is an extract from a C# program. Evaluate whether it has a high educationa
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduCppPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_cpp"
+class StackEduReduxCppPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_cpp"
     preamble: str = """
 Below is an extract from a C++ program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -95,8 +107,8 @@ Below is an extract from a C++ program. Evaluate whether it has a high education
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduGoPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_go"
+class StackEduReduxGoPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_go"
     preamble: str = """
 Below is an extract from a Go program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -114,8 +126,8 @@ Below is an extract from a Go program. Evaluate whether it has a high educationa
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduJavaPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_java"
+class StackEduReduxJavaPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_java"
     preamble: str = """
 Below is an extract from a Java program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -133,8 +145,8 @@ Below is an extract from a Java program. Evaluate whether it has a high educatio
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduJavaScriptPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_javascript"
+class StackEduReduxJavaScriptPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_javascript"
     preamble: str = """
 Below is an extract from a JavaScript program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -152,8 +164,8 @@ Below is an extract from a JavaScript program. Evaluate whether it has a high ed
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduMarkdownPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_markdown"
+class StackEduReduxMarkdownPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_markdown"
     preamble: str = """
 Below is an extract from a Markdown document. Evaluate whether it has a high educational value and could help teach Markdown formatting. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -171,8 +183,8 @@ Below is an extract from a Markdown document. Evaluate whether it has a high edu
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduPHPPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_php"
+class StackEduReduxPHPPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_php"
     preamble: str = """
 Below is an extract from a PHP program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -190,8 +202,8 @@ Below is an extract from a PHP program. Evaluate whether it has a high education
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduPythonPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_python"
+class StackEduReduxPythonPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_python"
     preamble: str = """
 Below is an extract from a Python program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -209,8 +221,8 @@ Below is an extract from a Python program. Evaluate whether it has a high educat
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduRubyPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_ruby"
+class StackEduReduxRubyPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_ruby"
     preamble: str = """
 Below is an extract from a Ruby program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -228,8 +240,8 @@ Below is an extract from a Ruby program. Evaluate whether it has a high educatio
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduRustPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_rust"
+class StackEduReduxRustPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_rust"
     preamble: str = """
 Below is an extract from a Rust program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -247,8 +259,8 @@ Below is an extract from a Rust program. Evaluate whether it has a high educatio
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduShellPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_shell"
+class StackEduReduxShellPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_shell"
     preamble: str = """
 Below is an extract from a Shell script. Evaluate whether it has a high educational value and could help teach scripting. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -266,8 +278,8 @@ Below is an extract from a Shell script. Evaluate whether it has a high educatio
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduSQLPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_sql"
+class StackEduReduxSQLPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_sql"
     preamble: str = """
 Below is an extract containing SQL code. Evaluate whether it has a high educational value and could help teach SQL. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -285,8 +297,8 @@ Below is an extract containing SQL code. Evaluate whether it has a high educatio
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduSwiftPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_swift"
+class StackEduReduxSwiftPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_swift"
     preamble: str = """
 Below is an extract from a Swift program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -304,8 +316,8 @@ Below is an extract from a Swift program. Evaluate whether it has a high educati
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduTypeScriptPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_typescript"
+class StackEduReduxTypeScriptPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_typescript"
     preamble: str = """
 Below is an extract from a TypeScript program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -328,8 +340,8 @@ Below is an extract from a TypeScript program. Evaluate whether it has a high ed
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduJupyterNotebookPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_jupyter_notebook"
+class StackEduReduxJupyterNotebookPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_jupyter_notebook"
     preamble: str = """
 Below is an extract from a Jupyter Notebook. Evaluate whether it has a high educational value and could help teach coding or data science. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -347,8 +359,8 @@ Below is an extract from a Jupyter Notebook. Evaluate whether it has a high educ
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduReStructuredTextPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_restructuredtext"
+class StackEduReduxReStructuredTextPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_restructuredtext"
     preamble: str = """
 Below is an extract from a reStructuredText document. Evaluate whether it has a high educational value and could help teach reStructuredText formatting. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -366,8 +378,8 @@ Below is an extract from a reStructuredText document. Evaluate whether it has a 
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduRMarkdownPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_rmarkdown"
+class StackEduReduxRMarkdownPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_rmarkdown"
     preamble: str = """
 Below is an extract from an R Markdown document. Evaluate whether it has a high educational value and could help teach R programming or data analysis. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -390,8 +402,8 @@ Below is an extract from an R Markdown document. Evaluate whether it has a high 
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduCSSPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_css"
+class StackEduReduxCSSPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_css"
     preamble: str = """
 Below is an extract from a CSS stylesheet. Evaluate whether it has a high educational value and could help teach CSS. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -409,8 +421,8 @@ Below is an extract from a CSS stylesheet. Evaluate whether it has a high educat
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduHTMLPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_html"
+class StackEduReduxHTMLPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_html"
     preamble: str = """
 Below is an extract from an HTML document. Evaluate whether it has a high educational value and could help teach HTML. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -428,8 +440,8 @@ Below is an extract from an HTML document. Evaluate whether it has a high educat
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduSCSSPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_scss"
+class StackEduReduxSCSSPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_scss"
     preamble: str = """
 Below is an extract from an SCSS stylesheet. Evaluate whether it has a high educational value and could help teach SCSS. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -452,8 +464,8 @@ Below is an extract from an SCSS stylesheet. Evaluate whether it has a high educ
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduClojurePrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_clojure"
+class StackEduReduxClojurePrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_clojure"
     preamble: str = """
 Below is an extract from a Clojure program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -471,8 +483,8 @@ Below is an extract from a Clojure program. Evaluate whether it has a high educa
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduCommonLispPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_common_lisp"
+class StackEduReduxCommonLispPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_common_lisp"
     preamble: str = """
 Below is an extract from a Common Lisp program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -490,8 +502,8 @@ Below is an extract from a Common Lisp program. Evaluate whether it has a high e
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduSchemePrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_scheme"
+class StackEduReduxSchemePrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_scheme"
     preamble: str = """
 Below is an extract from a Scheme program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -514,8 +526,8 @@ Below is an extract from a Scheme program. Evaluate whether it has a high educat
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduHaskellPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_haskell"
+class StackEduReduxHaskellPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_haskell"
     preamble: str = """
 Below is an extract from a Haskell program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -533,8 +545,8 @@ Below is an extract from a Haskell program. Evaluate whether it has a high educa
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduOCamlPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_ocaml"
+class StackEduReduxOCamlPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_ocaml"
     preamble: str = """
 Below is an extract from an OCaml program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -552,8 +564,8 @@ Below is an extract from an OCaml program. Evaluate whether it has a high educat
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduErlangPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_erlang"
+class StackEduReduxErlangPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_erlang"
     preamble: str = """
 Below is an extract from an Erlang program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -576,8 +588,8 @@ Below is an extract from an Erlang program. Evaluate whether it has a high educa
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduDartPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_dart"
+class StackEduReduxDartPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_dart"
     preamble: str = """
 Below is an extract from a Dart program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -595,8 +607,8 @@ Below is an extract from a Dart program. Evaluate whether it has a high educatio
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduKotlinPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_kotlin"
+class StackEduReduxKotlinPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_kotlin"
     preamble: str = """
 Below is an extract from a Kotlin program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -614,8 +626,8 @@ Below is an extract from a Kotlin program. Evaluate whether it has a high educat
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduScalaPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_scala"
+class StackEduReduxScalaPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_scala"
     preamble: str = """
 Below is an extract from a Scala program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -633,8 +645,8 @@ Below is an extract from a Scala program. Evaluate whether it has a high educati
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduObjectiveCPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_objective_c"
+class StackEduReduxObjectiveCPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_objective_c"
     preamble: str = """
 Below is an extract from an Objective-C program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -657,8 +669,8 @@ Below is an extract from an Objective-C program. Evaluate whether it has a high 
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduFortranPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_fortran"
+class StackEduReduxFortranPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_fortran"
     preamble: str = """
 Below is an extract from a Fortran program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -676,8 +688,8 @@ Below is an extract from a Fortran program. Evaluate whether it has a high educa
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduFortranFreeFormPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_fortran_free_form"
+class StackEduReduxFortranFreeFormPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_fortran_free_form"
     preamble: str = """
 Below is an extract from a Fortran program using free-form source format. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -695,8 +707,8 @@ Below is an extract from a Fortran program using free-form source format. Evalua
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduJuliaPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_julia"
+class StackEduReduxJuliaPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_julia"
     preamble: str = """
 Below is an extract from a Julia program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -714,8 +726,8 @@ Below is an extract from a Julia program. Evaluate whether it has a high educati
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduRPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_r"
+class StackEduReduxRPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_r"
     preamble: str = """
 Below is an extract from an R program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -733,8 +745,8 @@ Below is an extract from an R program. Evaluate whether it has a high educationa
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduMATLABPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_matlab"
+class StackEduReduxMATLABPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_matlab"
     preamble: str = """
 Below is an extract from a MATLAB program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -752,8 +764,8 @@ Below is an extract from a MATLAB program. Evaluate whether it has a high educat
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduMathematicaPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_mathematica"
+class StackEduReduxMathematicaPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_mathematica"
     preamble: str = """
 Below is an extract from a Mathematica program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -776,8 +788,8 @@ Below is an extract from a Mathematica program. Evaluate whether it has a high e
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduLuaPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_lua"
+class StackEduReduxLuaPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_lua"
     preamble: str = """
 Below is an extract from a Lua program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -795,8 +807,8 @@ Below is an extract from a Lua program. Evaluate whether it has a high education
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduPerlPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_perl"
+class StackEduReduxPerlPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_perl"
     preamble: str = """
 Below is an extract from a Perl program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -814,8 +826,8 @@ Below is an extract from a Perl program. Evaluate whether it has a high educatio
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduTclPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_tcl"
+class StackEduReduxTclPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_tcl"
     preamble: str = """
 Below is an extract from a Tcl program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -833,8 +845,8 @@ Below is an extract from a Tcl program. Evaluate whether it has a high education
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduPascalPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_pascal"
+class StackEduReduxPascalPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_pascal"
     preamble: str = """
 Below is an extract from a Pascal program. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -857,8 +869,8 @@ Below is an extract from a Pascal program. Evaluate whether it has a high educat
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduCUDAPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_cuda"
+class StackEduReduxCUDAPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_cuda"
     preamble: str = """
 Below is an extract from a CUDA program. Evaluate whether it has a high educational value and could help teach GPU programming. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -876,8 +888,8 @@ Below is an extract from a CUDA program. Evaluate whether it has a high educatio
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduOpenCLPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_opencl"
+class StackEduReduxOpenCLPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_opencl"
     preamble: str = """
 Below is an extract from an OpenCL program. Evaluate whether it has a high educational value and could help teach GPU programming. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -900,8 +912,8 @@ Below is an extract from an OpenCL program. Evaluate whether it has a high educa
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduVerilogPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_verilog"
+class StackEduReduxVerilogPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_verilog"
     preamble: str = """
 Below is an extract from a Verilog module. Evaluate whether it has a high educational value and could help teach hardware design. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -919,8 +931,8 @@ Below is an extract from a Verilog module. Evaluate whether it has a high educat
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduSystemVerilogPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_systemverilog"
+class StackEduReduxSystemVerilogPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_systemverilog"
     preamble: str = """
 Below is an extract from a SystemVerilog module. Evaluate whether it has a high educational value and could help teach hardware design. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -938,8 +950,8 @@ Below is an extract from a SystemVerilog module. Evaluate whether it has a high 
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduVHDLPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_vhdl"
+class StackEduReduxVHDLPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_vhdl"
     preamble: str = """
 Below is an extract from a VHDL module. Evaluate whether it has a high educational value and could help teach hardware design. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -962,8 +974,8 @@ Below is an extract from a VHDL module. Evaluate whether it has a high education
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduBladePrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_blade"
+class StackEduReduxBladePrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_blade"
     preamble: str = """
 Below is an extract from a Blade template. Evaluate whether it has a high educational value and could help teach Blade templating and PHP web development. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -981,8 +993,8 @@ Below is an extract from a Blade template. Evaluate whether it has a high educat
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduJavaServerPagesPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_java_server_pages"
+class StackEduReduxJavaServerPagesPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_java_server_pages"
     preamble: str = """
 Below is an extract from a Java Server Pages (JSP) file. Evaluate whether it has a high educational value and could help teach JSP and Java web development. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -1000,8 +1012,8 @@ Below is an extract from a Java Server Pages (JSP) file. Evaluate whether it has
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduVuePrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_vue"
+class StackEduReduxVuePrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_vue"
     preamble: str = """
 Below is an extract from a Vue single-file component. Evaluate whether it has a high educational value and could help teach coding. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
@@ -1024,8 +1036,8 @@ Below is an extract from a Vue single-file component. Evaluate whether it has a 
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
-class StackEduCoNLLUPrompt(BaseStackEduPrompt):
-    name: str = "stack_edu_conllu"
+class StackEduReduxCoNLLUPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_conllu"
     preamble: str = """
 Below is an extract from a CoNLL-U file. Evaluate whether it has a high educational value and could help teach linguistic annotation or natural language processing. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
 
