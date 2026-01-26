@@ -79,6 +79,12 @@ for pl_dir in "${INPUT_DIR}"/*; do
     rubric="${RUBRIC_MAP[$pl]}"
     output_pl_dir="${OUTPUT_DIR}/${pl}"
 
+    # Skip if output directory already exists
+    if [[ -d "${output_pl_dir}" ]]; then
+        echo -e "${YELLOW}Skipping ${pl}: output directory already exists${NC}"
+        continue
+    fi
+
     echo -e "${GREEN}Processing ${pl} with rubric ${rubric}...${NC}"
 
     uv run --extra=annotate bonepick annotate-dataset \
