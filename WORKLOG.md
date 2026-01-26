@@ -2649,3 +2649,159 @@ Calibration Plot:
       [0.7, 0.8)       382       0.716       0.600     0.115              L P
 L=Label, P=Prediction, ==Match
 ```
+
+
+
+## Programming languages we want 
+
+Have
+```
+C
+C-Sharp
+C++
+Go
+Java
+JavaScript
+Markdown
+PHP
+Python
+Ruby
+Rust
+Shell
+SQL
+Swift
+TypeScript
+```
+
+Want:
+
+```
+Blade
+Clojure
+Common_Lisp
+CoNLL-U
+CSS
+Cuda
+Dart
+Erlang
+Fortran
+Fortran_Free_Form
+Haskell
+HTML
+Java_Server_Pages
+Julia
+Jupyter_Notebook
+Kotlin
+Lua
+Mathematica
+MATLAB
+Objective-C
+OCaml
+OpenCL
+Pascal
+Perl
+R
+reStructuredText
+RMarkdown
+Scala
+Scheme
+SCSS
+SystemVerilog
+Tcl
+Verilog
+VHDL
+Vue
+```
+
+### Stack v2 Pruning Size Comparison Report
+
+#### Summary
+
+Comparison of data sizes before and after pruning for 15 programming languages.
+
+- **Original location**: `s3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/data/`
+- **Pruned location**: `s3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_v2_annotated/pruned/`
+
+#### Size Comparison by Language
+
+| Language   | Original Size | Pruned Size | Saved | Reduction % |
+|------------|---------------|-------------|-------|-------------|
+| C++        | 148.14 GB     | 53.20 GB    | 94.94 GB  | 64.09%  |
+| C-Sharp    | 70.00 GB      | 40.09 GB    | 29.91 GB  | 42.73%  |
+| C          | 85.74 GB      | 29.37 GB    | 56.36 GB  | 65.74%  |
+| Go         | 23.15 GB      | 8.70 GB     | 14.45 GB  | 62.41%  |
+| Java       | 233.60 GB     | 132.65 GB   | 100.95 GB | 43.21%  |
+| JavaScript | 276.44 GB     | 62.52 GB    | 213.92 GB | 77.38%  |
+| Markdown   | 169.72 GB     | 92.54 GB    | 77.18 GB  | 45.47%  |
+| PHP        | 85.47 GB      | 47.02 GB    | 38.45 GB  | 44.99%  |
+| Python     | 111.96 GB     | 58.74 GB    | 53.22 GB  | 47.54%  |
+| Ruby       | 20.19 GB      | 11.00 GB    | 9.19 GB   | 45.51%  |
+| Rust       | 8.20 GB       | 3.14 GB     | 5.06 GB   | 61.73%  |
+| SQL        | 11.16 GB      | 7.18 GB     | 3.98 GB   | 35.64%  |
+| Shell      | 13.39 GB      | 6.07 GB     | 7.33 GB   | 54.71%  |
+| Swift      | 9.02 GB       | 6.21 GB     | 2.81 GB   | 31.15%  |
+| TypeScript | 32.23 GB      | 17.58 GB    | 14.65 GB  | 45.44%  |
+
+#### Totals
+
+| Metric | Value |
+|--------|-------|
+| **Total Original Size** | 1,298.42 GB |
+| **Total Pruned Size** | 576.01 GB |
+| **Total Saved** | 722.41 GB |
+| **Overall Reduction** | 55.64% |
+
+#### Detailed Raw Data
+
+##### Original Sizes (bytes)
+```
+C++:        159,056,831,916
+C-Sharp:     75,165,075,648
+C:           92,058,220,859
+Go:          24,856,060,003
+Java:       250,820,098,575
+JavaScript: 296,873,304,847
+Markdown:   182,238,490,399
+PHP:         91,766,463,990
+Python:     120,217,307,916
+Ruby:        21,682,866,083
+Rust:         8,802,329,091
+SQL:         11,982,979,526
+Shell:       14,380,316,334
+Swift:        9,686,123,247
+TypeScript:  34,606,758,334
+---------------------------------
+TOTAL:    1,394,192,226,768 bytes (1.27 TiB)
+```
+
+##### Pruned Sizes (bytes)
+```
+C++:         57,112,667,609
+C-Sharp:     43,042,886,651
+C:           31,537,678,446
+Go:           9,343,554,798
+Java:       142,435,495,438
+JavaScript:  67,128,556,490
+Markdown:    99,373,019,264
+PHP:         50,482,511,130
+Python:      63,072,119,240
+Ruby:        11,809,991,956
+Rust:         3,368,509,297
+SQL:          7,713,529,828
+Shell:        6,514,929,228
+Swift:        6,668,206,789
+TypeScript:  18,877,097,174
+---------------------------------
+TOTAL:      618,480,753,338 bytes (575.93 GiB)
+```
+
+#### Key Observations
+
+1. **JavaScript** had the highest reduction rate at **77.38%** (saved 213.92 GB)
+2. **C** had the second highest reduction at **65.74%** (saved 56.36 GB)
+3. **C++** had significant reduction at **64.09%** (saved 94.94 GB)
+4. **Java** had the largest absolute savings at **100.95 GB** (43.21% reduction)
+5. **Swift** had the lowest reduction rate at **31.15%**
+6. **SQL** had the second lowest reduction at **35.64%**
+
+Overall, pruning reduced the dataset from **~1.30 TB to ~576 GB**, saving approximately **722 GB** of storage.
