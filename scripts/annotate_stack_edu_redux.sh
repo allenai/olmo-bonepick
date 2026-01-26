@@ -17,6 +17,7 @@ BASE_DIR="$HOME/ai2-llm/classifiers/code-quality/data/the-stack-v2/spring2code_v
 INPUT_DIR="${BASE_DIR}/raw"
 OUTPUT_DIR="${BASE_DIR}/stack_edu_redux"
 MODEL_NAME="gpt-5-mini"
+SERVICE_TIER="flex"
 LIMIT_ROWS=500000
 MAX_TEXT_LENGTH=10000
 MAX_CONCURRENT_REQUESTS=5000
@@ -56,6 +57,7 @@ echo "Model: ${MODEL_NAME}"
 echo "Limit rows per language: ${LIMIT_ROWS}"
 echo "Max text length: ${MAX_TEXT_LENGTH}"
 echo "Cache location: ${CACHE_LOCATION}"
+echo "Service tier: ${SERVICE_TIER}"
 echo "========================================"
 echo ""
 
@@ -91,7 +93,7 @@ for pl_dir in "${INPUT_DIR}"/*; do
         --dataset-dir "${pl_dir}" \
         --output-dir "${output_pl_dir}" \
         --model-name "${MODEL_NAME}" \
-        --service-tier flex \
+        --service-tier ${SERVICE_TIER} \
         --annotation-task-prompt "${rubric}" \
         --max-concurrent-requests ${MAX_CONCURRENT_REQUESTS} \
         --max-new-tokens 4096 \
