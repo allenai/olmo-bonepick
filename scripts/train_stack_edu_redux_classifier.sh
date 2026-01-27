@@ -62,7 +62,7 @@ INPUT_DATA_DIR="${INPUT_DATA_DIR:-${LOCAL_BASE_DIR}/data/${BASE_NAME_PREFIX}/sta
 SPLIT_DATA_DIR="${LOCAL_BASE_DIR}/data-train_test_split/${BASE_NAME_PREFIX}/stack_edu_redux"
 PREPROCESSED_DIR="${LOCAL_BASE_DIR}/preprocessed/${BASE_NAME_PREFIX}/stack_edu_redux/fasttext/ultrafine_bin5"
 MODELS_DIR="${LOCAL_BASE_DIR}/trained_models/fasttext/stack_edu_redux_ultrafine_bin5"
-TMP_DIR="${LOCAL_BASE_DIR}/tmp/stack_edu_redux"
+CALIBRATION_DIR="${LOCAL_BASE_DIR}/calibration/stack_edu_redux"
 
 # Training parameters
 NUM_FILES=$(($(nproc) + 2))  # Number of training files after resharding (CPU cores + 2)
@@ -165,7 +165,7 @@ check_command uv
 check_command zstd
 
 # Create output directories
-mkdir -p "${TMP_DIR}"
+mkdir -p "${CALIBRATION_DIR}"
 
 # Get list of programming languages from input directory
 if [[ ! -d "${INPUT_DATA_DIR}" ]]; then
@@ -299,7 +299,7 @@ for lang in "${LANGUAGES[@]}"; do
 
     for split in "valid" "test"; do
         input_dir="${SPLIT_DATA_DIR}/${lang}/${split}"
-        output_dir="${TMP_DIR}/${lang}_${split}"
+        output_dir="${CALIBRATION_DIR}/${lang}_${split}"
 
         if [[ -d "${output_dir}" ]] && [[ -n "$(ls -A ${output_dir} 2>/dev/null)" ]]; then
             log "    Skipping ${lang}/${split} - already inferred"
@@ -330,8 +330,8 @@ declare -A CALIBRATION_EXPRESSIONS
 for lang in "${LANGUAGES[@]}"; do
     log "  Training calibration for ${lang}..."
 
-    valid_dir="${TMP_DIR}/${lang}_valid"
-    calibration_file="${MODELS_DIR}/${lang}/calibration.txt"
+    valid_dir="${CALIBRATION_DIR}/${lang}_valid"
+    calibration_file="${MODELS_DIR}/${lang}/calibration.yaml"
 
     # Load the rubric field from preprocessing step, or compute it
     rubric_field_file="${PREPROCESSED_DIR}/${lang}/rubric_field.txt"
@@ -343,28 +343,27 @@ for lang in "${LANGUAGES[@]}"; do
 
     if [[ -f "${calibration_file}" ]]; then
         log "    Loading existing calibration for ${lang}"
-        CALIBRATION_EXPRESSIONS["${lang}"]=$(cat "${calibration_file}")
+        CALIBRATION_EXPRESSIONS["${lang}"]=$(uv run --with=pyyaml python3 -c "import sys,yaml; print(yaml.safe_load(open(sys.argv[1]))['jq_expression'])" "${calibration_file}")
         continue
     fi
 
     log "    Using rubric field: ${rubric_field}"
 
-    # Run calibration training and capture output
-    calibration_output=$(uv run bonepick train-calibration \
+    # Run calibration training with output file
+    uv run bonepick train-calibration \
         -d "${valid_dir}" \
         -p ".metadata.${METADATA_FIELD}" \
-        -l ".${rubric_field}.score" 2>&1)
+        -l ".${rubric_field}.score" \
+        --output-file "${calibration_file}"
 
-    # Extract JQ expression from output
-    jq_expr=$(echo "${calibration_output}" | grep -A1 "JQ Expression:" | tail -1 | xargs)
+    # Extract JQ expression from YAML output
+    jq_expr=$(uv run --with=pyyaml python3 -c "import sys,yaml; print(yaml.safe_load(open(sys.argv[1]))['jq_expression'])" "${calibration_file}")
 
     if [[ -n "${jq_expr}" ]]; then
-        echo "${jq_expr}" > "${calibration_file}"
         CALIBRATION_EXPRESSIONS["${lang}"]="${jq_expr}"
         log "    Calibration expression: ${jq_expr}"
     else
         log "    Warning: Could not extract calibration expression for ${lang}"
-        echo "${calibration_output}"
     fi
 done
 
@@ -384,8 +383,8 @@ echo "" >> "${results_file}"
 for lang in "${LANGUAGES[@]}"; do
     log "  Evaluating ${lang}..."
 
-    test_dir="${TMP_DIR}/${lang}_test"
-    calibration_file="${MODELS_DIR}/${lang}/calibration.txt"
+    test_dir="${CALIBRATION_DIR}/${lang}_test"
+    calibration_file="${MODELS_DIR}/${lang}/calibration.yaml"
 
     # Load the rubric field from preprocessing step, or compute it
     rubric_field_file="${PREPROCESSED_DIR}/${lang}/rubric_field.txt"
@@ -400,7 +399,7 @@ for lang in "${LANGUAGES[@]}"; do
         continue
     fi
 
-    jq_expr=$(cat "${calibration_file}")
+    jq_expr=$(uv run --with=pyyaml python3 -c "import sys,yaml; print(yaml.safe_load(open(sys.argv[1]))['jq_expression'])" "${calibration_file}")
 
     echo "Language: ${lang}" >> "${results_file}"
     echo "----------------" >> "${results_file}"
@@ -427,7 +426,7 @@ log "Outputs:"
 log "  Split data:      ${SPLIT_DATA_DIR}"
 log "  Preprocessed:    ${PREPROCESSED_DIR}"
 log "  Models:          ${MODELS_DIR}"
-log "  Inference tmp:   ${TMP_DIR}"
+log "  Calibration tmp: ${CALIBRATION_DIR}"
 log "  Results:         ${results_file}"
 log ""
 log "To use a trained model for inference on new data:"
