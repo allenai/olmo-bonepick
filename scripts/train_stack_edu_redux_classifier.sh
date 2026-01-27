@@ -114,10 +114,14 @@ get_rubric_field() {
     local lang="$1"
     # Convert language name to lowercase and replace hyphens/spaces with underscores
     local lang_lower=$(echo "$lang" | tr '[:upper:]' '[:lower:]' | tr '-' '_' | tr ' ' '_')
-    # Handle special cases
+
+    # Handle special cases (C++, C#)
     if [[ "$lang_lower" == "c++" ]]; then
         lang_lower="cpp"
+    elif [[ "$lang_lower" == "c#" ]]; then
+        lang_lower="csharp"
     fi
+
     echo "${RUBRIC_PREFIX}_${lang_lower}"
 }
 
