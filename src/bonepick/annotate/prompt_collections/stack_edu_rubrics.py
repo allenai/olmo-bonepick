@@ -950,6 +950,25 @@ Below is an extract from a SystemVerilog module. Evaluate whether it has a high 
 
 @dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
+class StackEduReduxBluespecPrompt(BaseStackEduReduxPrompt):
+    name: str = "stack_edu_redux_bluespec"
+    preamble: str = """
+Below is an extract from a Bluespec program. Evaluate whether it has a high educational value and could help teach hardware design. Use the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
+
+- Add 1 point if the program contains valid Bluespec code, even if it's not educational, like boilerplate code, interface declarations, and niche constructs.
+
+- Add another point if the program addresses practical concepts, even if it lacks comments.
+
+- Award a third point if the program is suitable for educational use and introduces key concepts in hardware design, even if the topic is advanced (e.g., rules, scheduling, or interfaces). The code should be well-structured and contain some comments.
+
+- Give a fourth point if the program is self-contained and highly relevant to teaching hardware design. It should be similar to a school exercise, a tutorial, or a Bluespec course section.
+
+- Grant a fifth point if the program is outstanding in its educational value and is perfectly suited for teaching hardware design. It should be well-written, easy to understand, and contain step-by-step explanations and comments.
+"""
+
+
+@dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
 class StackEduReduxVHDLPrompt(BaseStackEduReduxPrompt):
     name: str = "stack_edu_redux_vhdl"
     preamble: str = """

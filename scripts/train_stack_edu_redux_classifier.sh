@@ -80,7 +80,7 @@ DIMENSION=512
 NORMALIZER="ultrafine"
 
 # Metadata field name for inference output
-METADATA_FIELD="stack_edu"
+METADATA_FIELD=$(basename "${MODELS_DIR}")
 
 # ==============================================================================
 # Helper functions
@@ -118,7 +118,7 @@ get_rubric_field() {
     # Handle special cases (C++, C#)
     if [[ "$lang_lower" == "c++" ]]; then
         lang_lower="cpp"
-    elif [[ "$lang_lower" == "c#" ]]; then
+    elif [[ "$lang_lower" == "c#" ]] || [[ "$lang_lower" == "c_sharp" ]]; then
         lang_lower="csharp"
     fi
 
@@ -231,7 +231,8 @@ for lang in "${LANGUAGES[@]}"; do
     input_lang_dir="${SPLIT_DATA_DIR}/${lang}"
     output_lang_dir="${PREPROCESSED_DIR}/${lang}"
 
-    if [[ -d "${output_lang_dir}/train" ]]; then
+    if [[ -f "${output_lang_dir}/train.txt" ]]; then
+
         log "    Skipping ${lang} - already converted"
         continue
     fi
@@ -310,7 +311,7 @@ for lang in "${LANGUAGES[@]}"; do
             --output-dir "${output_dir}" \
             --normalizer "${NORMALIZER}" \
             --model-dir "${model_dir}" \
-            --column-name "${METADATA_FIELD}" \
+            --classifier-name "${METADATA_FIELD}" \
             --max-length "${MAX_TEXT_LENGTH}"
     done
 done
