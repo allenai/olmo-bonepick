@@ -6,6 +6,7 @@ os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
 import multiprocessing
 
 import click
+import smart_open.compression
 import torch
 
 from bonepick.annotate import annotate_dataset, annotation_agreement, label_distribution, list_prompts
@@ -39,6 +40,9 @@ torch.set_float32_matmul_precision("high")
 
 # initialize logger
 init_logger()
+
+# add additional extension for ZST compression
+smart_open.compression.register_compressor(".zstd", smart_open.compression._handle_zstd)
 
 cli.add_command(balance_dataset)
 cli.add_command(convert_to_fasttext)

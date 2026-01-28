@@ -482,12 +482,16 @@ for mapping in "${LANGUAGE_MAPPINGS[@]}"; do
         mkdir -p "$sample_output_dir"
         cp -r "${deduped_input_dir}"/* "$sample_output_dir/"
     else
+        set -ex
+
         # Sample using bonepick
         log_info "  Sampling to $(human_readable_size $TARGET_SAMPLE_SIZE)..."
         uv run bonepick sample-dataset \
             --dataset-dir "${deduped_input_dir}" \
             --output-dir "${sample_output_dir}" \
             --target-size "${TARGET_SAMPLE_SIZE}"
+
+        exit 0
     fi
 
     log_success "Completed sampling for ${pl_folder}"
