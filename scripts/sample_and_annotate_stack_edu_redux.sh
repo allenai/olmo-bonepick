@@ -240,14 +240,18 @@ sample_files_from_s3() {
 
     log_info "Downloading ${#files_to_download[@]} files ($(human_readable_size $cumulative_size))"
 
-    # Download selected files
-    for file in "${files_to_download[@]}"; do
-        if command -v s5cmd &> /dev/null; then
-            s5cmd cp -sp "$file" "${local_path}/"
-        else
+    # Download selected files in parallel
+    if command -v s5cmd &> /dev/null; then
+        # Use s5cmd run for parallel downloads - generate cp commands and pipe to s5cmd run
+        printf '%s\n' "${files_to_download[@]}" | \
+            sed "s|.*|cp & ${local_path}/|" | \
+            s5cmd run
+    else
+        # Fallback to sequential aws s3 cp
+        for file in "${files_to_download[@]}"; do
             aws s3 cp "$file" "${local_path}/"
-        fi
-    done
+        done
+    fi
 }
 
 # Run fuzzy deduplication using Duplodocus
