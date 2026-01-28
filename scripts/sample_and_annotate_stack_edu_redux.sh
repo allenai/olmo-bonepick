@@ -36,7 +36,7 @@ OUTPUT_BASE_DIR="${BASE_DIR}/ai2-llm/classifiers/code-quality/data/the-stack-v2/
 DEDUPED_DIR="${OUTPUT_BASE_DIR}/deduped"
 SAMPLE_DIR="${OUTPUT_BASE_DIR}/sampled"
 ANNOTATED_DIR="${OUTPUT_BASE_DIR}/annotated"
-CACHE_LOCATION="${OUTPUT_BASE_DIR}/annotation_cache.db"
+CACHE_LOCATION="${BASE_DIR}/annotation_cache"
 DEDUP_WORK_DIR="${OUTPUT_BASE_DIR}/dedup_work"
 
 # Sampling parameters
@@ -65,6 +65,7 @@ SKIP_DEDUP="${SKIP_DEDUP:-false}"
 # Format: "FolderName:rubric_name"
 declare -a LANGUAGE_MAPPINGS=(
     "CSS:stack_edu_redux_css"
+    "HTML:stack_edu_redux_html"
     "Java_Server_Pages:stack_edu_redux_java_server_pages"
     "SCSS:stack_edu_redux_scss"
     "R:stack_edu_redux_r"
@@ -482,16 +483,12 @@ for mapping in "${LANGUAGE_MAPPINGS[@]}"; do
         mkdir -p "$sample_output_dir"
         cp -r "${deduped_input_dir}"/* "$sample_output_dir/"
     else
-        set -ex
-
         # Sample using bonepick
         log_info "  Sampling to $(human_readable_size $TARGET_SAMPLE_SIZE)..."
         uv run bonepick sample-dataset \
             --dataset-dir "${deduped_input_dir}" \
             --output-dir "${sample_output_dir}" \
             --target-size "${TARGET_SAMPLE_SIZE}"
-
-        exit 0
     fi
 
     log_success "Completed sampling for ${pl_folder}"
