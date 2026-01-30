@@ -16,7 +16,14 @@ uv run pytest -k "test_name"              # single test
 
 # Format code
 uv run ruff format .
+
+# Commit (Claude must add co-author)
+git commit -m "message
+
+Co-Authored-By: Claude <model> <noreply@anthropic.com>"
 ```
+
+**Important**: Claude must always add co-author trailer to commits, including the model name (e.g., `Claude Opus 4.5`).
 
 ## Architecture
 
