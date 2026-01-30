@@ -1,6 +1,6 @@
 
 <p align="center">
-  <img src="assets/logo.png" alt="Olmo Bonepick library logo" width="500"/>
+  <img src="https://github.com/allenai/olmo-bonepick/blob/main/assets/logo.png?raw=true" alt="Olmo Bonepick library logo" width="500"/>
 </p>
 
 `bonepick` is a CLI tool for training efficient text quality classifiers that run on CPU. It supports [**Model2Vec**][1] (static embeddings) and [**FastText**][2] classifiers, with built-in tools for data preparation, LLM-based annotation, and evaluation.
