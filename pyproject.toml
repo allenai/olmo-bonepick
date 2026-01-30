@@ -1,9 +1,9 @@
 [project]
 name = "bonepick"
 dynamic = ["version"]
-description = "Add your description here"
+description = "CLI tool for training efficient CPU-based text quality classifiers and annotating data for distillation of classifiers."
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12"
 dependencies = [
     "torch>=2.9.1",
     "click",

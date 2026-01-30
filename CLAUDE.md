@@ -4,206 +4,92 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-Always use `uv run python3` instead of `python3` directly.
-
 ```bash
 # Run CLI commands
 uv run bonepick <command>
-
-# Available commands
 uv run bonepick --help
 
-# Data Pipeline
-uv run bonepick import-hf-dataset --help
-uv run bonepick transform-dataset --help
-uv run bonepick balance-dataset --help
-uv run bonepick sample-dataset --help
-uv run bonepick reshard-dataset --help
-uv run bonepick normalize-dataset --help
-uv run bonepick convert-to-fasttext --help
-uv run bonepick count-tokens --help
+# Run tests
+uv run pytest
+uv run pytest tests/test_indent_utils.py  # single file
+uv run pytest -k "test_name"              # single test
 
-# Training
-uv run bonepick train-model2vec --help
-uv run bonepick train-fasttext --help
-uv run bonepick distill-model2vec --help
-
-# Evaluation & Inference
-uv run bonepick eval-model2vec --help
-uv run bonepick eval-fasttext --help
-uv run bonepick eval-calibration --help
-uv run bonepick infer-fasttext --help
-
-# Annotation (requires --extra annotate)
-uv run bonepick annotate-dataset --help
-uv run bonepick list-prompts --help
-uv run bonepick annotation-agreement --help
-uv run bonepick label-distribution --help
-
-# Utility
-uv run bonepick version
+# Format code
+uv run ruff format .
 ```
 
 ## Architecture
 
-This is a CLI tool for training efficient quality classifiers (Model2Vec and FastText) on text data.
+CLI tool for training efficient text quality classifiers (Model2Vec and FastText) on text data.
+
+### Module Structure
+
+```
+src/bonepick/
+├── __init__.py      # Command registration hub (all commands added to cli here)
+├── cli.py           # Click CLI setup + custom param types (PathParamType, ByteSizeParamType, etc.)
+├── data/
+│   ├── commands.py  # Data pipeline CLI commands
+│   ├── utils.py     # DatasetSplit, DatasetTuple, file I/O helpers
+│   ├── normalizers.py  # Text normalizer registry
+│   └── expressions.py  # JQ expression utilities
+├── model2vec/
+│   ├── commands.py  # train/eval/distill commands
+│   └── utils.py     # StaticModelForClassification, StaticModelForRegression
+├── fasttext/
+│   ├── commands.py  # train/eval/infer commands
+│   └── utils.py     # FastText binary helpers
+├── evals/
+│   ├── commands.py  # eval-calibration command
+│   └── utils.py     # Shared metrics computation
+└── annotate/        # Optional LLM annotation (requires --extra annotate)
+    ├── annotate_loop.py
+    ├── analysis_loop.py
+    └── prompt_collections/
+```
+
+### Code Style
+
+- **CLI pattern**: Each command is a `@click.command()` function in a `commands.py` file, registered in `__init__.py`
+- **Custom Click types**: Use `PathParamType`, `FloatOrIntParamType`, `ByteSizeParamType` from `cli.py`
+- **Parallel processing**: Use `ProcessPoolExecutor`/`ThreadPoolExecutor` with `as_completed()` pattern
+- **File I/O**: Use `smart_open` for transparent compression (.zst, .gz) support
+- **JSON**: Use `msgspec.json.Encoder/Decoder` for fast serialization
+- **JQ expressions**: Use `compile_jq()` from `data/expressions.py` for field transforms
+- **Options pattern**: Use `multiple=True` for options that accept multiple values (e.g., `-d/--dataset-dir`)
 
 ### Data Pipeline
 
-1. **Import**: `import-hf-dataset` - Downloads HuggingFace datasets to local JSONL format with train/test splits
-2. **Transform**: `transform-dataset` - Applies jq expressions to reshape fields (e.g., binarize labels)
-3. **Balance**: `balance-dataset` - Balances datasets so each label has equal representation (supports multiple input directories)
-4. **Sample**: `sample-dataset` - Creates a random sample of a dataset by sampling rate or target size (supports multiple input directories)
-5. **Reshard**: `reshard-dataset` - Combines multiple small files into a specified number of larger files with roughly equal sizes (uses greedy bin packing algorithm, supports parallel processing)
-6. **Normalize**: `normalize-dataset` - Applies text normalization (whitespace, plsfix, tokenizer, ultrafine, hyperfine, hyperfine-code, potion, potion-code)
-7. **Convert**: `convert-to-fasttext` - Converts JSONL to FastText format (`__label__<label> <text>`); supports `--auto N` for auto-binning numeric labels into N equal-count (quantile) bins
-8. **Count Tokens**: `count-tokens` - Counts total tokens in dataset directories using a specified tokenizer (supports multiple input directories, parallel processing)
-
-### Training Methods
-
-- **train-model2vec**: Classification or regression using Model2Vec static embeddings with PyTorch Lightning training
-  - Use `--regression` flag to train a regression model instead of classification
-- **train-fasttext**: Shells out to the fasttext binary for training
-- **distill-model2vec**: Distills a Sentence Transformer model to a Model2Vec static embedding model
-
-### Evaluation System
-
-Both `eval-model2vec` and `eval-fasttext` compute detailed classification metrics:
-
-- **Metrics**: Precision, recall, F1-score, and AUC for each class, plus macro averages
-- **Implementation**:
-  - Model2Vec: Uses `pipeline.predict_proba()` to get probability distributions
-  - FastText: Shells out to `fasttext predict-prob` command with `-1` flag (all classes)
-- **Label Encoding**: Uses `sklearn.preprocessing.LabelEncoder` for consistent label encoding
-- **Output Format**: YAML files saved to model directory as `results_<dataset_signature>.yaml`
-- **Multi-dataset**: Supports multiple `--dataset-dir` options; results computed on combined test sets
-
-Key functions in `evals/utils.py`:
-- `_compute_metrics_from_predictions()`: Shared helper that computes all metrics from probability predictions
-- `compute_detailed_metrics_model2vec()`: Model2Vec evaluation wrapper
-- `compute_detailed_metrics_fasttext()`: FastText evaluation wrapper with subprocess handling
-- `result_to_text()`: Formats results as YAML with dataset paths, macro metrics, and per-class breakdowns
-
-**Calibration Evaluation (`eval-calibration`):**
-- Evaluates scalar predictions (0-1) against ordinal gold labels using jq expressions
-- **AUC Metrics**: Macro, weighted, and ordinal (adjacent pairs) using Mann-Whitney U with tie correction
-- **Rank Correlation**: Spearman, Kendall's Tau-b (handles ties), Pearson
-- **Regression Metrics**: MSE, RMSE, MAE, R-squared (labels normalized to 0-1)
-- **Calibration**: Expected Calibration Error with bin analysis
-- **Visualization**: CLI histograms showing prediction distribution per class and calibration plots
-- Supports multiple dataset directories and outputs results as YAML
-
-### Annotation System (Optional)
-
-Requires `uv sync --extra annotate` to enable. Uses `lm-deluge` library for async LLM requests.
-
-- **annotate-dataset**: Annotates datasets using LLM APIs (OpenAI, etc.) with configurable prompts
-- **list-prompts**: Lists available task and system prompts for annotation
-- **annotation-agreement**: Compares annotations between two datasets and computes agreement metrics (Cohen's Kappa, weighted Kappa for ordinal data, MAE, RMSE, Pearson correlation)
-- Key features: rate limiting, caching (SQLite), batch processing, supports both text and conversation formats
-
-### Key Components
-
-**Data Modules (`data/`):**
-- `data/commands.py`: Dataset loading, transformation, balancing, sampling, resharding, format conversion, and token counting CLI commands
-- `data/utils.py`: Helper functions for file I/O, label counting, sample reading, file sampling, resharding, and token counting; includes `load_jsonl_dataset()` and `load_fasttext_dataset()` with support for multiple dataset directories; `sample_single_file()` for random sampling; `count_tokens_in_file()` for parallel token counting; `pretty_size()` for human-readable size formatting
-- `data/normalizers.py`: Text normalizer registry with implementations (whitespace, plsfix, tokenizer, ultrafine, hyperfine, hyperfine-code, potion, potion-code)
-- `data/tokenizers.py`: Parallel tokenization utilities using multiprocessing
-- `data/indentation.py`: Indentation detection and space-to-tab conversion utilities
-- `data/expressions.py`: JQ expression compilation and field/expression helpers
-
-**Model2Vec Modules (`model2vec/`):**
-- `model2vec/commands.py`: Training CLI commands (`train-model2vec`, `distill-model2vec`, `eval-model2vec`)
-- `model2vec/utils.py`: Custom Model2Vec classes including `StaticModelForClassification` (parallel tokenization) and `StaticModelForRegression` (regression with MSE loss)
-
-**FastText Modules (`fasttext/`):**
-- `fasttext/commands.py`: FastText CLI commands (`train-fasttext`, `eval-fasttext`, `infer-fasttext`)
-- `fasttext/utils.py`: FastText binary detection, dataset signature utilities, and inference helpers
-
-**Evaluation Modules (`evals/`):**
-- `evals/utils.py`: Shared evaluation utilities including `compute_detailed_metrics_model2vec()`, `compute_detailed_metrics_fasttext()`, and `result_to_text()`
-- `evals/commands.py`: CLI command `eval-calibration` for evaluating scalar predictions against ordinal labels with AUC, correlation, and calibration metrics
-
-**Annotation Modules (Optional, `annotate/`):**
-- `annotate/annotate_loop.py`: Annotation CLI commands (`annotate-dataset`, `list-prompts`)
-- `annotate/analysis_loop.py`: Annotation agreement and label distribution CLI commands (`annotation-agreement`, `label-distribution`)
-- `annotate/prompts.py`: Base classes for annotation prompts
-- `annotate/deluge_utils.py`: LM-deluge integration and caching utilities
-- `annotate/pydantic_utils.py`: Pydantic utilities for annotation
-- `annotate/prompt_collections/`: Directory containing prompt implementations (sft_filtering, code_rubrics)
-
-**CLI Infrastructure:**
-- `cli.py`: Click CLI setup and custom parameter types (PathParamType, FloatOrIntParamType, ByteSizeParamType, PCADimTypeParamType)
-- `__init__.py`: Command registration hub
-- `version.py`: Package version
-- `logger.py`: Logging initialization utilities
+1. `import-hf-dataset` - Downloads HuggingFace datasets to local JSONL
+2. `transform-dataset` - Applies jq expressions to reshape fields
+3. `balance-dataset` - Balances datasets by label
+4. `sample-dataset` - Random sampling by rate or target size
+5. `reshard-dataset` - Combines files into evenly-sized shards
+6. `normalize-dataset` - Text normalization
+7. `convert-to-fasttext` - Converts JSONL to FastText format
+8. `count-tokens` - Token counting with specified tokenizer
 
 ### Data Format
 
-Datasets are stored as compressed JSONL files (`.jsonl.zst`) in `train/` and `test/` subdirectories. Each row must have text and label fields (configurable via `--text-field` and `--label-field`).
+- Compressed JSONL (`.jsonl.zst`, `.jsonl.gz`, `.jsonl`) in `train/` and `test/` subdirectories
+- Each row needs `text` and `label` fields (configurable via `--text-field`, `--label-field`)
+- Multiple `-d/--dataset-dir` options supported for combining datasets
 
-All training and evaluation commands support multiple `--dataset-dir` options to combine data from multiple directories.
+### Key Data Structures
 
+- `DatasetSplit`: Holds parallel `text` and `label` lists for a single split
+- `DatasetTuple`: Contains `train`, `valid`, `test` splits with signature hashing
 
-### Data Format Details
+## Normalizers
 
-- **Compression**: Files can be `.jsonl.zst`, `.jsonl.gz`, or `.jsonl`
-- **Directory structure**: Must have `train/` and `test/` subdirectories
-- **Field names**: Configurable via `--text-field` and `--label-field` (defaults: `text` and `label`)
-- **Multiple datasets**: Most commands support multiple `-d/--dataset-dir` options to combine datasets
+`whitespace`, `plsfix`, `tokenizer`, `ultrafine`, `hyperfine`, `hyperfine-code`, `potion`, `potion-code`
 
-### Normalizers
+## Testing
 
-Available text normalizers (used with `normalize-dataset` and `convert-to-fasttext`):
-- `whitespace`: Basic whitespace normalization
-- `plsfix`: PlsFix text fixing normalization
-- `tokenizer`: Tokenizer-based normalization (dolma2-tokenizer)
-- `ultrafine`: UltraFineWeb normalization (lowercase, diacritics removal, tokenization)
-- `hyperfine`: Enhanced ultrafine normalization with plsfix and dolma2-tokenizer
-- `hyperfine-code`: Like hyperfine but preserves case and converts space indentation to tabs
-- `potion`: Potion normalization with special unicode markers for whitespace
-- `potion-code`: Like potion but preserves case and converts space indentation to tabs
+- Test data: `tests/data/`
+- Test output: `tests/output/` (gitignored)
 
-### Model Types
+## Tips
 
-**Model2Vec:**
-- Static embeddings (no GPU needed for inference)
-- Classification or regression head training with PyTorch Lightning
-- Supports custom normalizers
-- Probability-based evaluation for classification
-- MSE/RMSE/MAE/R² metrics for regression
-
-**FastText:**
-- Requires `fasttext` binary in PATH
-- Extremely fast training and inference
-- N-gram character features
-- Shell-based training and evaluation
-
-### Testing
-
-- Test data is stored in `tests/data/`
-- Test output should be written to `tests/output/` (gitignored)
-
-### Common Workflows
-
-1. **Quick binary classifier**: import → transform (binarize) → normalize → train-model2vec → eval
-2. **Balanced training**: import → transform → balance → normalize → train → eval
-3. **Sampling for experiments**: import → sample → normalize → train → eval
-4. **Resharding for efficiency**: import → reshard (per split) → normalize → train → eval
-5. **Distilling custom embeddings**: distill-model2vec from Sentence Transformer → use in train-model2vec
-6. **LLM annotation pipeline**: import → annotate-dataset → balance → normalize → train → eval
-7. **Token analysis**: count-tokens on dataset(s) to understand size and token distribution before training
-8. **Regression model**: import → normalize → train-model2vec --regression (labels should be numeric)
-9. **Calibration evaluation**: infer-fasttext or other inference → eval-calibration (compare scalar predictions against ordinal labels)
-10. **Auto-binned FastText**: import → convert-to-fasttext --auto N (bins numeric labels into N quantile bins) → train-fasttext → eval
-
-### Tips
-
-- Always use `uv run bonepick` not `python -m bonepick` or direct python execution
-- For Model2Vec, normalize BEFORE training (not during)
-- For FastText, normalize during `convert-to-fasttext`
-- Use `--help` on any command to see all options
-- Evaluation results are saved as YAML in the model directory
-- Multiple dataset directories are concatenated before processing
-- jq expressions in `transform-dataset` can reshape any field structure
-- Always run `uv format` after making code edits to ensure consistent formatting
+- For Model2Vec: normalize BEFORE training
+- For FastText: normalize during `convert-to-fasttext`

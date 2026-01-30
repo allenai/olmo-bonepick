@@ -3,16 +3,22 @@
   <img src="assets/logo.png" alt="Olmo Bonepick library logo" width="500"/>
 </p>
 
-
-
-`bonepick` trains efficient text quality classifiers that run on CPU. It supports training [**Model2Vec**][1] (static embeddings) and [**FastText**][2] classifiers.
-
-⚠️ **Warning: Claude-generated documentation below.** ⚠️
+`bonepick` is a CLI tool for training efficient text quality classifiers that run on CPU. It supports [**Model2Vec**][1] (static embeddings) and [**FastText**][2] classifiers, with built-in tools for data preparation, LLM-based annotation, and evaluation.
 
 ## Installation
 
+From PyPI:
+
+```
+pip install bonepick
+```
+
+From source:
+
 ```shell
-uv sync
+git clone https://github.com/allenai/olmo-bonepick.git
+cd olmo-bonepick
+uv sync .
 ```
 
 ### Optional Dependencies
