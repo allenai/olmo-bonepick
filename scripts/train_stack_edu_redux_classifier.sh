@@ -67,7 +67,6 @@ CALIBRATION_DIR="${LOCAL_BASE_DIR}/calibration/stack_edu_redux"
 # Training parameters
 NUM_FILES=$(($(nproc) + 2))  # Number of training files after resharding (CPU cores + 2)
 TEST_SPLIT_SIZE=10000  # Number of test samples
-VALID_SPLIT_SIZE=10000 # Number of validation samples
 MAX_TEXT_LENGTH=10000  # Max text length for FastText
 
 # FastText hyperparameters
@@ -209,12 +208,30 @@ for lang in "${LANGUAGES[@]}"; do
         continue
     fi
 
+    # Determine appropriate split size based on dataset size
+    test_split_size_lang="${TEST_SPLIT_SIZE}"
+
+    # Check if input directory is below 100MB
+    dir_size_mb=$(du -sm "${input_lang_dir}" 2>/dev/null | cut -f1)
+    if [[ "${dir_size_mb}" -lt 100 ]]; then
+        log "    Small dataset detected (${dir_size_mb}MB), checking line count..."
+        line_count=$(find "${input_lang_dir}" -name "*.jsonl.zst" -exec zstdcat {} \; 2>/dev/null | wc -l)
+        log "    Line count: ${line_count}"
+
+        # Check if TEST_SPLIT_SIZE is over 10% of line count
+        threshold=$((line_count / 10))
+        if [[ "${TEST_SPLIT_SIZE}" -gt "${threshold}" ]]; then
+            test_split_size_lang="0.1"
+            log "    Using 10% split (${test_split_size_lang}) instead of ${TEST_SPLIT_SIZE}"
+        fi
+    fi
+
     uv run bonepick reshard-dataset \
         --dataset-dir "${input_lang_dir}" \
         --output-dir "${output_lang_dir}" \
         --num-files "${NUM_FILES}" \
-        --test-split-frac "${TEST_SPLIT_SIZE}" \
-        --valid-split-frac "${VALID_SPLIT_SIZE}"
+        --test-split-frac "${test_split_size_lang}" \
+        --valid-split-frac "${test_split_size_lang}"
 done
 
 log "Step 1 complete."
