@@ -215,7 +215,7 @@ for lang in "${LANGUAGES[@]}"; do
     dir_size_mb=$(du -sm "${input_lang_dir}" 2>/dev/null | cut -f1)
     if [[ "${dir_size_mb}" -lt 100 ]]; then
         log "    Small dataset detected (${dir_size_mb}MB), checking line count..."
-        line_count=$(find "${input_lang_dir}" -name "*.jsonl.zst" -exec zstdcat {} \; 2>/dev/null | wc -l)
+        line_count=$(find "${input_lang_dir}" -name "*json*" -exec zstdcat {} \; 2>/dev/null | wc -l)
         log "    Line count: ${line_count}"
 
         # Check if TEST_SPLIT_SIZE is over 10% of line count
