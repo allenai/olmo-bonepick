@@ -242,7 +242,7 @@ def load_jsonl_dataset(
             for root, _, files in os.walk(split_path):
                 for file in files:
                     file_path = Path(root) / file
-                    if "".join(file_path.suffixes) not in FILE_SUFFIXES:
+                    if "".join(file_path.suffixes[-2:]) not in FILE_SUFFIXES:
                         continue
                     all_files.append(file_path)
 
