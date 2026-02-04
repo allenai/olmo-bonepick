@@ -950,9 +950,9 @@ def reshard_dataset(
     click.echo(f"  Input directory: {dataset_dir}")
     click.echo(f"  Output directory: {output_dir}")
     click.echo(f"  Target output files: {num_files}")
-    if test_split_frac is not None:
+    if test_split_frac is not None and test_split_frac > 0:
         click.echo(f"  Test split: {test_split_frac}")
-    if valid_split_frac is not None:
+    if valid_split_frac is not None and valid_split_frac > 0:
         click.echo(f"  Valid split: {valid_split_frac}")
     if test_split_frac is not None or valid_split_frac is not None:
         click.echo(f"  Random seed: {seed}")
