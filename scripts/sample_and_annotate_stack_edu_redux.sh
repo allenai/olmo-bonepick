@@ -35,7 +35,9 @@ LOCAL_DATA_DIR="${BASE_DIR}/ai2-llm/pretraining-data/sources/the-stack-v2/spring
 OUTPUT_BASE_DIR="${BASE_DIR}/ai2-llm/classifiers/code-quality/data/the-stack-v2/spring2code_v2/stack_edu_redux_additional"
 DEDUPED_DIR="${OUTPUT_BASE_DIR}/deduped"
 SAMPLE_DIR="${OUTPUT_BASE_DIR}/sampled"
+RESHARDED_DIR="${OUTPUT_BASE_DIR}/resharded"
 ANNOTATED_DIR="${OUTPUT_BASE_DIR}/annotated"
+MAX_SHARDS=10
 CACHE_LOCATION="${BASE_DIR}/annotation_cache"
 DEDUP_WORK_DIR="${OUTPUT_BASE_DIR}/dedup_work"
 
@@ -340,7 +342,9 @@ echo "S3 source: ${S3_SOURCE_PREFIX}"
 echo "Local base: ${BASE_DIR}"
 echo "Deduped output: ${DEDUPED_DIR}"
 echo "Sample output: ${SAMPLE_DIR}"
+echo "Resharded output: ${RESHARDED_DIR}"
 echo "Annotated output: ${ANNOTATED_DIR}"
+echo "Max shards per language: ${MAX_SHARDS}"
 echo "Target sample size: $(human_readable_size $TARGET_SAMPLE_SIZE)"
 echo "Model: ${MODEL_NAME}"
 echo "Service tier: ${SERVICE_TIER}"
@@ -365,6 +369,7 @@ fi
 # Create output directories
 mkdir -p "${DEDUPED_DIR}"
 mkdir -p "${SAMPLE_DIR}"
+mkdir -p "${RESHARDED_DIR}"
 mkdir -p "${ANNOTATED_DIR}"
 mkdir -p "${LOCAL_DATA_DIR}"
 mkdir -p "${DEDUP_WORK_DIR}"
@@ -504,21 +509,64 @@ done
 log_success "Phase 2 complete: All languages sampled"
 
 # ==============================================================================
+# Phase 2.5: Resharding (reduce files to manageable number before annotation)
+# ==============================================================================
+
+log_info "Phase 2.5: Resharding sampled data"
+
+for mapping in "${LANGUAGE_MAPPINGS[@]}"; do
+    pl_folder=$(echo "$mapping" | cut -d: -f1)
+
+    sample_input_dir="${SAMPLE_DIR}/${pl_folder}"
+    resharded_output_dir="${RESHARDED_DIR}/${pl_folder}"
+    annotated_output_dir="${ANNOTATED_DIR}/${pl_folder}"
+
+    # Skip if annotation already exists (no need to reshard)
+    if [[ -d "${annotated_output_dir}" ]] && [[ -n "$(ls -A "${annotated_output_dir}" 2>/dev/null)" ]]; then
+        log_warning "Skipping reshard for ${pl_folder}: annotation already exists"
+        continue
+    fi
+
+    # Skip if resharded data already exists
+    if [[ -d "${resharded_output_dir}" ]] && [[ -n "$(ls -A "${resharded_output_dir}" 2>/dev/null)" ]]; then
+        log_warning "Skipping reshard for ${pl_folder}: resharded data already exists"
+        continue
+    fi
+
+    # Skip if no sampled data
+    if [[ ! -d "${sample_input_dir}" ]] || [[ -z "$(ls -A "${sample_input_dir}" 2>/dev/null)" ]]; then
+        log_warning "Skipping reshard for ${pl_folder}: no sampled data found"
+        continue
+    fi
+
+    log_info "Resharding ${pl_folder} to ${MAX_SHARDS} files..."
+
+    uv run bonepick reshard-dataset \
+        --dataset-dir "${sample_input_dir}" \
+        --output-dir "${resharded_output_dir}" \
+        --num-files ${MAX_SHARDS}
+
+    log_success "Completed reshard for ${pl_folder}"
+done
+
+log_success "Phase 2.5 complete: All languages resharded"
+
+# ==============================================================================
 # Phase 3: Annotation
 # ==============================================================================
 
-log_info "Phase 3: Annotating sampled data"
+log_info "Phase 3: Annotating resharded data"
 
 for mapping in "${LANGUAGE_MAPPINGS[@]}"; do
     pl_folder=$(echo "$mapping" | cut -d: -f1)
     rubric=$(echo "$mapping" | cut -d: -f2)
 
-    sample_dir="${SAMPLE_DIR}/${pl_folder}"
+    resharded_dir="${RESHARDED_DIR}/${pl_folder}"
     annotated_output_dir="${ANNOTATED_DIR}/${pl_folder}"
 
-    # Skip if sample doesn't exist
-    if [[ ! -d "${sample_dir}" ]] || [[ -z "$(ls -A "${sample_dir}" 2>/dev/null)" ]]; then
-        log_warning "Skipping ${pl_folder}: no sampled data found"
+    # Skip if resharded data doesn't exist
+    if [[ ! -d "${resharded_dir}" ]] || [[ -z "$(ls -A "${resharded_dir}" 2>/dev/null)" ]]; then
+        log_warning "Skipping ${pl_folder}: no resharded data found"
         continue
     fi
 
@@ -531,7 +579,7 @@ for mapping in "${LANGUAGE_MAPPINGS[@]}"; do
     log_info "Annotating ${pl_folder} with rubric ${rubric}..."
 
     uv run --extra=annotate bonepick annotate-dataset \
-        --dataset-dir "${sample_dir}" \
+        --dataset-dir "${resharded_dir}" \
         --output-dir "${annotated_output_dir}" \
         --model-name "${MODEL_NAME}" \
         --service-tier "${SERVICE_TIER}" \
@@ -558,15 +606,18 @@ echo "Summary"
 echo "========================================"
 echo "Deduplicated data: ${DEDUPED_DIR}"
 echo "Sampled data: ${SAMPLE_DIR}"
+echo "Resharded data: ${RESHARDED_DIR}"
 echo "Annotated data: ${ANNOTATED_DIR}"
 echo ""
 
 # Count successful outputs at each stage
 deduped_count=$(ls -d "${DEDUPED_DIR}"/*/ 2>/dev/null | wc -l || echo "0")
 sample_count=$(ls -d "${SAMPLE_DIR}"/*/ 2>/dev/null | wc -l || echo "0")
+resharded_count=$(ls -d "${RESHARDED_DIR}"/*/ 2>/dev/null | wc -l || echo "0")
 annotated_count=$(ls -d "${ANNOTATED_DIR}"/*/ 2>/dev/null | wc -l || echo "0")
 
 echo "Languages deduplicated: ${deduped_count}"
 echo "Languages sampled: ${sample_count}"
+echo "Languages resharded: ${resharded_count}"
 echo "Languages annotated: ${annotated_count}"
 echo "========================================"
