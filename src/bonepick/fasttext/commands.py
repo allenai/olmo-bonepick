@@ -13,7 +13,7 @@ from tqdm import tqdm
 from bonepick.cli import PathParamType
 from bonepick.data.expressions import field_or_expression
 from bonepick.data.normalizers import list_normalizers
-from bonepick.data.utils import FILE_SUFFIXES, load_fasttext_dataset
+from bonepick.data.utils import is_valid_suffix, load_fasttext_dataset
 from bonepick.evals import compute_detailed_metrics_fasttext, result_to_text
 from bonepick.fasttext.utils import check_fasttext_binary, fasttext_dataset_signature, infer_single_file
 
@@ -325,8 +325,9 @@ def infer_fasttext(
     for root, _, files in os.walk(input_dir):
         for file in files:
             file_path = Path(root) / file
-            if "".join(file_path.suffixes) in FILE_SUFFIXES:
-                input_files.append(file_path)
+            if not is_valid_suffix(file_path):
+                continue
+            input_files.append(file_path)
 
     if not input_files:
         raise click.ClickException(f"No JSONL files found in {input_dir}")

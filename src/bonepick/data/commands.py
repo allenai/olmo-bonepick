@@ -17,13 +17,13 @@ from bonepick.cli import ByteSizeParamType, FloatOrIntParamType, PathParamType
 from bonepick.data.expressions import add_field_or_expression_command_options, field_or_expression
 from bonepick.data.normalizers import list_normalizers
 from bonepick.data.utils import (
-    FILE_SUFFIXES,
     DatasetSplit,
     DatasetTuple,
     batch_save_hf_dataset,
     convert_single_file_to_fasttext,
     count_tokens_in_file,
     extract_numeric_labels_from_file,
+    is_valid_suffix,
     load_jsonl_dataset,
     normalize_single_file,
     pretty_size,
@@ -111,7 +111,7 @@ def transform_dataset(
     for root, _, files in os.walk(input_dir):
         for _fn in files:
             fn = Path(root) / _fn
-            if "".join(fn.suffixes) not in FILE_SUFFIXES:
+            if not is_valid_suffix(fn):
                 continue
 
             input_files.append(fn)
@@ -168,7 +168,7 @@ def normalize_dataset(
     for root, _, files in os.walk(input_dir):
         for _fn in files:
             fn = Path(root) / _fn
-            if "".join(fn.suffixes) not in FILE_SUFFIXES:
+            if not is_valid_suffix(fn):
                 continue
 
             input_files.append(fn)
@@ -266,7 +266,7 @@ def convert_to_fasttext(
         for root, _, files in os.walk(train_dir):
             for _fn in files:
                 fn = Path(root) / _fn
-                if "".join(fn.suffixes) not in FILE_SUFFIXES:
+                if not is_valid_suffix(fn):
                     continue
                 train_files.append(fn)
 
@@ -386,7 +386,7 @@ def convert_to_fasttext(
             for root, _, files in os.walk(split_dir):
                 for _fn in files:
                     fn = Path(root) / _fn
-                    if "".join(fn.suffixes) not in FILE_SUFFIXES:
+                    if not is_valid_suffix(fn):
                         continue
 
                     future = pool.submit(
@@ -630,7 +630,7 @@ def sample_dataset(
         for root, _, files in os.walk(input_dir):
             for _fn in files:
                 fn = Path(root) / _fn
-                if "".join(fn.suffixes) not in FILE_SUFFIXES:
+                if not is_valid_suffix(fn):
                     continue
 
                 file_size = fn.stat().st_size
@@ -814,7 +814,7 @@ def count_tokens(
         for root, _, files in os.walk(input_dir):
             for _fn in files:
                 fn = Path(root) / _fn
-                if "".join(fn.suffixes) not in FILE_SUFFIXES:
+                if not is_valid_suffix(fn):
                     continue
                 all_files.append(fn)
                 file_sizes.append(fn.stat().st_size)
@@ -964,7 +964,7 @@ def reshard_dataset(
     for root, _, files in os.walk(dataset_dir):
         for _fn in files:
             fn = Path(root) / _fn
-            if "".join(fn.suffixes) not in FILE_SUFFIXES:
+            if not is_valid_suffix(fn):
                 continue
             input_files.append((fn, fn.stat().st_size))
 

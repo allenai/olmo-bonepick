@@ -14,7 +14,7 @@ from tqdm import tqdm
 from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt
 from bonepick.cli import PathParamType
 from bonepick.data.expressions import compile_jq
-from bonepick.data.utils import FILE_SUFFIXES
+from bonepick.data.utils import is_valid_suffix
 
 with try_import() as extra_dependencies:
     # extra imports; they won't fail here, but later when running the command they will
@@ -271,7 +271,7 @@ def annotate_dataset(
         for root, _, files in os.walk(input_dir):
             for _fn in files:
                 fn = Path(root) / _fn
-                if "".join(fn.suffixes) not in FILE_SUFFIXES:
+                if not is_valid_suffix(fn):
                     continue
                 relative_path = fn.relative_to(input_dir)
                 source_files.append(fn)
