@@ -309,12 +309,38 @@ log "Step 3 complete."
 
 log "Step 4: Running inference on valid and test sets..."
 
+# Minimum number of samples in valid set to use it for calibration
+MIN_VALID_FOR_CALIBRATION=5000
+
+# Track which split to use for calibration per language
+declare -A CALIBRATION_SPLIT
+
 for lang in "${LANGUAGES[@]}"; do
     log "  Inference for ${lang}..."
 
     model_dir="${MODELS_DIR}/${lang}"
 
-    for split in "valid" "test"; do
+    # Count valid set size to decide calibration split
+    valid_input_dir="${SPLIT_DATA_DIR}/${lang}/valid"
+    valid_count=$(find "${valid_input_dir}" -name "*.jsonl.zst" -o -name "*.jsonl.gz" -o -name "*.jsonl" 2>/dev/null \
+        | xargs -I{} sh -c 'case "{}" in *.zst) zstdcat "{}";; *.gz) zcat "{}";; *) cat "{}";; esac' 2>/dev/null \
+        | wc -l)
+
+    if [[ "${valid_count}" -lt "${MIN_VALID_FOR_CALIBRATION}" ]]; then
+        CALIBRATION_SPLIT["${lang}"]="train"
+        log "    Valid set has ${valid_count} samples (< ${MIN_VALID_FOR_CALIBRATION}), will calibrate on train set"
+    else
+        CALIBRATION_SPLIT["${lang}"]="valid"
+        log "    Valid set has ${valid_count} samples, will calibrate on valid set"
+    fi
+
+    # Determine which splits need inference
+    splits=("valid" "test")
+    if [[ "${CALIBRATION_SPLIT["${lang}"]}" == "train" ]]; then
+        splits=("train" "valid" "test")
+    fi
+
+    for split in "${splits[@]}"; do
         input_dir="${SPLIT_DATA_DIR}/${lang}/${split}"
         output_dir="${CALIBRATION_DIR}/${lang}_${split}"
 
@@ -347,8 +373,11 @@ declare -A CALIBRATION_EXPRESSIONS
 for lang in "${LANGUAGES[@]}"; do
     log "  Training calibration for ${lang}..."
 
-    valid_dir="${CALIBRATION_DIR}/${lang}_valid"
+    cal_split="${CALIBRATION_SPLIT["${lang}"]:-valid}"
+    valid_dir="${CALIBRATION_DIR}/${lang}_${cal_split}"
     calibration_file="${MODELS_DIR}/${lang}/calibration.yaml"
+
+    log "    Using ${cal_split} set for calibration"
 
     # Load the rubric field from preprocessing step, or compute it
     rubric_field_file="${PREPROCESSED_DIR}/${lang}/rubric_field.txt"
