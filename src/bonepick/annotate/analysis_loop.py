@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from bonepick.cli import PathParamType
 from bonepick.data.expressions import compile_jq
-from bonepick.data.utils import FILE_SUFFIXES
+from bonepick.data.utils import is_valid_suffix
 
 with try_import() as extra_dependencies:
     from rich.console import Console
@@ -51,7 +51,7 @@ def load_annotations_from_dataset(
     for root, _, files in os.walk(dataset_path):
         for file in files:
             file_path = Path(root) / file
-            if "".join(file_path.suffixes) not in FILE_SUFFIXES:
+            if not is_valid_suffix(file_path):
                 continue
 
             with smart_open.open(file_path, "rb") as f:  # pyright: ignore
@@ -606,7 +606,7 @@ def load_labels_and_keys_from_path(
     for root, _, files in os.walk(dataset_path):
         for file in files:
             file_path = Path(root) / file
-            if "".join(file_path.suffixes) not in FILE_SUFFIXES:
+            if not is_valid_suffix(file_path):
                 continue
             all_files.append(file_path)
 

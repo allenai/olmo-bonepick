@@ -18,7 +18,7 @@ from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
 
 from bonepick.data.expressions import compile_jq
-from bonepick.data.utils import FILE_SUFFIXES, FasttextDatasetSplit
+from bonepick.data.utils import FasttextDatasetSplit, is_valid_suffix
 
 
 def _compute_metrics_from_predictions(
@@ -259,7 +259,7 @@ def load_predictions_and_labels(
         for root, _, files in os.walk(dataset_dir):
             for file in files:
                 file_path = Path(root) / file
-                if "".join(file_path.suffixes) not in FILE_SUFFIXES:
+                if not is_valid_suffix(file_path):
                     continue
                 all_files.append(file_path)
 
@@ -384,7 +384,7 @@ def load_predictions_and_label_dicts(
         for root, _, files in os.walk(dataset_dir):
             for file in files:
                 file_path = Path(root) / file
-                if "".join(file_path.suffixes) not in FILE_SUFFIXES:
+                if not is_valid_suffix(file_path):
                     continue
                 all_files.append(file_path)
 
@@ -751,7 +751,7 @@ def load_predictions_and_labels_for_calibration(
         for root, _, files in os.walk(dataset_dir):
             for file in files:
                 file_path = Path(root) / file
-                if "".join(file_path.suffixes) not in FILE_SUFFIXES:
+                if not is_valid_suffix(file_path):
                     continue
                 all_files.append(file_path)
 

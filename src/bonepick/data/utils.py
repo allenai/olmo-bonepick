@@ -29,6 +29,10 @@ FILE_SUFFIXES = [
 DEFAULT_SUFFIX = ".jsonl.zst"
 
 
+def is_valid_suffix(path: Path) -> bool:
+    return "".join(path.suffixes[-2:]) in FILE_SUFFIXES
+
+
 def make_uuid() -> str:
     """Platform-agnostic UUID generation. See https://stackoverflow.com/questions/2759644/python-multiprocessing-doesnt-play-nicely-with-uuid-uuid4 for more details."""
     return str(uuid.UUID(bytes=os.urandom(16), version=4))
@@ -242,7 +246,7 @@ def load_jsonl_dataset(
             for root, _, files in os.walk(split_path):
                 for file in files:
                     file_path = Path(root) / file
-                    if "".join(file_path.suffixes[-2:]) not in FILE_SUFFIXES:
+                    if not is_valid_suffix(file_path):
                         continue
                     all_files.append(file_path)
 

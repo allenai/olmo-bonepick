@@ -8,6 +8,7 @@
 #     "tqdm",
 #     "numpy",
 #     "click",
+#     "bonepick",
 # ]
 # ///
 """
@@ -38,12 +39,9 @@ import numpy as np
 import smart_open
 from tqdm import tqdm
 
-FILE_SUFFIXES = frozenset(
-    f"{type_}{compr}" for type_ in (".jsonl", ".json") for compr in (".zst", ".zstd", ".gz", ".gzip", "")
-)
+from bonepick.data.utils import is_valid_suffix
 
 
-def compile_jq(jq_expr: str) -> Callable[[dict], Any]:
     """Compile a jq expression into a callable."""
     if not jq_expr.strip():
         return lambda x: x
@@ -63,11 +61,11 @@ def find_jsonl_files(directory: Path, recursive: bool = True) -> list[Path]:
         for root, _, filenames in os.walk(directory):
             for filename in filenames:
                 file_path = Path(root) / filename
-                if "".join(file_path.suffixes) in FILE_SUFFIXES:
+                if is_valid_suffix(file_path):
                     files.append(file_path)
     else:
         for file_path in directory.iterdir():
-            if file_path.is_file() and "".join(file_path.suffixes) in FILE_SUFFIXES:
+            if file_path.is_file() and is_valid_suffix(file_path):
                 files.append(file_path)
     return sorted(files)
 
