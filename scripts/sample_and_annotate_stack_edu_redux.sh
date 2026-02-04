@@ -78,6 +78,7 @@ declare -a LANGUAGE_MAPPINGS=(
     "HTML:stack_edu_redux_html"
     "Java_Server_Pages:stack_edu_redux_java_server_pages"
     "Julia:stack_edu_redux_julia"
+    "jupyter_notebook:stack_edu_redux_jupyter_notebook"
     "Kotlin:stack_edu_redux_kotlin"
     "Lua:stack_edu_redux_lua"
     "Mathematica:stack_edu_redux_mathematica"
@@ -97,6 +98,8 @@ declare -a LANGUAGE_MAPPINGS=(
     "Verilog:stack_edu_redux_verilog"
     "VHDL:stack_edu_redux_vhdl"
     "Vue:stack_edu_redux_vue"
+    "reStructuredText:stack_edu_redux_restructuredtext"
+    "CoNLL-U:stack_edu_redux_conllu"
 )
 
 # Colors for output
@@ -385,7 +388,11 @@ for mapping in "${LANGUAGE_MAPPINGS[@]}"; do
         continue
     fi
 
-    s3_path="${S3_SOURCE_PREFIX}/${pl_folder}"
+    if [[ "$pl_folder" == "jupyter_notebook" ]]; then
+        s3_path="s3://ai2-llm/pretraining-data/sources/the-stack-v2/spring2code_v2/minhash_filter_2026_linearized_jupyter/jupyter_notebook/step_final"
+    else
+        s3_path="${S3_SOURCE_PREFIX}/${pl_folder}"
+    fi
     local_download_dir="${LOCAL_DATA_DIR}/${pl_folder}"
 
     log_info "Processing ${pl_folder}..."
