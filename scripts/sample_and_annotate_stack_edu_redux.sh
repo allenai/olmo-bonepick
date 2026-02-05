@@ -53,12 +53,15 @@ MINHASH_BUCKET_SIZE=5
 MINHASH_NGRAM_SIZE=5
 
 # Annotation parameters
+ANNOTATION_BATCH_SIZE=${ANNOTATION_BATCH_SIZE:-2000}
+LIMIT_ROWS=${LIMIT_ROWS:-500000}
+MAX_CONCURRENT_REQUESTS=${MAX_CONCURRENT_REQUESTS:-5000}
+MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-4096}
+MAX_REQUESTS_PER_MINUTE=${MAX_REQUESTS_PER_MINUTE:-10000}
+MAX_TEXT_LENGTH=${MAX_TEXT_LENGTH:-10000}
+MAX_TOKENS_PER_MINUTE=${MAX_TOKENS_PER_MINUTE:-100000000}
 MODEL_NAME="${MODEL_NAME:-gpt-5-mini}"
 SERVICE_TIER="${SERVICE_TIER:-flex}"
-MAX_CONCURRENT_REQUESTS=${MAX_CONCURRENT_REQUESTS:-5000}
-MAX_NEW_TOKENS=4096
-MAX_TEXT_LENGTH=10000
-LIMIT_ROWS=500000
 
 # Skip deduplication flag
 SKIP_DEDUP="${SKIP_DEDUP:-false}"
@@ -585,7 +588,10 @@ for mapping in "${LANGUAGE_MAPPINGS[@]}"; do
         --service-tier "${SERVICE_TIER}" \
         --annotation-task-prompt "${rubric}" \
         --max-concurrent-requests ${MAX_CONCURRENT_REQUESTS} \
+        --max-tokens-per-minute ${MAX_TOKENS_PER_MINUTE} \
+        --max-requests-per-minute ${MAX_REQUESTS_PER_MINUTE} \
         --max-new-tokens ${MAX_NEW_TOKENS} \
+        --annotation-batch-size ${ANNOTATION_BATCH_SIZE} \
         --annotation-system-prompt 'code_system' \
         --max-text-length ${MAX_TEXT_LENGTH} \
         --limit-rows ${LIMIT_ROWS} \
