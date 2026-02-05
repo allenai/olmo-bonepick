@@ -142,6 +142,11 @@ auto_detect_rubric_field() {
             fields=$(head -1 "${sample_file}" 2>/dev/null | jq -r 'keys[]' 2>/dev/null | grep -E "stack_edu" | head -1 || true)
         fi
 
+        # Fix known field name issues
+        if [[ "${fields}" == "stack_edu_redux_conll_u" ]]; then
+            fields="stack_edu_redux_conllu"
+        fi
+
         if [[ -n "${fields}" ]]; then
             echo "${fields}"
             return
