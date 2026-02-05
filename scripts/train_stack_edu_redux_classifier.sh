@@ -119,6 +119,8 @@ get_rubric_field() {
         lang_lower="cpp"
     elif [[ "$lang_lower" == "c#" ]] || [[ "$lang_lower" == "c_sharp" ]]; then
         lang_lower="csharp"
+    elif [[ "$lang_lower" == "conll_u" ]]; then
+        lang_lower="conllu"
     fi
 
     echo "${RUBRIC_PREFIX}_${lang_lower}"
@@ -140,11 +142,6 @@ auto_detect_rubric_field() {
             fields=$(zcat "${sample_file}" 2>/dev/null | head -1 | jq -r 'keys[]' 2>/dev/null | grep -E "stack_edu" | head -1 || true)
         else
             fields=$(head -1 "${sample_file}" 2>/dev/null | jq -r 'keys[]' 2>/dev/null | grep -E "stack_edu" | head -1 || true)
-        fi
-
-        # Fix known field name issues
-        if [[ "${fields}" == "stack_edu_redux_conll_u" ]]; then
-            fields="stack_edu_redux_conllu"
         fi
 
         if [[ -n "${fields}" ]]; then
