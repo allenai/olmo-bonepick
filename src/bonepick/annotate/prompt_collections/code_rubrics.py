@@ -1986,6 +1986,13 @@ class StackEduOutput:
 
 
 @dt.dataclass(frozen=True)
+class StackEduCommitMessageOutput:
+    justification: str
+    score: int
+    is_high_educational_value: bool
+
+
+@dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
 class StackEduPythonPrompt(BetterTruncationCodePrompt):
     name: str = "stack_edu_python"
@@ -2023,3 +2030,50 @@ After examining the extract, respond with a JSON object with the following forma
         return self.instructions.strip()
 
     output_type: type[DataclassType] = StackEduOutput
+
+
+@dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
+class StackEduCommitMessagePrompt(BaseAnnotationPrompt[str]):
+    name: str = "stack_edu_commit_message"
+    preamble: str = """
+Below is a git commit message. Evaluate whether it has high educational value and could help teach coding practices.
+
+Important constraints:
+- You only see the commit message text, not the code diff.
+- Score only what is explicitly stated in the message.
+- Ignore VCS metadata trailers and IDs (e.g., Signed-off-by, Change-Id, git-svn-id, --HG-- blocks) when judging educational value.
+
+Use the additive 5-point scoring system below. Add one point for each level satisfied:
+
+- Add 1 point if the message contains at least one meaningful, human-written statement about a change (not empty, not metadata-only, not a generic placeholder like "update").
+
+- Add another point if it clearly states what changed (feature/fix/refactor/docs/tests) with enough specificity to identify the affected behavior or component.
+
+- Award a third point if it explains why the change was made (bug cause, requirement, design goal, or user impact), not just what changed. Issue IDs alone (e.g., "fixes #123") do not count as a full why.
+
+- Give a fourth point if it teaches something reusable about coding by describing implementation approach, tradeoffs, constraints, or pitfalls (for example: algorithm choice, API design decision, error-handling strategy, or performance concern).
+
+- Grant a fifth point if it is an exemplary mini-lesson: concise but self-contained, technically precise, and clear enough that a reader could generalize the practice to another project.
+"""
+    instructions: str = """
+After examining the commit message, respond with a JSON object with the following format:
+
+```json
+{{
+    "justification": "...",               # a brief justification of the score, up to 100 words
+    "score": int,                         # the final score between 0 and 5 (inclusive)
+}}
+```
+"""
+
+    def format_text(self, text: str, max_text_length: int | None = None) -> str:
+        text = text.strip()
+        if max_text_length is not None and len(text) > max_text_length:
+            text = text[:max_text_length]
+        return f"Commit message:\n\n{text}\n\n"
+
+    def format_instructions(self) -> str:
+        return self.instructions.strip()
+
+    output_type: type[DataclassType] = StackEduCommitMessageOutput

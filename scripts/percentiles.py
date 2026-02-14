@@ -8,7 +8,7 @@
 #     "tqdm",
 #     "numpy",
 #     "click",
-#     "bonepick",
+#     "pyyaml",
 # ]
 # ///
 """
@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import os
 import random
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable
 
@@ -37,11 +37,18 @@ import jq
 import msgspec
 import numpy as np
 import smart_open
+import smart_open.compression
+import yaml
 from tqdm import tqdm
 
-from bonepick.data.utils import is_valid_suffix
+smart_open.compression.register_compressor(".zstd", smart_open.compression._handle_zstd)
+
+FILE_SUFFIXES = frozenset(
+    f"{type_}{compr}" for type_ in (".jsonl", ".json") for compr in (".zst", ".zstd", ".gz", ".gzip", "")
+)
 
 
+def compile_jq(jq_expr: str) -> Callable[[dict], Any]:
     """Compile a jq expression into a callable."""
     if not jq_expr.strip():
         return lambda x: x
@@ -61,11 +68,11 @@ def find_jsonl_files(directory: Path, recursive: bool = True) -> list[Path]:
         for root, _, filenames in os.walk(directory):
             for filename in filenames:
                 file_path = Path(root) / filename
-                if is_valid_suffix(file_path):
+                if "".join(file_path.suffixes[-2:]) in FILE_SUFFIXES:
                     files.append(file_path)
     else:
         for file_path in directory.iterdir():
-            if file_path.is_file() and is_valid_suffix(file_path):
+            if file_path.is_file() and "".join(file_path.suffixes) in FILE_SUFFIXES:
                 files.append(file_path)
     return sorted(files)
 
@@ -114,11 +121,7 @@ def sample_values_from_file(
                     continue
 
                 if extract_weight:
-                    w = extract_weight(row)
-                    try:
-                        w = float(w)
-                    except (TypeError, ValueError):
-                        w = 1.0
+                    w = float(extract_weight(row))
                 else:
                     w = 1.0
 
@@ -211,9 +214,9 @@ def calculate_percentiles(
     weighted_var = np.sum(weights * (values - weighted_mean) ** 2) / total_weight
 
     results: dict[str, float] = {
-        "count": len(values),
+        "cnt": len(values),
         "total_weight": float(total_weight),
-        "mean": float(weighted_mean),
+        "avg": float(weighted_mean),
         "std": float(np.sqrt(weighted_var)),
         "min": float(np.min(values)),
         "max": float(np.max(values)),
@@ -232,8 +235,8 @@ def calculate_unweighted_percentiles(
 ) -> dict[str, float]:
     """Calculate unweighted percentiles and basic statistics."""
     results: dict[str, float] = {
-        "count": len(values),
-        "mean": float(np.mean(values)),
+        "cnt": len(values),
+        "avg": float(np.mean(values)),
         "std": float(np.std(values)),
         "min": float(np.min(values)),
         "max": float(np.max(values)),
@@ -274,9 +277,33 @@ def calculate_unweighted_percentiles(
     "--percentiles",
     type=float,
     multiple=True,
-    default=(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95),
+    default=(
+        1,
+        2,
+        5,
+        10,
+        15,
+        20,
+        25,
+        30,
+        35,
+        40,
+        45,
+        50,
+        55,
+        60,
+        65,
+        70,
+        75,
+        80,
+        85,
+        90,
+        95,
+        98,
+        99,
+    ),
     show_default=True,
-    help="Percentiles to calculate (can specify multiple times)",
+    help="Percentiles to calculate for values (can specify multiple times)",
 )
 @click.option(
     "-w",
@@ -298,6 +325,13 @@ def calculate_unweighted_percentiles(
     is_flag=True,
     help="Don't search subdirectories",
 )
+@click.option(
+    "-o",
+    "--output-file",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+    help="Save statistics to a YAML file",
+)
 def main(
     directory: Path,
     expression: str,
@@ -307,6 +341,7 @@ def main(
     workers: int | None,
     seed: int,
     no_recursive: bool,
+    output_file: Path | None,
 ):
     """Calculate percentiles from values in JSONL files.
 
@@ -357,7 +392,8 @@ def main(
     all_samples: list[tuple[float, float]] = []
     rng = random.Random(seed)
 
-    with ProcessPoolExecutor(max_workers=workers) as pool:
+    pool_cls = ThreadPoolExecutor if workers == 1 else ProcessPoolExecutor
+    with pool_cls(max_workers=workers) as pool:
         futures = {}
         for file_path, target in zip(files, samples_per_file):
             file_seed = rng.randint(0, 2**31)
@@ -391,33 +427,82 @@ def main(
 
     click.echo(f"\nCollected {len(values):,} samples")
 
-    # Calculate percentiles
+    # Calculate value percentiles
     if weight_by:
-        results = calculate_percentiles(values, weights, list(percentiles))
+        value_results = calculate_percentiles(values, weights, list(percentiles))
+        length_results = calculate_unweighted_percentiles(weights, list(percentiles))
     else:
-        results = calculate_unweighted_percentiles(values, list(percentiles))
+        value_results = calculate_unweighted_percentiles(values, list(percentiles))
+        length_results: dict[str, float] = {}
 
     # Print results
     click.echo("\n" + "=" * 50)
-    click.echo("STATISTICS")
+    click.echo("VALUE STATISTICS")
     click.echo("=" * 50)
-    click.echo(f"  Count: {results['count']:,}")
-    if weight_by and "total_weight" in results:
-        click.echo(f"  Total weight: {results['total_weight']:,.0f}")
-    click.echo(f"  Mean:  {results['mean']:.6f}")
-    click.echo(f"  Std:   {results['std']:.6f}")
-    click.echo(f"  Min:   {results['min']:.6f}")
-    click.echo(f"  Max:   {results['max']:.6f}")
+    click.echo(f"  Count: {value_results['cnt']:,}")
+    if weight_by and "total_weight" in value_results:
+        click.echo(f"  Total weight: {value_results['total_weight']:,.0f}")
+    click.echo(f"  Mean:  {value_results['avg']:.6f}")
+    click.echo(f"  Std:   {value_results['std']:.6f}")
+    click.echo(f"  Min:   {value_results['min']:.6f}")
+    click.echo(f"  Max:   {value_results['max']:.6f}")
 
     click.echo("\n" + "-" * 50)
     if weight_by:
-        click.echo("PERCENTILES (weighted)")
+        click.echo("VALUE PERCENTILES (weighted)")
     else:
-        click.echo("PERCENTILES")
+        click.echo("VALUE PERCENTILES")
     click.echo("-" * 50)
     for p in sorted(percentiles):
         key = f"p{p:g}"
-        click.echo(f"  {key:>6}: {results[key]:.6f}")
+        click.echo(f"  {key:>8}: {value_results[key]:.6f}")
+
+    if length_results:
+        click.echo("\n" + "=" * 50)
+        click.echo("LENGTH STATISTICS")
+        click.echo("=" * 50)
+        click.echo(f"  Count: {length_results['cnt']:,}")
+        click.echo(f"  Mean:  {length_results['avg']:.6f}")
+        click.echo(f"  Std:   {length_results['std']:.6f}")
+        click.echo(f"  Min:   {length_results['min']:.6f}")
+        click.echo(f"  Max:   {length_results['max']:.6f}")
+
+        click.echo("\n" + "-" * 50)
+        click.echo("LENGTH PERCENTILES")
+        click.echo("-" * 50)
+        for p in sorted(percentiles):
+            key = f"p{p:g}"
+            click.echo(f"  {key:>8}: {length_results[key]:.0f}")
+
+    # Build nested output structure for YAML
+    if output_file:
+        output = {
+            "directory": str(directory),
+            "num_samples": int(num_samples),
+            "value": build_output_dict(value_results, expression),
+            "length": (build_output_dict(length_results, expression, 0) if length_results else None),
+        }
+
+        with open(output_file, "w") as f:
+            yaml.safe_dump(output, f, default_flow_style=False, sort_keys=False)
+        click.echo(f"\nStatistics saved to {output_file}")
+
+
+def build_output_dict(results: dict[str, float], expression: str, precision: int = 6):
+    return {
+        "expression": expression,
+        "statistics": {
+            key: (round(results[key], precision) if precision > 0 else int(results[key]))
+            for key in ("cnt", "avg", "std", "min", "max")
+        },
+        "percentiles": {
+            p: round(g, precision) if precision > 0 else int(g)
+            for p, g in sorted(
+                filter(lambda x: x[0].startswith("p"), results.items()),
+                key=lambda x: float(x[0].lstrip("p")),
+            )
+        },
+    }
 
 
 if __name__ == "__main__":
