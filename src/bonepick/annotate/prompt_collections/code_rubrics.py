@@ -1986,13 +1986,6 @@ class StackEduOutput:
 
 
 @dt.dataclass(frozen=True)
-class StackEduCommitMessageOutput:
-    justification: str
-    score: int
-    is_high_educational_value: bool
-
-
-@dt.dataclass(frozen=True)
 @BaseAnnotationPrompt.register
 class StackEduPythonPrompt(BetterTruncationCodePrompt):
     name: str = "stack_edu_python"
@@ -2076,4 +2069,36 @@ After examining the commit message, respond with a JSON object with the followin
     def format_instructions(self) -> str:
         return self.instructions.strip()
 
-    output_type: type[DataclassType] = StackEduCommitMessageOutput
+    output_type: type[DataclassType] = StackEduOutput
+
+
+@dt.dataclass(frozen=True)
+class CodeProseEduPrompt(BetterTruncationCodePrompt):
+    name: str = "code_prose_edu"
+    preamble: str = """
+Below is a snippet from a website containing a mix of code and plain language prose. Your task is to evaluate whether the snippet has high educational value and could help teach coding concepts and practices.
+
+Use the additive 5-point scoring system below. Add one point for each level satisfied:
+
+- Add 1 point if the snippet contains some combination of code and natural language text that is at least partially relevant to programming or technical topics, even if the educational value is low (e.g., auto-generated API references, homework problem statements without solutions, forum questions without answers, or raw code dumps with minimal commentary).
+
+- Add another point if the snippet addresses a practical programming topic and the prose provides at least some context, explanation, or description beyond what the code alone conveys. This includes Q&A threads where the answer explains a concept, documentation with usage examples, or technical blog posts that describe what the code does.
+
+- Award a third point if the snippet has clear educational value: the prose explains not just what the code does, but why it works that way or when to use it. The writing should introduce or reinforce a meaningful concept (e.g., an algorithm, a design pattern, a language feature, a debugging technique), even if the topic is advanced. The code and prose should complement each other, with the text making the code more understandable.
+
+- Give a fourth point if the snippet is well-organized and teaches programming concepts in a way that builds understanding. It should resemble a tutorial, a course section, a detailed how-to guide, or a thorough technical explanation. The prose should guide the reader through ideas in a logical progression, and code examples should be purposeful and well-chosen to illustrate the points being made.
+
+- Grant a fifth point if the snippet is outstanding in its educational value: it could serve as part of a textbook, a polished tutorial, or a high-quality course. The writing is clear and well-structured, concepts are introduced progressively, and the code examples are clean, well-commented, and tightly woven into the narrative. The reader comes away with a genuine understanding of both the concepts and their practical application.
+"""
+    instructions: str = """
+After examining the extract, respond with a JSON object with the following format:
+
+```json
+{{
+    "justification": "...",    # a brief justification of the score, up to 100 words
+    "score": int,              # the final score between 1 and 5 (inclusive)
+}}
+```
+"""
+
+    output_type: type[DataclassType] = StackEduOutput
