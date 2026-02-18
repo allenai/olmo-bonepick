@@ -14,7 +14,7 @@
 # 5. Run inference on valid/test sets
 # 6. Fit calibration on valid set
 # 7. Evaluate calibration on test set
-# 8. Upload trained model to S3
+# 8. Upload all artifacts to S3
 #
 # ==============================================================================
 # USAGE
@@ -29,7 +29,8 @@
 # Environment variables:
 #   LOCAL_BASE_DIR    - Base directory for all local data/outputs (default: ~/ai2-llm/classifiers/code-quality)
 #   S3_INPUT          - S3 path to annotated data (default: see below)
-#   S3_OUTPUT         - S3 path for uploading trained model (default: see below)
+#   S3_BASE           - S3 base path for all outputs (default: s3://ai2-llm/classifiers/code-quality)
+#   S3_OUTPUT         - S3 path for trained model (default: ${S3_BASE}/trained_models/...)
 #
 # ==============================================================================
 
@@ -41,7 +42,11 @@ set -e
 
 # S3 paths
 S3_INPUT="${S3_INPUT:-s3://ai2-llm/classifiers/code-quality/data/bigcode_commitpack/dolma-3_5-languages_annotated}"
-S3_OUTPUT="${S3_OUTPUT:-s3://ai2-llm/classifiers/code-quality/trained_models/fasttext/commitpack_commit_message_ultrafine_bin5}"
+S3_BASE="${S3_BASE:-s3://ai2-llm/classifiers/code-quality}"
+S3_OUTPUT="${S3_OUTPUT:-${S3_BASE}/trained_models/fasttext/commitpack_commit_message_ultrafine_bin5}"
+S3_SPLIT_DATA="${S3_SPLIT_DATA:-${S3_BASE}/data-train_test_split/bigcode_commitpack/commitpack_commit_message}"
+S3_PREPROCESSED="${S3_PREPROCESSED:-${S3_BASE}/preprocessed/bigcode_commitpack/commitpack_commit_message/fasttext/ultrafine_bin5}"
+S3_CALIBRATION="${S3_CALIBRATION:-${S3_BASE}/calibration/commitpack_commit_message}"
 
 # Local paths
 LOCAL_BASE_DIR="${LOCAL_BASE_DIR:-${HOME}/ai2-llm/classifiers/code-quality}"
@@ -269,7 +274,7 @@ else
     uv run bonepick train-calibration \
         -d "${cal_dir}" \
         -p ".metadata.${METADATA_FIELD}" \
-        -l ".${RUBRIC_FIELD}.score" \
+        -l "[[.${RUBRIC_FIELD}.score // 1, 1] | max, 5] | min" \
         --output-file "${calibration_file}"
 fi
 
@@ -297,19 +302,28 @@ echo "" >> "${results_file}"
 uv run bonepick eval-calibration \
     -d "${CALIBRATION_DIR}/test" \
     -p "${jq_expr}" \
-    -l ".${RUBRIC_FIELD}.score" 2>&1 | tee -a "${results_file}"
+    -l "[[.${RUBRIC_FIELD}.score // 1, 1] | max, 5] | min" 2>&1 | tee -a "${results_file}"
 
 log "Step 7 complete."
 
 # ==============================================================================
-# Step 8: Upload trained model to S3
+# Step 8: Upload all artifacts to S3
 # ==============================================================================
 
-log "Step 8: Uploading trained model to S3..."
+log "Step 8: Uploading artifacts to S3..."
 
-s5cmd cp -sp "${MODELS_DIR}/*" "${S3_OUTPUT}/"
+log "  Uploading split data..."
+s5cmd sync "${SPLIT_DATA_DIR}/*" "${S3_SPLIT_DATA}/"
 
-log "  Uploaded to ${S3_OUTPUT}"
+log "  Uploading preprocessed data..."
+s5cmd sync "${PREPROCESSED_DIR}/*" "${S3_PREPROCESSED}/"
+
+log "  Uploading trained model..."
+s5cmd sync "${MODELS_DIR}/*" "${S3_OUTPUT}/"
+
+log "  Uploading calibration data..."
+s5cmd sync "${CALIBRATION_DIR}/*" "${S3_CALIBRATION}/"
+
 log "Step 8 complete."
 
 # ==============================================================================
@@ -318,14 +332,20 @@ log "Step 8 complete."
 
 log "Pipeline complete!"
 log ""
-log "Outputs:"
+log "Local outputs:"
 log "  Downloaded data:  ${DATA_DIR}"
 log "  Split data:       ${SPLIT_DATA_DIR}"
 log "  Preprocessed:     ${PREPROCESSED_DIR}"
 log "  Model:            ${MODELS_DIR}"
-log "  Calibration tmp:  ${CALIBRATION_DIR}"
+log "  Calibration:      ${CALIBRATION_DIR}"
 log "  Results:          ${results_file}"
-log "  S3 model:         ${S3_OUTPUT}"
+log ""
+log "S3 outputs:"
+log "  Annotated data:   ${S3_INPUT}"
+log "  Split data:       ${S3_SPLIT_DATA}"
+log "  Preprocessed:     ${S3_PREPROCESSED}"
+log "  Model:            ${S3_OUTPUT}"
+log "  Calibration:      ${S3_CALIBRATION}"
 log ""
 log "To use the trained model for inference on new data:"
 log ""
