@@ -68,7 +68,7 @@ EPOCHS=10
 DIMENSION=512
 
 # Normalizer
-NORMALIZER="ultrafine"
+NORMALIZER="ultrafine-commits"
 
 # Rubric field (from stack_edu_commit_message annotation)
 RUBRIC_FIELD="stack_edu_commit_message"

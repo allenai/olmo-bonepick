@@ -110,12 +110,16 @@ class UltraFineWebNormalizer(BaseRowNormalizer):
     def __init__(self):
         self.tokenizer = Tokenizer.from_pretrained("allenai/Ultra-FineWeb-tokenizer")
 
+    def lower(self, text: str) -> str:
+        """Do this separately so i can override it"""
+        return text.lower()
+
     def normalize(self, text: str) -> str:
         # 1. remove multiple newlines
         text = re.sub(r"\n{3,}", "\n\n", text)
 
         # 2. lower the content
-        text = text.lower()
+        text = self.lower(text)
 
         # 3. remove diacritics
         text = "".join(c for c in unicodedata.normalize("NFKD", text) if unicodedata.category(c) != "Mn")
@@ -138,6 +142,77 @@ class UltraFineWebNormalizer(BaseRowNormalizer):
         text = text.strip()
 
         return text
+
+
+@register_normalizer("ultrafine-commits")
+class UltraFineCommitNormalizer(UltraFineWebNormalizer):
+    # these are chosen because they are (without ___ and space) single tokens in the tokenizer (DeepSeek V2)
+    HEX_SYMBOL = " ___CODE___ "
+    URL_SYMBOL = " ___URL___ "
+    EMAIL_SYMBOL = " ___ADDR___ "
+
+    def __init__(self):
+        super().__init__()
+        self.re_hex_16plus = re.compile(
+            r"(?i)(?<![0-9a-f])"
+            r"(?=[0-9a-f-]{16,}(?:@[0-9]+)?(?![0-9a-f]))"  # total length ≥16
+            r"[0-9a-f-]+(?:@[0-9]+)?"
+            r"(?![0-9a-f])"
+        )
+        self.re_email = re.compile(
+            r"""
+        \b
+        [a-z0-9]+                # first atom
+        (?:[._%+-][a-z0-9]+)*    # more atoms separated by common punctuation
+        @
+        (?:[a-z0-9-]+\.)+        # one or more domain labels
+        [a-z]{2,63}              # TLD
+        \b
+        """,
+            re.IGNORECASE | re.VERBOSE,
+        )
+        self.re_url = re.compile(
+            r"""
+        \b
+        (?:https?://)?                 # optional scheme
+        (?:www\.)?                     # optional www
+        [a-z0-9]                       # domain must start with alnum
+        (?:[a-z0-9-]{0,61}[a-z0-9])?    # rest of first label
+        (?:\.[a-z0-9]                  # dot + next label
+           (?:[a-z0-9-]{0,61}[a-z0-9])?
+        )+
+        (?::\d{2,5})?                  # optional port
+        (?:/[^\s<>"'(){}\[\]]*)?       # optional path/query/fragment
+        \b
+        """,
+            re.IGNORECASE | re.VERBOSE,
+        )
+
+        self.re_whitespace = re.compile(r"(\s+)")  # capture separators
+
+        self.protected_mapping = {
+            self.HEX_SYMBOL.strip(): self.HEX_SYMBOL.strip().strip("_"),
+            self.URL_SYMBOL.strip(): self.URL_SYMBOL.strip().strip("_"),
+            self.EMAIL_SYMBOL.strip(): self.EMAIL_SYMBOL.strip().strip("_"),
+        }
+
+    def lower(self, text: str) -> str:
+        parts = self.re_whitespace.split(text)
+        new_text = "".join(
+            self.protected_mapping.get(part, part)
+            if (i % 2 == 1 or part in self.protected_mapping)  # (i % 2 == 1) is true if part is a whitespace
+            else part.lower()
+            for i, part in enumerate(parts)
+        )
+        print(new_text)
+        return new_text
+
+    def normalize(self, text: str) -> str:
+        replaced_email_text = self.re_email.sub(self.EMAIL_SYMBOL, text)
+        replaced_url_text = self.re_url.sub(self.URL_SYMBOL, replaced_email_text)
+        replace_hex_text = self.re_hex_16plus.sub(self.HEX_SYMBOL, replaced_url_text)
+
+        return super().normalize(replace_hex_text)
 
 
 @register_normalizer("hyperfine")
