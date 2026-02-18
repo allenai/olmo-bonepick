@@ -870,7 +870,8 @@ def count_tokens(
     "--dataset-dir",
     type=PathParamType(exists=True, is_dir=True),
     required=True,
-    help="Input directory containing dataset files (all files in directory and subdirectories will be resharded)",
+    multiple=True,
+    help="Input directory containing dataset files; all files in directory and subdirectories will be resharded. Can be specified multiple times to process multiple directories.",
 )
 @click.option(
     "-o",
@@ -915,7 +916,7 @@ def count_tokens(
     help="Number of processes for parallel processing",
 )
 def reshard_dataset(
-    dataset_dir: Path,
+    dataset_dir: list[Path],
     output_dir: Path,
     num_files: int,
     test_split_frac: float | int | None,
@@ -947,7 +948,7 @@ def reshard_dataset(
 
     # Step 0: Print configuration
     click.echo("Starting dataset resharding...")
-    click.echo(f"  Input directory: {dataset_dir}")
+    click.echo("  Input directories:\n" + "\n".join(f"    - {dir}" for dir in dataset_dir))
     click.echo(f"  Output directory: {output_dir}")
     click.echo(f"  Target output files: {num_files}")
     if test_split_frac is not None and test_split_frac > 0:
@@ -961,12 +962,13 @@ def reshard_dataset(
     # Step 1: Collect all input files and their sizes
     click.echo("\nCollecting files...")
     input_files: list[tuple[Path, int]] = []
-    for root, _, files in os.walk(dataset_dir):
-        for _fn in files:
-            fn = Path(root) / _fn
-            if not is_valid_suffix(fn):
-                continue
-            input_files.append((fn, fn.stat().st_size))
+    for single_dataset_dir in dataset_dir:
+        for root, _, files in os.walk(single_dataset_dir):
+            for _fn in files:
+                fn = Path(root) / _fn
+                if not is_valid_suffix(fn):
+                    continue
+                input_files.append((fn, fn.stat().st_size))
 
     if not input_files:
         click.echo("  No files found, exiting...")
