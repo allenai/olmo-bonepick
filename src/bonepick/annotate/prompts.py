@@ -3,12 +3,14 @@ import json
 import re
 from enum import Enum
 from typing import (
-    Generic,
-    TypeVar,
     ClassVar,
-    cast as typing_cast,
-    TypedDict,
+    Generic,
     Self,
+    TypedDict,
+    TypeVar,
+)
+from typing import (
+    cast as typing_cast,
 )
 
 from lazy_imports import try_import
@@ -210,9 +212,9 @@ class BasePrompt(Generic[T]):
 class BaseSystemPrompt(BasePrompt, Generic[T]):
     role_to_annotate: TurnRole = TurnRole.SYSTEM
     turn_to_annotate: TurnPosition = TurnPosition.FIRST
-    _registry: ClassVar[dict[str, type[Self]]] = {}
+    _registry: ClassVar[dict[str, type[Self]]] = {}  # pyright: ignore
 
 
 @dt.dataclass(frozen=True)
 class BaseAnnotationPrompt(BasePrompt, Generic[T]):
-    _registry: ClassVar[dict[str, type[Self]]] = {}
+    _registry: ClassVar[dict[str, type[Self]]] = {}  # pyright: ignore
