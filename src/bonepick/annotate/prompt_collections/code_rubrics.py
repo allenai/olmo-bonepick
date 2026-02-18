@@ -2073,6 +2073,7 @@ After examining the commit message, respond with a JSON object with the followin
 
 
 @dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
 class CodeProseEduPrompt(BetterTruncationCodePrompt):
     name: str = "code_prose_edu"
     preamble: str = """
