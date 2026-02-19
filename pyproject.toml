@@ -51,7 +51,7 @@ explicit = true
 
 [project.optional-dependencies]
 annotate = [
-    "lm-deluge>=0.0.95,<0.1.0",
+    "lm-deluge>=0.0.117,<0.1.0",
     "platformdirs",
     "fastmcp",
     "pydantic<2.12.0",

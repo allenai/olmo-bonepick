@@ -1,9 +1,9 @@
-import re
+import contextvars
 
 from lm_deluge.cache import SqliteCache
 from lm_deluge import Conversation
-from lm_deluge.api_requests.base import APIResponse, RequestContext
-from lm_deluge.models import APIModel
+from lm_deluge.api_requests.base import APIResponse
+from lm_deluge.api_requests.context import RequestContext
 
 
 class SqliteInvalidableCache(SqliteCache):
@@ -17,6 +17,9 @@ class SqliteInvalidableCache(SqliteCache):
         return super().get(prompt)
 
 
+_batch_output_schema = contextvars.ContextVar("_batch_output_schema", default=None)
+
+
 def _update_gpt5_model_definitions():
     from lm_deluge.models import registry
 
@@ -25,45 +28,19 @@ def _update_gpt5_model_definitions():
         registry[model_name].supports_json = True
 
 
-def _fix_gpt5_effort_override_chat_api():
-    import lm_deluge.api_requests.openai as openai_api_requests
+def _patch_batch_output_schema():
+    _original_init = RequestContext.__init__
 
-    _build_oa_chat_request_old = openai_api_requests._build_oa_chat_request
+    def _patched_init(self, *args, **kwargs):
+        _original_init(self, *args, **kwargs)
+        if self.output_schema is None:
+            schema = _batch_output_schema.get()
+            if schema is not None:
+                self.output_schema = schema
 
-    # monkey patch because gpt-5.x models don't support "minimal" reasoning effort, they support "none" instead
-    # the library only handles gpt-5.1, but not gpt-5.2 and other gpt-5.x models
-    async def _build_oa_chat_request_new(model: APIModel, context: RequestContext):
-        request = await _build_oa_chat_request_old(model, context)
-        if (
-            re.match(r"gpt-5\.\d+", request.get("model", ""))
-            and "reasoning_effort" in request
-            and request["reasoning_effort"] == "minimal"
-        ):
-            request["reasoning_effort"] = "none"
-        return request
-
-    openai_api_requests._build_oa_chat_request = _build_oa_chat_request_new
-
-
-def _fix_gpt5_effort_override_responses_api():
-    import lm_deluge.api_requests.openai as openai_api_requests
-
-    _build_oa_responses_request_old = openai_api_requests._build_oa_responses_request
-
-    async def _build_oa_responses_request_new(model: APIModel, context: RequestContext):
-        request = await _build_oa_responses_request_old(model, context)
-        if (
-            re.match(r"gpt-5\.\d+", request.get("model", ""))
-            and "reasoning_effort" in request
-            and request["reasoning_effort"] == "minimal"
-        ):
-            request["reasoning_effort"] = "none"
-        return request
-
-    openai_api_requests._build_oa_responses_request = _build_oa_responses_request_new
+    RequestContext.__init__ = _patched_init
 
 
 def lm_deluge_monkey_patch():
     _update_gpt5_model_definitions()
-    _fix_gpt5_effort_override_chat_api()
-    _fix_gpt5_effort_override_responses_api()
+    _patch_batch_output_schema()

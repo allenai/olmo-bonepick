@@ -9,7 +9,14 @@ import click
 import smart_open.compression
 import torch
 
-from bonepick.annotate import annotate_dataset, annotation_agreement, label_distribution, list_prompts
+from bonepick.annotate import (
+    annotate_dataset,
+    annotation_agreement,
+    batch_annotate_retrieve,
+    batch_annotate_submit,
+    label_distribution,
+    list_prompts,
+)
 from bonepick.cli import cli  # noqa: E402
 from bonepick.data import (
     balance_dataset,
@@ -59,6 +66,8 @@ cli.add_command(train_fasttext)
 cli.add_command(train_model2vec)
 cli.add_command(transform_dataset)
 cli.add_command(annotate_dataset)
+cli.add_command(batch_annotate_submit)
+cli.add_command(batch_annotate_retrieve)
 cli.add_command(list_prompts)
 cli.add_command(annotation_agreement)
 cli.add_command(label_distribution)
