@@ -1,6 +1,7 @@
 import re
 import unicodedata
 from itertools import batched
+from pathlib import Path
 from typing import Callable, Generic, TypeVar
 
 from anyascii import anyascii
@@ -8,6 +9,7 @@ from plsfix import fix_text
 from tokenizers import Tokenizer
 
 from bonepick.data.indentation import convert_spaces_to_tabs
+from bonepick.data.tokenizers_config import DOLMA2_TOKENIZER_PATH, ULTRA_FINEWEB_TOKENIZER_PATH
 
 __all__ = [
     "register_normalizer",
@@ -97,7 +99,7 @@ class PLSFixNormalizer(BaseRowNormalizer):
 @register_normalizer("tokenizer")
 class TokenizerNormalizer(BaseRowNormalizer):
     def __init__(self):
-        self.tokenizer = Tokenizer.from_pretrained("allenai/dolma2-tokenizer")
+        self.tokenizer = Tokenizer.from_file(DOLMA2_TOKENIZER_PATH)
 
     def normalize(self, text: str) -> str:
         cleaned_text = cut_and_ftfy_text(text)
@@ -108,7 +110,7 @@ class TokenizerNormalizer(BaseRowNormalizer):
 @register_normalizer("ultrafine")
 class UltraFineWebNormalizer(BaseRowNormalizer):
     def __init__(self):
-        self.tokenizer = Tokenizer.from_pretrained("allenai/Ultra-FineWeb-tokenizer")
+        self.tokenizer = Tokenizer.from_file(ULTRA_FINEWEB_TOKENIZER_PATH)
 
     def lower(self, text: str) -> str:
         """Do this separately so i can override it"""
@@ -221,9 +223,9 @@ class HyperFineNormalizer(BaseRowNormalizer):
         self.remove_extra_newlines_re = re.compile(r"\n{3,}")
         self.segment_symbols_re = re.compile(r"([\t\r\n]+)")
         self.replace_spaces_re = re.compile(r"(\s+)")
-        self.tokenizer: Tokenizer = Tokenizer.from_pretrained(
-            "allenai/dolma2-tokenizer"
-        )  # equivalent to cl100k_base
+
+        # equivalent to cl100k_base
+        self.tokenizer: Tokenizer = Tokenizer.from_file(DOLMA2_TOKENIZER_PATH)
 
     def normalize(self, text: str) -> str:
         # 1. fix text with faster version of ftfy

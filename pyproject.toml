@@ -37,6 +37,7 @@ path = "src/bonepick/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bonepick"]
+artifacts = ["src/bonepick/data/tokenizers_config/*.json"]
 
 [tool.uv.sources]
 torch = [

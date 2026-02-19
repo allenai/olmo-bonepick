@@ -16,6 +16,7 @@ from tqdm import tqdm
 from bonepick.cli import ByteSizeParamType, FloatOrIntParamType, PathParamType
 from bonepick.data.expressions import add_field_or_expression_command_options, field_or_expression
 from bonepick.data.normalizers import list_normalizers
+from bonepick.data.tokenizers_config import DOLMA2_TOKENIZER_PATH
 from bonepick.data.utils import (
     DatasetSplit,
     DatasetTuple,
@@ -761,7 +762,7 @@ def sample_dataset(
     "-t",
     "--tokenizer-name-or-path",
     type=str,
-    default="allenai/dolma2-tokenizer",
+    default=DOLMA2_TOKENIZER_PATH,
     help="Tokenizer name or path (HuggingFace tokenizer identifier or local path)",
 )
 @click.option(
