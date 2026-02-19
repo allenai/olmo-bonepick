@@ -7,7 +7,7 @@ from bonepick.data.normalizers import get_normalizer
 
 @pytest.fixture(scope="module")
 def normalizer():
-    return get_normalizer("ultrafine-commits")
+    return get_normalizer("ultrafine_commits")
 
 
 class TestUltraFineCommitNormalizerMultipleEmails:
