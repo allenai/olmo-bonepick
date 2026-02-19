@@ -1,4 +1,5 @@
 import dataclasses as dt
+import re
 
 from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt, DataclassType
 
@@ -2103,3 +2104,196 @@ After examining the extract, respond with a JSON object with the following forma
 """
 
     output_type: type[DataclassType] = StackEduOutput
+
+
+@dt.dataclass(frozen=True)
+class CommitToRequesOutput(DataclassType):
+    justification: str
+    is_converted: bool
+    feature_request: str
+
+
+@dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
+class CommitToRequestPrompt(BaseAnnotationPrompt[str]):
+    name: str = "commit_to_request"
+    preamble: str = """
+Below is a git commit message. Your task is to rewrite so that it reads as a feature request. If the commit cannot be rewritten as a feature request, return N/A.
+
+# Guidelines
+
+- Match the style of the commit message.
+- Write short and concise feature requests.
+- Receiver of feature request has perfect knowledge of the codebase request is for.
+- If possible, explain the what first, and then the why.
+- DO NOT add any information that are not present in the commit message: if the commit doesn't explain why the change is needed, DO NOT make one up. You should be as faithful of to the original content as possible.
+
+# Examples
+
+## Well-specified commit messages for which a feature request can be written
+
+=== COMMIT MESSAGE ===
+Correct condition to generate a mag with GDS ptrs
+=== FEATURE REQUEST ===
+Generate a mag with GDS ptrs when the condition is met
+
+
+=== COMMIT MESSAGE ===
+fixed RunExceptions obj, to be a list of strings
+=== FEATURE REQUEST ===
+Change RunExceptions object to use a list of strings
+
+=== COMMIT MESSAGE ===
+JIRA Issue #1264:
+http://issues.apache.org/jira/browse/XERCESJ-1264
+
+As part of its normal control flow the XMLEntityScanner will throw an EOFException when it reaches the end of the document. For small documents, this can take up as much as 20-25% of the total execution time in the parser but could be even more than that depending on the depth of the call stack at the point where parse() is called. To eliminate most of this cost we now cache the exception and avoid filling in its stack trace (thus also saving some memory).
+
+git-svn-id: 21df804813e9d3638e43477f308dd0be51e5f30f@568405 13f79535-47bb-0310-9956-ffa450edef68
+=== FEATURE REQUEST ===
+Reduce the overhead of EOFException thrown during normal XMLEntityScanner control flow to improve parser performance. Implementation should cache  EOFException instance and avoiding stack trace population (minimize execution time/memory overhead).
+
+=== COMMIT MESSAGE ===
+Fix for newly optional return type of `withDigits`.
+
+The `withDigits` method was updated to return an optional, which causes this to fail to build. I think a nil value here would indicate an error in swift-format's numeric grouping that resulted in an invalid numeric literal.
+
+`withDigits` was udpated in a recent swift-syntax change:
+https://github.com/apple/swift-syntax/commit/94fc5ae3f34fac87380756b9c17ea7c6752a227b#diff-8c79a56bd4eb3d1313169ca412f5e11eL2387
+=== FEATURE REQUEST ===
+Handle the newly optional return type of withDigits to restore build compatibility and ensure correct numeric literal handling. The recent swift-syntax update changed withDigits to return an optional, which currently causes a build failure.
+
+=== COMMIT MESSAGE ===
+change demo to compare route name case-insensitive
+=== FEATURE REQUEST ===
+Allow route name comparisons in the demo to be case-insensitive.
+
+=== COMMIT MESSAGE ===
+v-on => @ in modal demo
+=== FEATURE REQUEST ===
+Use @ event shorthand in the modal demo instead of v-on.
+
+=== COMMIT MESSAGE ===
+Change two local definitions from local functions to private methods. For anyone who follows these commit messages, if now try drscheme you should notice both memory and speed improvements: it will now use 8 bytes less per window (on a 64 bit machine), and each initialization should be aroun 60 nanoseconds faster!
+
+svn: r10591
+=== FEATURE REQUEST ===
+Convert two local definitions from local functions to private methods to improve performance and reduce memory usage in drscheme. This should reduce memory usage by 8 bytes per window (on a 64-bit machine) and make each initialization around 60 nanoseconds faster.
+
+=== COMMIT MESSAGE ===
+Change two local definitions from local functions to private methods. For anyone who follows these commit messages, if now try drscheme you should notice both memory and speed improvements: it will now use 8 bytes less per window (on a 64 bit machine), and each initialization should be aroun 60 nanoseconds faster!
+
+svn: r10591
+=== FEATURE REQUEST ===
+Convert two local definitions from local functions to private methods to improve performance and reduce memory usage in drscheme. This should reduce memory usage by 8 bytes per window (on a 64-bit machine) and make each initialization around 60 nanoseconds faster.
+
+=== COMMIT MESSAGE ===
+modules/admin-full: add requested network id in wifi status JSON response
+
+git-svn-id: f7818b41aa164576329f806d7c3827e8a 55298bb@6405 ab181a69-ba2e-0410-a84d-ff88ab4c47bc
+=== FEATURE REQUEST ===
+Include the requested network ID in the WiFi status JSON response for modules/admin-full.
+
+## Underspecified commit messages; N/A because no feature request can be generated.
+
+=== COMMIT MESSAGE ===
+Add support for new feature
+=== FEATURE REQUEST ===
+N/A
+
+=== COMMIT MESSAGE ===
+minor typo
+=== FEATURE REQUEST ===
+N/A
+
+=== COMMIT MESSAGE ===
+processing up top
+=== FEATURE REQUEST ===
+N/A
+
+=== COMMIT MESSAGE ===
+font-size
+=== FEATURE REQUEST ===
+N/A
+
+=== COMMIT MESSAGE ===
+attempt to fix tensor gpu dims_
+=== FEATURE REQUEST ===
+N/A
+"""
+    instructions: str = """
+# Format
+
+After examining the commit message, respond with a JSON object with the following format:
+
+```json
+{{
+    "justification": "...",     // short text (50 words MAX) explaining whether you can convert and, if you can, content to highlight in.
+    "is_converted": bool,       // a boolean flag indicating whether the commit message was converted or not
+    "feature_request": "...",   // the rewritten feature request (leave it as N/A if is_converted is false)
+}}
+```
+
+# Output
+"""
+
+    def format_text(self, text: str, max_text_length: int | None = None) -> str:
+        text = text.strip()
+        if max_text_length is not None and len(text) > max_text_length:
+            text = text[:max_text_length]
+
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return f"# Input\n\n=== COMMIT MESSAGE ===\n{text.strip()}\n"
+
+    def format_instructions(self) -> str:
+        return self.instructions.strip()
+
+    output_type: type[DataclassType] = CommitToRequesOutput
+
+
+@dt.dataclass(frozen=True)
+@BaseAnnotationPrompt.register
+class CommitToRequestShortPrompt(CommitToRequestPrompt):
+    name: str = "commit_to_request_short"
+    preamble: str = """
+Below is a git commit message. Your task is to rewrite so that it reads as a feature request. If the commit cannot be rewritten as a feature request, return N/A.
+
+Guidelines:
+- Match the style of the commit message.
+- Write short and concise feature requests.
+- Receiver of feature request has perfect knowledge of the codebase request is for.
+- If possible, explain the what first, and then the why.
+- DO NOT add any information that are not present in the commit message: if the commit doesn't explain why the change is needed, DO NOT make one up. You should be as faithful of to the original content as possible.
+
+Examples:
+- "Correct condition to generate a mag with GDS ptrs" -> "Generate a mag with GDS ptrs when the condition is met."
+- "modules/admin-full: add requested network id in wifi status JSON response \\n\\n git-svn-id: f7818b41aa164576329f806d7c3827e8a 55298bb@6405 ab181a69-ba2e-0410-a84d-ff88ab4c47bc" -> "Include the requested network ID in the WiFi status JSON response for modules/admin-full."
+- "fixed RunExceptions obj, to be a list of strings" -> "Change RunExceptions object to use a list of strings."
+- "Add support for new feature" -> "N/A"
+- "font-size" -> "N/A"
+- "attempt to fix tensor gpu dims_" -> "N/A"
+"""
+    instructions: str = """
+After examining the commit message, respond with a JSON object with the following format:
+
+```json
+{{
+    "justification": "...",     // short text (5-25 words) explaining whether you can convert and, if you can, what information to highlight in feature request.
+    "is_converted": bool,       // a boolean flag indicating whether the commit message was converted or not
+    "feature_request": "...",   // the rewritten feature request (leave it as N/A if is_converted is false)
+}}
+```
+"""
+
+    def format_text(self, text: str, max_text_length: int | None = None) -> str:
+        text = text.strip()
+        if max_text_length is not None and len(text) > max_text_length:
+            text = text[:max_text_length]
+
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return f"=== COMMIT MESSAGE ===\n{text.strip()}\n\n"
+
+    def format_instructions(self) -> str:
+        return self.instructions.strip()
+
+    output_type: type[DataclassType] = CommitToRequesOutput
