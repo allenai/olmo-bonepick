@@ -49,11 +49,11 @@ MAX_TEXT_LENGTH=10000
 # FastText hyperparameters
 WORD_NGRAMS=5
 WINDOW_SIZE=10
-EPOCHS=10
+EPOCHS=20
 DIMENSION=512
 
 # Normalizer
-NORMALIZER="ultrafine-commits"
+NORMALIZER="ultrafine_commits"
 
 # Rubric field (from stack_edu_commit_message annotation)
 RUBRIC_FIELD="stack_edu_commit_message"

@@ -1,7 +1,6 @@
 import re
 import unicodedata
 from itertools import batched
-from pathlib import Path
 from typing import Callable, Generic, TypeVar
 
 from anyascii import anyascii
@@ -146,7 +145,7 @@ class UltraFineWebNormalizer(BaseRowNormalizer):
         return text
 
 
-@register_normalizer("ultrafine-commits")
+@register_normalizer("ultrafine_commits")
 class UltraFineCommitNormalizer(UltraFineWebNormalizer):
     # these are chosen because they are (without ___ and space) single tokens in the tokenizer (DeepSeek V2)
     HEX_SYMBOL = " ___CODE___ "
@@ -213,7 +212,7 @@ class UltraFineCommitNormalizer(UltraFineWebNormalizer):
         replaced_url_text = self.re_url.sub(self.URL_SYMBOL, replaced_email_text)
         replace_hex_text = self.re_hex_16plus.sub(self.HEX_SYMBOL, replaced_url_text)
 
-        return super().normalize(replace_hex_text)
+        return super().normalize(replace_hex_text.strip())
 
 
 @register_normalizer("hyperfine")
@@ -267,7 +266,7 @@ class HyperFineNormalizer(BaseRowNormalizer):
         return text
 
 
-@register_normalizer("hyperfine-code")
+@register_normalizer("hyperfine_code")
 class HyperFineCodeNormalizer(HyperFineNormalizer):
     def normalize(self, text: str) -> str:
         # 1. fix text with faster version of ftfy
@@ -337,7 +336,7 @@ class PotionNormalizer(BaseRowNormalizer):
         return text
 
 
-@register_normalizer("potion-code")
+@register_normalizer("potion_code")
 class PotionCodeNormalizer(BaseRowNormalizer):
     def __init__(self):
         self.remove_extra_newlines_re = re.compile(r"\n{3,}")
