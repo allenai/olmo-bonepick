@@ -25,6 +25,10 @@ Co-Authored-By: Claude <model> <noreply@anthropic.com>"
 
 **Important**: Claude must always add co-author trailer to commits, including the model name (e.g., `Claude Opus 4.5`).
 
+## Executing commands
+
+**IMPORTANT**: Always prefer `uv run` rather than using Python executable. This is a uv-first repo.
+
 ## Architecture
 
 CLI tool for training efficient text quality classifiers (Model2Vec and FastText) on text data.
