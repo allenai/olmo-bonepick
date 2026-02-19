@@ -206,7 +206,6 @@ class UltraFineCommitNormalizer(UltraFineWebNormalizer):
             else part.lower()
             for i, part in enumerate(parts)
         )
-        print(new_text)
         return new_text
 
     def normalize(self, text: str) -> str:
