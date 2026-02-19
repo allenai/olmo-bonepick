@@ -204,10 +204,14 @@ def batch_annotate_submit(
     skipped_rows = 0
 
     click.echo("Building prompts and writing rows...")
+    limit_reached = False
     with smart_open.open(rows_path, "wb") as rows_file:  # pyright: ignore
         for source_file, rel_path in tqdm(
             zip(source_files, relative_paths), total=len(source_files), desc="Processing files", unit="file"
         ):
+            if limit_reached:
+                break
+
             with smart_open.open(source_file, "rb") as input_file:  # pyright: ignore
                 for line in input_file:
                     row = decoder.decode(line)
@@ -221,11 +225,9 @@ def batch_annotate_submit(
                         continue
 
                     if limit_rows is not None and custom_id_counter >= limit_rows:
-                        # Write remaining as pass-through
-                        row_entry = {"custom_id": None, "dest_file": rel_path, "row": row}
-                        rows_file.write(encoder.encode(row_entry) + b"\n")
-                        skipped_rows += 1
-                        continue
+                        click.echo(f"\nReached limit of {limit_rows:,} rows to annotate")
+                        limit_reached = True
+                        break
 
                     # Needs annotation
                     row_entry = {"custom_id": custom_id_counter, "dest_file": rel_path, "row": row}
