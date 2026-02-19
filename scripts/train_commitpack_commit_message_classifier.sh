@@ -40,21 +40,6 @@ set -e
 # Configuration
 # ==============================================================================
 
-# S3 paths
-S3_INPUT="${S3_INPUT:-s3://ai2-llm/classifiers/code-quality/data/bigcode_commitpack/dolma-3_5-languages_annotated}"
-S3_BASE="${S3_BASE:-s3://ai2-llm/classifiers/code-quality}"
-S3_OUTPUT="${S3_OUTPUT:-${S3_BASE}/trained_models/fasttext/commitpack_commit_message_ultrafine_bin5}"
-S3_SPLIT_DATA="${S3_SPLIT_DATA:-${S3_BASE}/data-train_test_split/bigcode_commitpack/commitpack_commit_message}"
-S3_PREPROCESSED="${S3_PREPROCESSED:-${S3_BASE}/preprocessed/bigcode_commitpack/commitpack_commit_message/fasttext/ultrafine_bin5}"
-S3_CALIBRATION="${S3_CALIBRATION:-${S3_BASE}/calibration/commitpack_commit_message}"
-
-# Local paths
-LOCAL_BASE_DIR="${LOCAL_BASE_DIR:-${HOME}/ai2-llm/classifiers/code-quality}"
-DATA_DIR="${LOCAL_BASE_DIR}/data/bigcode_commitpack/dolma-3_5-languages_annotated"
-SPLIT_DATA_DIR="${LOCAL_BASE_DIR}/data-train_test_split/bigcode_commitpack/commitpack_commit_message"
-PREPROCESSED_DIR="${LOCAL_BASE_DIR}/preprocessed/bigcode_commitpack/commitpack_commit_message/fasttext/ultrafine_bin5"
-MODELS_DIR="${LOCAL_BASE_DIR}/trained_models/fasttext/commitpack_commit_message_ultrafine_bin5"
-CALIBRATION_DIR="${LOCAL_BASE_DIR}/calibration/commitpack_commit_message"
 
 # Training parameters
 NUM_FILES=$(($(nproc) + 2))
@@ -81,6 +66,23 @@ METADATA_FIELD="commitpack_commit_message_ultrafine_bin5"
 
 # Minimum valid samples to use valid set for calibration (otherwise use train)
 MIN_VALID_FOR_CALIBRATION=5000
+
+# S3 paths
+S3_INPUT="${S3_INPUT:-s3://ai2-llm/classifiers/code-quality/data/bigcode_commitpack/dolma-3_5-languages_annotated}"
+S3_BASE="${S3_BASE:-s3://ai2-llm/classifiers/code-quality}"
+S3_OUTPUT="${S3_OUTPUT:-${S3_BASE}/trained_models/fasttext/commitpack_commit_message_${NORMALIZER}_bin5}"
+S3_SPLIT_DATA="${S3_SPLIT_DATA:-${S3_BASE}/data-train_test_split/bigcode_commitpack/commitpack_commit_message}"
+S3_PREPROCESSED="${S3_PREPROCESSED:-${S3_BASE}/preprocessed/bigcode_commitpack/commitpack_commit_message/fasttext/ultrafine_bin5}"
+S3_CALIBRATION="${S3_CALIBRATION:-${S3_BASE}/calibration/commitpack_commit_message}"
+
+# Local paths
+LOCAL_BASE_DIR="${LOCAL_BASE_DIR:-${HOME}/ai2-llm/classifiers/code-quality}"
+DATA_DIR="${LOCAL_BASE_DIR}/data/bigcode_commitpack/dolma-3_5-languages_annotated"
+SPLIT_DATA_DIR="${LOCAL_BASE_DIR}/data-train_test_split/bigcode_commitpack/commitpack_commit_message"
+PREPROCESSED_DIR="${LOCAL_BASE_DIR}/preprocessed/bigcode_commitpack/commitpack_commit_message/fasttext/ultrafine_bin5"
+MODELS_DIR="${LOCAL_BASE_DIR}/trained_models/fasttext/commitpack_commit_message_${NORMALIZER}_bin5"
+CALIBRATION_DIR="${LOCAL_BASE_DIR}/calibration/commitpack_commit_message"
+
 
 # ==============================================================================
 # Helper functions
