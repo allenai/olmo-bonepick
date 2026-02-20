@@ -2,6 +2,8 @@ import asyncio
 import json
 import os
 from pathlib import Path
+from typing import Literal
+from typing import cast as typing_cast
 
 import click
 import msgspec
@@ -358,7 +360,8 @@ def batch_annotate_retrieve(
     click.echo("Waiting for batch completion...")
     from lm_deluge.batches import wait_for_batch_completion_async
 
-    results = asyncio.run(wait_for_batch_completion_async(batch_ids, provider))
+    assert provider in ("openai", "anthropic"), "Only openai or anthropic support batch mode"
+    results = asyncio.run(wait_for_batch_completion_async(batch_ids, provider))  # pyright: ignore
 
     click.echo(f"Retrieved {len(results):,} results")
 
