@@ -254,7 +254,7 @@ def batch_annotate_submit(
         return
 
     # Step 3: Submit batch job
-    click.echo(f"\nInitializing LLM client...")
+    click.echo("\nInitializing LLM client...")
     click.echo(f"  Model name:       {model_name}")
     click.echo(f"  Reasoning effort: {reasoning_effort}")
     click.echo(f"  Max new tokens:   {max_new_tokens:,}")
@@ -269,7 +269,7 @@ def batch_annotate_submit(
     click.echo(f"Submitting {custom_id_counter:,} prompts to batch API...")
 
     # Set output_schema via contextvar for the batch submission
-    token = _batch_output_schema.set(task_prompt.schema)
+    token = _batch_output_schema.set(task_prompt.schema)  # pyright: ignore
     try:
         batch_ids = asyncio.run(client.submit_batch_job(prompts, batch_size=annotation_batch_size))
     finally:
@@ -294,7 +294,7 @@ def batch_annotate_submit(
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
 
-    click.echo(f"\nBatch submitted successfully!")
+    click.echo("\nBatch submitted successfully!")
     click.echo(f"  Batch IDs: {batch_ids}")
     click.echo(f"  Manifest: {manifest_path}")
     click.echo(f"  Rows file: {rows_path}")
@@ -425,7 +425,7 @@ def batch_annotate_retrieve(
         for handle in output_handles.values():
             handle.close()  # pyright: ignore
 
-    click.echo(f"\nSummary:")
+    click.echo("\nSummary:")
     click.echo(f"  Pass-through rows: {passthrough_docs:,}")
     click.echo(f"  Annotated rows:    {successful_docs:,}")
     click.echo(f"  Failed rows:       {failed_docs:,}")
