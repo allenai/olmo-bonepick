@@ -50,7 +50,7 @@ for pl in ${languages}; do
 
     # Step 2: Submit batch annotation job
     echo "  Submitting batch annotation job..."
-    uv run bonepick batch-annotate-submit \
+    uv run --extra=annotate bonepick batch-annotate-submit \
         -d "${LOCAL_DATA}/${pl}" \
         -b "${BATCH_DIR}/${pl}" \
         -m "${MODEL}" \
@@ -61,7 +61,7 @@ for pl in ${languages}; do
 
     # Step 3: Retrieve batch results
     echo "  Retrieving batch results..."
-    uv run bonepick batch-annotate-retrieve \
+    uv run --extra=annotate bonepick batch-annotate-retrieve \
         -b "${BATCH_DIR}/${pl}" \
         -o "${OUTPUT_DIR}/${pl}"
     echo "  Batch results retrieved."
