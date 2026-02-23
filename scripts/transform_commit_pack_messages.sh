@@ -54,8 +54,7 @@ for pl in ${languages}; do
     else
         # Step 1: Download language data from S3
         echo "  Downloading ${pl} from S3..."
-        mkdir -p "${LOCAL_DATA}/${pl}"
-        aws s3 sync "${S3_SRC}/${pl}/" "${LOCAL_DATA}/${pl}/" --no-progress
+        s5cmd cp -sp "${S3_SRC}/${pl}/*" "${LOCAL_DATA}/${pl}/"
         echo "  Download complete."
 
         # Step 2: Submit batch annotation job
@@ -80,7 +79,7 @@ for pl in ${languages}; do
 
         # Step 4: Upload language results to S3
         echo "  Uploading ${pl} results to S3..."
-        aws s3 sync "${OUTPUT_DIR}/${pl}/" "${S3_DST}/${pl}/" --no-progress
+        s5cmd cp -sp "${OUTPUT_DIR}/${pl}/*" "${S3_DST}/${pl}/"
         echo "  Upload complete."
 
         echo -e "${GREEN}=== Completed ${pl} ===${NC}"
