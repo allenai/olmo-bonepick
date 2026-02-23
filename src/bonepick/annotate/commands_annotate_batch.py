@@ -25,7 +25,7 @@ with try_import() as extra_dependencies:
     from bonepick.annotate import prompt_collections  # noqa: F401
 
 
-from bonepick.annotate.annotate_loop import ReasoningEffort
+from bonepick.annotate.commands_annotate_stream import ReasoningEffort
 
 
 def _wait_for_batches(

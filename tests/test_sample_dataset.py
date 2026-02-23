@@ -355,7 +355,7 @@ class TestSampleDatasetIntegration:
         """Test sampling with --sampling-rate option."""
         from click.testing import CliRunner
 
-        from bonepick.data.commands import sample_dataset
+        from bonepick.data.commands_data import sample_dataset
 
         # Get original size
         original_size = sum(f.stat().st_size for f in test_data_dir.rglob("*.jsonl"))
@@ -395,7 +395,7 @@ class TestSampleDatasetIntegration:
         """Test sampling with --target-size option."""
         from click.testing import CliRunner
 
-        from bonepick.data.commands import sample_dataset
+        from bonepick.data.commands_data import sample_dataset
 
         runner = CliRunner()
         target_bytes = 1024  # 1KB
@@ -426,7 +426,7 @@ class TestSampleDatasetIntegration:
         """Test that sampling-rate and target-size are mutually exclusive."""
         from click.testing import CliRunner
 
-        from bonepick.data.commands import sample_dataset
+        from bonepick.data.commands_data import sample_dataset
 
         runner = CliRunner()
         result = runner.invoke(
@@ -449,7 +449,7 @@ class TestSampleDatasetIntegration:
         """Test that either sampling-rate or target-size must be specified."""
         from click.testing import CliRunner
 
-        from bonepick.data.commands import sample_dataset
+        from bonepick.data.commands_data import sample_dataset
 
         runner = CliRunner()
         result = runner.invoke(
@@ -468,7 +468,7 @@ class TestSampleDatasetIntegration:
         """Test that directory structure is preserved."""
         from click.testing import CliRunner
 
-        from bonepick.data.commands import sample_dataset
+        from bonepick.data.commands_data import sample_dataset
 
         runner = CliRunner()
         result = runner.invoke(

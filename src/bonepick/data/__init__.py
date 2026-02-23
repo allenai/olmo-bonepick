@@ -1,4 +1,4 @@
-from .commands import (
+from .commands_data import (
     balance_dataset,
     convert_to_fasttext,
     count_tokens,
