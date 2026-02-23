@@ -11,26 +11,48 @@ set -euo pipefail
 #   3. Wait for batch to complete and retrieve results (1h timeout, non-fatal)
 #   4. Upload annotated data back to S3
 
+# ============= Configure paths ============= #
+
 LOCAL_BASE_DIR=${LOCAL_BASE_DIR:-"/mnt/raid0/ai2-llm"}
 REMOTE_BASE_DIR=${REMOTE_BASE_DIR:-"s3://ai2-llm"}
 DATA_DIR=${DATA_DIR:-"pretraining-data/sources/bigcode_commitpack/dolma-3_5-languages_tagged_resharded"}
 BATCH_DIR=${BATCH_DIR:-"pretraining-data/sources/bigcode_commitpack/batch_commitpack_rewrite"}
 OUTPUT_DIR=${OUTPUT_DIR:-"pretraining-data/sources/bigcode_commitpack/dolma-3_5-languages_tagged_resharded_rewritten"}
 
-# ====================== #
 
+# ============ Configure options ============ #
+
+MODEL=${MODEL:-"gpt-5-nano"}
+TASK_PROMPT=${TASK_PROMPT:-"commit_to_request_short"}
+SYSTEM_PROMPT=${SYSTEM_PROMPT:-"code_system"}
+INPUT_FIELD=${INPUT_FIELD:-".message"}
+RETRIEVE_TIMEOUT=${RETRIEVE_TIMEOUT:-3600}
+NUM_PROC=${NUM_PROC:-$(nproc)}
+
+# =========== Beginning of script =========== #
+
+# derive all paths from base directories and data/output dirs
 S3_DATA_DIR="${REMOTE_BASE_DIR}/${DATA_DIR}"
 S3_OUTPUT_DIR="${REMOTE_BASE_DIR}/${OUTPUT_DIR}"
 LOCAL_SRC_DIR="${LOCAL_BASE_DIR}/${DATA_DIR}"
 LOCAL_BATCH_DIR="${LOCAL_BASE_DIR}/${BATCH_DIR}"
 LOCAL_OUTPUT_DIR="${LOCAL_BASE_DIR}/${OUTPUT_DIR}"
 
-MODEL="gpt-5-nano"
-TASK_PROMPT="commit_to_request_short"
-SYSTEM_PROMPT="code_system"
-INPUT_FIELD=".message"
-
-RETRIEVE_TIMEOUT=3600  # 1 hour
+# print configuration
+echo "=== Configuration ==="
+echo "Model: ${MODEL}"
+echo "Task prompt: ${TASK_PROMPT}"
+echo "System prompt: ${SYSTEM_PROMPT}"
+echo "Input field: ${INPUT_FIELD}"
+echo "S3 data directory: ${S3_DATA_DIR}"
+echo "S3 output directory: ${S3_OUTPUT_DIR}"
+echo "Local source directory: ${LOCAL_SRC_DIR}"
+echo "Local batch directory: ${LOCAL_BATCH_DIR}"
+echo "Local output directory: ${LOCAL_OUTPUT_DIR}"
+echo "Retrieve timeout (s): ${RETRIEVE_TIMEOUT}"
+echo "Number of processes: ${NUM_PROC}"
+echo "====================="
+echo ""
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -73,7 +95,8 @@ for pl in ${languages}; do
             -m "${MODEL}" \
             -T "${TASK_PROMPT}" \
             -S "${SYSTEM_PROMPT}" \
-            -i "${INPUT_FIELD}"
+            -i "${INPUT_FIELD}" \
+            --num-proc ${NUM_PROC}
         echo "  Batch submitted."
     fi
 
