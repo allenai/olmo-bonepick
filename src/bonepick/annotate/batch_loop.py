@@ -27,6 +27,27 @@ with try_import() as extra_dependencies:
 from bonepick.annotate.annotate_loop import ReasoningEffort
 
 
+def _wait_for_batches(
+    batch_ids: list[str],
+    provider: str,
+    timeout: int | None,
+    poll_interval: int = 30,
+) -> list[dict]:
+    """Wait for batch completion with optional timeout."""
+    from lm_deluge.batches import wait_for_batch_completion_async
+
+    assert provider in ("openai", "anthropic"), "Only openai or anthropic support batch mode"
+
+    coro = wait_for_batch_completion_async(batch_ids, provider, poll_interval=poll_interval)  # pyright: ignore
+    if timeout is not None:
+        coro = asyncio.wait_for(coro, timeout=timeout)
+
+    try:
+        return asyncio.run(coro)
+    except asyncio.TimeoutError:
+        raise click.ClickException(f"Batch wait timed out after {timeout:,}s")
+
+
 def _extract_batch_completion(result: dict, provider: str) -> str | None:
     try:
         if provider == "openai":
@@ -127,6 +148,17 @@ def _extract_batch_completion(result: dict, provider: str) -> str | None:
     type=int,
     help="Max items per API batch",
 )
+@click.option(
+    "--wait/--no-wait",
+    default=False,
+    help="Wait for batch completion after submission",
+)
+@click.option(
+    "--timeout",
+    default=None,
+    type=int,
+    help="Timeout in seconds for waiting (requires --wait)",
+)
 def batch_annotate_submit(
     dataset_dir: tuple[Path, ...],
     batch_dir: Path,
@@ -141,6 +173,8 @@ def batch_annotate_submit(
     max_new_tokens: int,
     limit_rows: int | None,
     annotation_batch_size: int,
+    wait: bool,
+    timeout: int | None,
 ):
     """Submit batch annotation job to LLM batch API.
 
@@ -301,6 +335,11 @@ def batch_annotate_submit(
     click.echo(f"  Manifest: {manifest_path}")
     click.echo(f"  Rows file: {rows_path}")
 
+    if wait:
+        click.echo("\nWaiting for batch completion...")
+        results = _wait_for_batches(batch_ids, provider, timeout)
+        click.echo(f"Batch completed with {len(results):,} results")
+
 
 @click.command()
 @click.option(
@@ -317,11 +356,18 @@ def batch_annotate_submit(
     required=True,
     help="Final output directory",
 )
+@click.option(
+    "--timeout",
+    default=None,
+    type=int,
+    help="Timeout in seconds for waiting for batch completion",
+)
 def batch_annotate_retrieve(
     batch_dir: Path,
     output_dir: Path,
+    timeout: int | None,
 ):
-    """Retrieve batch annotation results and merge with original data.
+    """Retrieve batch annotation results.
 
     Reads the manifest and rows from a batch directory, waits for batch
     completion, then writes annotated output preserving directory structure.
@@ -357,11 +403,9 @@ def batch_annotate_retrieve(
     task_prompt = BaseAnnotationPrompt.get(task_prompt_name)
 
     # Step 2: Wait for batch completion
-    click.echo("Waiting for batch completion...")
-    from lm_deluge.batches import wait_for_batch_completion_async
-
-    assert provider in ("openai", "anthropic"), "Only openai or anthropic support batch mode"
-    results = asyncio.run(wait_for_batch_completion_async(batch_ids, provider))  # pyright: ignore
+    timeout_msg = f" (timeout: {timeout:,}s)" if timeout else ""
+    click.echo(f"Waiting for batch completion...{timeout_msg}")
+    results = _wait_for_batches(batch_ids, provider, timeout)
 
     click.echo(f"Retrieved {len(results):,} results")
 
