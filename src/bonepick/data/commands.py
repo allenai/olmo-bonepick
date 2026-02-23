@@ -62,7 +62,7 @@ def import_hf_dataset(
     batch_size: int,
     num_proc: int,
 ):
-    """Import a HuggingFace dataset to local JSONL files.
+    """Convert HF dataset to local JSONL files.
 
     Downloads and saves to train/ and test/ subdirectories with optional train/test splitting.
     """

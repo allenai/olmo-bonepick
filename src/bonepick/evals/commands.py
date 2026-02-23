@@ -280,7 +280,7 @@ def train_calibration(
     output_file: Path | None,
     num_proc: int | None,
 ):
-    """Train a calibration model to map prediction components to gold labels.
+    """Get calibration for predictions->gold mapping.
 
     Learns weights for each prediction component to approximate gold labels.
     Useful for understanding how different model prediction dimensions
