@@ -1,9 +1,9 @@
 import asyncio
 import json
 import os
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
-from typing import Literal
-from typing import cast as typing_cast
+from typing import Any
 
 import click
 import msgspec
@@ -14,6 +14,7 @@ from tqdm import tqdm
 from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt
 from bonepick.cli import PathParamType
 from bonepick.data.expressions import compile_jq
+from bonepick.data.file_estimates import estimate_rows_in_file, group_files_by_min_rows
 from bonepick.data.utils import is_valid_suffix
 
 with try_import() as extra_dependencies:
@@ -59,6 +60,83 @@ def _extract_batch_completion(result: dict, provider: str) -> str | None:
     except (KeyError, IndexError):
         return None
     return None
+
+
+def _process_file_group(
+    file_group: list[tuple[str, str]],
+    task_prompt_name: str,
+    system_prompt_name: str | None,
+    input_field_expression: str,
+    reprocess_all_rows: bool,
+    max_text_length: int | None,
+    limit_rows: int | None,
+) -> dict[str, Any]:
+    """Process a group of files in a worker process.
+
+    Module-level function (picklable for ProcessPoolExecutor). Reads files,
+    checks annotation status, extracts content for rows needing annotation.
+
+    Returns dict with keys:
+        row_entries: list of {"custom_id": int|None, "dest_file": str, "row": dict}
+            (custom_id is a local counter, to be remapped by the main process)
+        contents: list of extracted text strings for rows needing annotation
+        annotate_count: number of rows needing annotation
+        total_rows: total rows processed
+        skipped_rows: rows already annotated (passed through)
+    """
+    # Import and initialize inside worker (avoids pickling issues)
+    from bonepick.annotate import prompt_collections  # noqa: F401
+    from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt
+    from bonepick.data.expressions import compile_jq
+
+    task_prompt = BaseAnnotationPrompt.get(task_prompt_name)
+    input_field_selector = compile_jq(input_field_expression)
+
+    encoder = msgspec.json.Encoder()
+    decoder = msgspec.json.Decoder()
+
+    row_entries: list[dict] = []
+    contents: list[str | list] = []
+    local_annotate_count = 0
+    total_rows = 0
+    skipped_rows = 0
+
+    for source_path_str, rel_path in file_group:
+        source_path = Path(source_path_str)
+
+        with smart_open.open(source_path, "rb") as input_file:  # pyright: ignore
+            for line in input_file:
+                row = decoder.decode(line)
+                total_rows += 1
+
+                # Already annotated — pass through
+                if not reprocess_all_rows and task_prompt.name in row:
+                    row_entries.append({"custom_id": None, "dest_file": rel_path, "row": row})
+                    skipped_rows += 1
+                    continue
+
+                if limit_rows is not None and local_annotate_count >= limit_rows:
+                    break
+
+                # Needs annotation — use local counter as placeholder
+                row_entries.append({"custom_id": local_annotate_count, "dest_file": rel_path, "row": row})
+
+                content = input_field_selector(row)
+                assert isinstance(content, (str, list)), f"Expected str or list, got {type(content)}"
+                contents.append(content)
+
+                local_annotate_count += 1
+
+        if limit_rows is not None and local_annotate_count >= limit_rows:
+            break
+
+    return {
+        "row_entries": row_entries,
+        "contents": contents,
+        "annotate_count": local_annotate_count,
+        "total_rows": total_rows,
+        "skipped_rows": skipped_rows,
+    }
 
 
 @click.command()
@@ -149,6 +227,13 @@ def _extract_batch_completion(result: dict, provider: str) -> str | None:
     help="Max items per API batch",
 )
 @click.option(
+    "-p",
+    "--num-proc",
+    default=None,
+    type=int,
+    help="Number of parallel workers for file processing (default: cpu_count)",
+)
+@click.option(
     "--wait/--no-wait",
     default=False,
     help="Wait for batch completion after submission",
@@ -173,6 +258,7 @@ def batch_annotate_submit(
     max_new_tokens: int,
     limit_rows: int | None,
     annotation_batch_size: int,
+    num_proc: int | None,
     wait: bool,
     timeout: int | None,
 ):
@@ -180,12 +266,15 @@ def batch_annotate_submit(
 
     Creates a batch directory with a manifest and compressed rows file,
     then submits prompts via the provider's batch API (OpenAI or Anthropic).
+    Files are processed in parallel using ProcessPoolExecutor.
     """
     extra_dependencies.check()
 
     from bonepick.annotate.deluge_utils import _batch_output_schema, lm_deluge_monkey_patch
 
     lm_deluge_monkey_patch()
+
+    num_proc = num_proc or os.cpu_count() or 1
 
     click.echo("Locations:")
     click.echo("  Dataset directories:")
@@ -200,6 +289,7 @@ def batch_annotate_submit(
     click.echo(f"  Input field expression: {input_field_expression}")
     click.echo(f"  Input field format: {input_field_format}")
     click.echo(f"  Max text length: {max_text_length:,}")
+    click.echo(f"  Num workers: {num_proc}")
     click.echo()
 
     task_prompt = BaseAnnotationPrompt.get(annotation_task_prompt)
@@ -229,49 +319,101 @@ def batch_annotate_submit(
 
     click.echo(f"Found {len(source_files):,} files")
 
-    encoder, decoder = msgspec.json.Encoder(), msgspec.json.Decoder()
-    input_field_selector = compile_jq(input_field_expression)
+    # Step 2: Estimate row counts (I/O-bound, use threads)
+    click.echo("Estimating row counts...")
+    estimated_rows: list[int] = [0] * len(source_files)
+    with ThreadPoolExecutor(max_workers=num_proc) as pool:
+        futures = {pool.submit(estimate_rows_in_file, f): i for i, f in enumerate(source_files)}
+        for future in tqdm(futures, total=len(futures), desc="Estimating rows", unit="file"):
+            idx = futures[future]
+            estimated_rows[idx] = future.result()
 
-    # Step 2: Stream-write rows.jsonl.zst and build prompts
+    total_estimated = sum(estimated_rows)
+    click.echo(f"Estimated total rows: {total_estimated:,}")
+
+    # Step 3: Group files by min rows (using annotation_batch_size as threshold)
+    file_groups = group_files_by_min_rows(source_files, relative_paths, estimated_rows, annotation_batch_size)
+    click.echo(f"Created {len(file_groups):,} file groups for parallel processing")
+
+    # If limit_rows is set, estimate how many groups we need (with 2x buffer for skipped rows)
+    if limit_rows is not None:
+        rows_budget = limit_rows * 2
+        accumulated = 0
+        groups_needed = len(file_groups)
+        for i, group in enumerate(file_groups):
+            for file_path, _ in group:
+                idx = source_files.index(file_path)
+                accumulated += estimated_rows[idx]
+            if accumulated >= rows_budget:
+                groups_needed = i + 1
+                break
+        file_groups = file_groups[:groups_needed]
+        click.echo(f"  Using {len(file_groups):,} groups (limit_rows={limit_rows:,})")
+
+    # Step 4: Process file groups in parallel
+    click.echo("Building prompts and processing rows...")
+    pool_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
+
+    # Convert file groups to picklable format (strings instead of Paths)
+    picklable_groups = [[(str(fp), rp) for fp, rp in group] for group in file_groups]
+
+    # Submit all groups and iterate in submission order to preserve file ordering
+    group_results: list[dict[str, Any]] = []
+    with pool_cls(max_workers=num_proc) as pool:
+        futures = []
+        for pg in picklable_groups:
+            future = pool.submit(
+                _process_file_group,
+                file_group=pg,
+                task_prompt_name=annotation_task_prompt,
+                system_prompt_name=annotation_system_prompt,
+                input_field_expression=input_field_expression,
+                reprocess_all_rows=reprocess_all_rows,
+                max_text_length=max_text_length,
+                limit_rows=limit_rows * 2 if limit_rows is not None else None,
+            )
+            futures.append(future)
+
+        for future in tqdm(futures, total=len(futures), desc="Processing groups", unit="group"):
+            group_results.append(future.result())
+
+    # Step 5: Merge results in submission order, assign global custom_ids
+    encoder = msgspec.json.Encoder()
     rows_path = batch_dir / "rows.jsonl.zst"
     prompts: list[Conversation] = []
     custom_id_counter = 0
     total_rows = 0
     skipped_rows = 0
-
-    click.echo("Building prompts and writing rows...")
     limit_reached = False
+
+    click.echo("Writing rows and building conversations...")
     with smart_open.open(rows_path, "wb") as rows_file:  # pyright: ignore
-        for source_file, rel_path in tqdm(
-            zip(source_files, relative_paths), total=len(source_files), desc="Processing files", unit="file"
-        ):
+        for result in group_results:
             if limit_reached:
                 break
 
-            with smart_open.open(source_file, "rb") as input_file:  # pyright: ignore
-                for line in input_file:
-                    row = decoder.decode(line)
-                    total_rows += 1
+            total_rows += result["total_rows"]
+            skipped_rows += result["skipped_rows"]
+            content_idx = 0
 
-                    # Already annotated — pass through
-                    if not reprocess_all_rows and task_prompt.name in row:
-                        row_entry = {"custom_id": None, "dest_file": rel_path, "row": row}
-                        rows_file.write(encoder.encode(row_entry) + b"\n")
-                        skipped_rows += 1
-                        continue
-
+            for entry in result["row_entries"]:
+                if entry["custom_id"] is None:
+                    # Pass-through (already annotated)
+                    rows_file.write(encoder.encode(entry) + b"\n")
+                else:
+                    # Check global limit
                     if limit_rows is not None and custom_id_counter >= limit_rows:
                         click.echo(f"\nReached limit of {limit_rows:,} rows to annotate")
                         limit_reached = True
                         break
 
-                    # Needs annotation
-                    row_entry = {"custom_id": custom_id_counter, "dest_file": rel_path, "row": row}
-                    rows_file.write(encoder.encode(row_entry) + b"\n")
+                    # Remap local ID to global
+                    entry["custom_id"] = custom_id_counter
+                    rows_file.write(encoder.encode(entry) + b"\n")
 
-                    # Build conversation prompt
-                    content = input_field_selector(row)
-                    assert isinstance(content, (str, list)), f"Expected str or list, got {type(content)}"
+                    # Build conversation from content string
+                    content = result["contents"][content_idx]
+                    content_idx += 1
 
                     conversation = Conversation()
                     if system_prompt:
@@ -289,7 +431,7 @@ def batch_annotate_submit(
         click.echo("No rows need annotation. Exiting.")
         return
 
-    # Step 3: Submit batch job
+    # Step 6: Submit batch job
     click.echo("\nInitializing LLM client...")
     click.echo(f"  Model name:       {model_name}")
     click.echo(f"  Reasoning effort: {reasoning_effort}")
@@ -314,7 +456,7 @@ def batch_annotate_submit(
     # Convert to list of strings for JSON serialization
     batch_ids = [str(bid) for bid in batch_ids]
 
-    # Step 4: Write manifest
+    # Step 7: Write manifest
     provider = registry[model_name].api_spec
     manifest = {
         "batch_ids": batch_ids,
