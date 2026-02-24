@@ -125,12 +125,14 @@ async def _read_and_submit_all_batches(
             for line in f:
                 try:
                     prompt = decoder.decode(line)
-                    prompts.append(prompt)
                 except msgspec.DecodeError:
                     continue
 
-        if limit_rows is not None and total_count + len(prompts) > limit_rows:
-            prompts = prompts[: limit_rows - total_count]
+                hydrated_prompt = Conversation.from_log(prompt)
+                prompts.append(hydrated_prompt)
+
+                if limit_rows is not None and total_count + len(prompts) > limit_rows:
+                    break
 
         # Fire off submission with concurrency limit
         task = asyncio.create_task(_submit_with_semaphore(prompts, batch_size))
