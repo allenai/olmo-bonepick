@@ -396,6 +396,12 @@ def _make_annotation_batches(
     type=int,
     help="Number of parallel workers for file processing (default: cpu_count)",
 )
+@click.option(
+    "--seed",
+    default=0,
+    type=int,
+    help="Random seed for shuffling source files",
+)
 def batch_annotate_submit(
     dataset_dir: tuple[Path, ...],
     batch_dir: Path,
@@ -411,6 +417,7 @@ def batch_annotate_submit(
     limit_rows: int | None,
     annotation_batch_size: int,
     num_proc: int | None,
+    seed: int,
 ):
     """Submit batch annotation job to LLM batch API.
 
@@ -459,6 +466,10 @@ def batch_annotate_submit(
                 if not is_valid_suffix(fn):
                     continue
                 source_files.append(fn)
+
+    import random
+
+    random.Random(seed).shuffle(source_files)
 
     if not source_files:
         click.echo("No files found to annotate. Exiting.")
@@ -554,8 +565,9 @@ def batch_annotate_submit(
 
     # Write batch info files
     provider = registry[model_name].api_spec
+    batches_base = batch_dir / BATCHES_TO_ANNOTATE_SUBDIR
     for path, num_prompts, batch_ids in batch_results:
-        batch_info_path = path.parent.parent / ANNOTATION_BATCH_SUBDIR / path.name
+        batch_info_path = batch_dir / ANNOTATION_BATCH_SUBDIR / path.relative_to(batches_base)
         batch_info_path.parent.mkdir(parents=True, exist_ok=True)
         batch_info = {
             "batch_ids": batch_ids,
@@ -686,8 +698,13 @@ def batch_annotate_retrieve(
     lm_deluge_monkey_patch()
 
     # Step 1: Find and read all batch info files (may be nested)
-    batch_info_files = sorted(batch_dir.rglob(f"{ANNOTATION_BATCH_SUBDIR}/*"))
-    batch_info_files = [f for f in batch_info_files if f.is_file()]
+    annotation_batch_base = batch_dir / ANNOTATION_BATCH_SUBDIR
+    batch_info_files: list[Path] = []
+    if annotation_batch_base.exists():
+        for root, _, files in os.walk(annotation_batch_base):
+            for fn in files:
+                batch_info_files.append(Path(root) / fn)
+    batch_info_files.sort()
 
     if not batch_info_files:
         raise click.ClickException(f"No batch info files found under {batch_dir}")
