@@ -1,3 +1,5 @@
+"""Batch annotation commands for submitting and retrieving LLM batch API jobs."""
+
 import asyncio
 import json
 import os
@@ -70,13 +72,19 @@ def _wait_for_batch_groups(
     """
     try:
         return asyncio.run(
-            _wait_for_batch_groups_async(batch_id_groups, provider, timeout, poll_interval)
+            _wait_for_batch_groups_async(
+                batch_id_groups=batch_id_groups,
+                provider=provider,
+                timeout=timeout,
+                poll_interval=poll_interval,
+            )
         )
     except asyncio.TimeoutError:
         raise click.ClickException(f"Batch wait timed out after {timeout:,}s")
 
 
 def _extract_batch_completion(result: dict, provider: str) -> str | None:
+    """Extract the completion text from a batch API result dict."""
     try:
         if provider == "openai":
             return result["response"]["body"]["choices"][0]["message"]["content"]
@@ -113,9 +121,7 @@ async def _read_and_submit_all_batches(
             prompts = prompts[: limit_rows - total_count]
 
         # Fire off submission immediately
-        task = asyncio.create_task(
-            client.submit_batch_job(prompts, batch_size=batch_size)
-        )
+        task = asyncio.create_task(client.submit_batch_job(prompts, batch_size=batch_size))
         tasks.append(task)
         batch_meta.append((path, len(prompts)))
         total_count += len(prompts)
@@ -133,8 +139,7 @@ async def _read_and_submit_all_batches(
     all_batch_ids = await asyncio.gather(*tasks)
 
     return [
-        (path, num_prompts, batch_ids)
-        for (path, num_prompts), batch_ids in zip(batch_meta, all_batch_ids)
+        (path, num_prompts, batch_ids) for (path, num_prompts), batch_ids in zip(batch_meta, all_batch_ids)
     ], total_count
 
 
@@ -152,6 +157,11 @@ def _get_output_handle(
 
 
 class BatchedFileCounter:
+    """Context manager that writes rows across sequentially-numbered output files.
+
+    Automatically rolls over to a new file when ``max_rows`` is reached.
+    """
+
     def __init__(
         self,
         dest_filename: str | Path,
@@ -174,6 +184,7 @@ class BatchedFileCounter:
         base_dest_dir: str | Path,
         max_rows: int | None = None,
     ) -> Self:
+        """Create a counter whose filename is derived from a hash of the file group."""
         file_group_hash = sha256()
         for file_path in sorted(file_group):
             file_group_hash.update(str(file_path).encode())
@@ -187,6 +198,7 @@ class BatchedFileCounter:
         return self
 
     def write_row(self, row: bytes):
+        """Write a single row, rolling over to a new file if max_rows is reached."""
         if self.stack is None:
             raise ValueError(f"{self.__class__.__name__} must be used as a context manager")
 
@@ -531,7 +543,10 @@ def batch_annotate_submit(
     try:
         batch_results, total_count = asyncio.run(
             _read_and_submit_all_batches(
-                annotation_paths_to_submit, client, annotation_batch_size, limit_rows
+                annotation_paths=annotation_paths_to_submit,
+                client=client,
+                batch_size=annotation_batch_size,
+                limit_rows=limit_rows,
             )
         )
     finally:
@@ -672,10 +687,14 @@ def batch_annotate_retrieve(
             completions: dict[int, str | None] = {}
             for result in results:
                 cid = int(result["custom_id"])
-                completions[cid] = _extract_batch_completion(result, provider)
+                completions[cid] = _extract_batch_completion(result=result, provider=provider)
 
             # Read rows, pair with completions, write annotated output
-            out_file = _get_output_handle(relative_subpath, output_dir, output_handles)
+            out_file = _get_output_handle(
+                relative_subpath=relative_subpath,
+                output_dir=output_dir,
+                output_handles=output_handles,
+            )
 
             with smart_open.open(rows_path, "rb") as rows_file:  # pyright: ignore
                 for idx, line in enumerate(rows_file):
@@ -702,7 +721,11 @@ def batch_annotate_retrieve(
             passthrough_files = sorted(f for f in already_annotated_base.rglob("*") if f.is_file())
             for src in tqdm(passthrough_files, desc="Copying pass-through rows", unit="file"):
                 relative_subpath = str(src.relative_to(already_annotated_base))
-                out_file = _get_output_handle(relative_subpath, output_dir, output_handles)
+                out_file = _get_output_handle(
+                    relative_subpath=relative_subpath,
+                    output_dir=output_dir,
+                    output_handles=output_handles,
+                )
 
                 with smart_open.open(src, "rb") as rf:  # pyright: ignore
                     for line in rf:
