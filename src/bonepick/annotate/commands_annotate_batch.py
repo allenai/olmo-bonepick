@@ -574,6 +574,69 @@ def batch_annotate_submit(
     click.echo(f"  Total prompts submitted: {total_count:,}")
 
 
+def _process_single_batch_result(
+    info: dict,
+    results: list[dict],
+    batch_dir: Path,
+    batches_base: Path,
+    provider: str,
+    task_prompt_name: str,
+) -> tuple[str, list[bytes], int, int]:
+    """Process one batch: match completions to rows and return annotated rows.
+
+    Returns (relative_subpath, annotated_row_bytes, success_count, fail_count).
+    """
+    from bonepick.annotate.prompts import BaseAnnotationPrompt
+
+    decoder = msgspec.json.Decoder()
+    encoder = msgspec.json.Encoder()
+    task_prompt = BaseAnnotationPrompt.get(task_prompt_name)
+
+    prompts_path = Path(info["prompts_path"])
+    relative_subpath = str(prompts_path.relative_to(batches_base))
+    rows_path = batch_dir / ROWS_TO_ANNOTATE_SUBDIR / relative_subpath
+
+    completions: dict[int, str | None] = {}
+    for result in results:
+        cid = int(result["custom_id"])
+        completions[cid] = _extract_batch_completion(result=result, provider=provider)
+
+    annotated_rows: list[bytes] = []
+    successful = 0
+    failed = 0
+
+    with smart_open.open(rows_path, "rb") as rows_file:  # pyright: ignore
+        for idx, line in enumerate(rows_file):
+            completion = completions.get(idx)
+            if completion is None:
+                failed += 1
+                continue
+            try:
+                parsed = task_prompt.parse(completion)
+            except Exception:
+                failed += 1
+                continue
+            row = decoder.decode(line)
+            row[task_prompt.name] = parsed
+            annotated_rows.append(encoder.encode(row) + b"\n")
+            successful += 1
+
+    return relative_subpath, annotated_rows, successful, failed
+
+
+def _read_single_passthrough(
+    src: Path,
+    already_annotated_base: Path,
+) -> tuple[str, list[bytes]]:
+    """Read one passthrough file and return its relative subpath and raw rows."""
+    relative_subpath = str(src.relative_to(already_annotated_base))
+    rows: list[bytes] = []
+    with smart_open.open(src, "rb") as rf:  # pyright: ignore
+        for line in rf:
+            rows.append(line)
+    return relative_subpath, rows
+
+
 @click.command()
 @click.option(
     "-b",
@@ -595,10 +658,18 @@ def batch_annotate_submit(
     type=int,
     help="Timeout in seconds for waiting for batch completion",
 )
+@click.option(
+    "-p",
+    "--num-proc",
+    default=None,
+    type=int,
+    help="Number of parallel workers for result processing (default: cpu_count)",
+)
 def batch_annotate_retrieve(
     batch_dir: Path,
     output_dir: Path,
     timeout: int | None,
+    num_proc: int | None,
 ):
     """Retrieve batch annotation results.
 
@@ -613,9 +684,6 @@ def batch_annotate_retrieve(
     from bonepick.annotate.prompts import BaseAnnotationPrompt
 
     lm_deluge_monkey_patch()
-
-    encoder = msgspec.json.Encoder()
-    decoder = msgspec.json.Decoder()
 
     # Step 1: Find and read all batch info files (may be nested)
     batch_info_files = sorted(batch_dir.rglob(f"{ANNOTATION_BATCH_SUBDIR}/*"))
@@ -633,7 +701,7 @@ def batch_annotate_retrieve(
     task_prompt_name = batch_infos[0]["task_prompt_name"]
     provider = batch_infos[0]["provider"]
     model = batch_infos[0]["model"]
-    task_prompt = BaseAnnotationPrompt.get(task_prompt_name)
+    BaseAnnotationPrompt.get(task_prompt_name)  # validate prompt exists early
 
     batches_base = batch_dir / BATCHES_TO_ANNOTATE_SUBDIR
     already_annotated_base = batch_dir / ROWS_ALREADY_ANNOTATED_SUBDIR
@@ -668,68 +736,64 @@ def batch_annotate_retrieve(
     click.echo(f"Retrieved {total_results:,} results")
     click.echo()
 
-    # Step 3: Write annotated rows. Output files are keyed by their relative
-    # subpath so that annotated and pass-through rows from the same source merge
-    # into the same output file.
-    click.echo("Writing output files...")
+    # Step 3: Process annotated rows and copy pass-through rows in parallel.
+    # Output files are keyed by relative subpath so that annotated and
+    # pass-through rows from the same source merge into the same output file.
+    num_proc = num_proc or os.cpu_count() or 1
+    pool_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
+
+    click.echo(f"Writing output files (workers: {num_proc})...")
+    passthrough_docs = 0
 
     try:
-        for info, results in tqdm(
-            zip(batch_infos, all_results), total=len(batch_infos), desc="Processing batches", unit="batch"
-        ):
-            prompts_path = Path(info["prompts_path"])
+        with pool_cls(max_workers=num_proc) as pool:
+            # Process batch results in parallel
+            batch_futures = [
+                pool.submit(
+                    _process_single_batch_result,
+                    info=info,
+                    results=results,
+                    batch_dir=batch_dir,
+                    batches_base=batches_base,
+                    provider=provider,
+                    task_prompt_name=task_prompt_name,
+                )
+                for info, results in zip(batch_infos, all_results)
+            ]
 
-            # Derive relative subpath and corresponding rows file
-            relative_subpath = str(prompts_path.relative_to(batches_base))
-            rows_path = batch_dir / ROWS_TO_ANNOTATE_SUBDIR / relative_subpath
-
-            # Build completions dict {custom_id: completion_text}
-            completions: dict[int, str | None] = {}
-            for result in results:
-                cid = int(result["custom_id"])
-                completions[cid] = _extract_batch_completion(result=result, provider=provider)
-
-            # Read rows, pair with completions, write annotated output
-            out_file = _get_output_handle(
-                relative_subpath=relative_subpath,
-                output_dir=output_dir,
-                output_handles=output_handles,
-            )
-
-            with smart_open.open(rows_path, "rb") as rows_file:  # pyright: ignore
-                for idx, line in enumerate(rows_file):
-                    completion = completions.get(idx)
-                    if completion is None:
-                        failed_docs += 1
-                        continue
-
-                    try:
-                        parsed = task_prompt.parse(completion)
-                    except Exception:
-                        failed_docs += 1
-                        continue
-
-                    row = decoder.decode(line)
-                    row[task_prompt.name] = parsed
-                    out_file.write(encoder.encode(row) + b"\n")  # pyright: ignore
-                    successful_docs += 1
-
-        # Step 3: Copy pass-through rows (already annotated), preserving subdirectory structure
-        passthrough_docs = 0
-
-        if already_annotated_base.exists():
-            passthrough_files = sorted(f for f in already_annotated_base.rglob("*") if f.is_file())
-            for src in tqdm(passthrough_files, desc="Copying pass-through rows", unit="file"):
-                relative_subpath = str(src.relative_to(already_annotated_base))
+            for future in tqdm(batch_futures, desc="Processing batches", unit="batch"):
+                relative_subpath, annotated_rows, successful, failed = future.result()
+                successful_docs += successful
+                failed_docs += failed
                 out_file = _get_output_handle(
                     relative_subpath=relative_subpath,
                     output_dir=output_dir,
                     output_handles=output_handles,
                 )
+                for row_bytes in annotated_rows:
+                    out_file.write(row_bytes)  # pyright: ignore
 
-                with smart_open.open(src, "rb") as rf:  # pyright: ignore
-                    for line in rf:
-                        out_file.write(line)  # pyright: ignore
+            # Copy pass-through rows (already annotated) in parallel
+            if already_annotated_base.exists():
+                passthrough_files = sorted(f for f in already_annotated_base.rglob("*") if f.is_file())
+                pt_futures = [
+                    pool.submit(
+                        _read_single_passthrough,
+                        src=src,
+                        already_annotated_base=already_annotated_base,
+                    )
+                    for src in passthrough_files
+                ]
+
+                for future in tqdm(pt_futures, desc="Copying pass-through rows", unit="file"):
+                    relative_subpath, rows = future.result()
+                    out_file = _get_output_handle(
+                        relative_subpath=relative_subpath,
+                        output_dir=output_dir,
+                        output_handles=output_handles,
+                    )
+                    for row_bytes in rows:
+                        out_file.write(row_bytes)  # pyright: ignore
                         passthrough_docs += 1
     finally:
         for handle in output_handles.values():
