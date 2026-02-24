@@ -11,11 +11,14 @@ import msgspec
 import numpy as np
 import smart_open
 import yaml
-from model2vec.inference import StaticModelPipeline
+from lazy_imports import try_import
 from numpy.typing import NDArray
 from sklearn.metrics import precision_recall_fscore_support, roc_auc_score
 from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
+
+with try_import() as _model2vec_deps:
+    from model2vec.inference import StaticModelPipeline
 
 from bonepick.data.expressions import compile_jq
 from bonepick.data.utils import FasttextDatasetSplit, is_valid_suffix
@@ -83,7 +86,9 @@ def _compute_metrics_from_predictions(
     return results
 
 
-def compute_detailed_metrics_model2vec(pipeline: StaticModelPipeline, texts: list[str], labels: list[str]) -> dict:
+def compute_detailed_metrics_model2vec(
+    pipeline: "StaticModelPipeline", texts: list[str], labels: list[str]
+) -> dict:
     """
     Compute detailed classification metrics using predict_proba.
 

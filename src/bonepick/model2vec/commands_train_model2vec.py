@@ -5,10 +5,8 @@ from typing import cast as typing_cast
 import click
 import numpy as np
 import smart_open
-import torch
 import yaml
 from lazy_imports import try_import
-from model2vec.inference import StaticModelPipeline
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.class_weight import compute_class_weight
 
@@ -17,10 +15,12 @@ from bonepick.data.expressions import add_field_or_expression_command_options, f
 from bonepick.data.normalizers import list_normalizers
 from bonepick.data.utils import load_jsonl_dataset
 from bonepick.evals import compute_detailed_metrics_model2vec, result_to_text
-from bonepick.model2vec.utils import StaticModelForClassification, StaticModelForRegression
 
 with try_import() as extra_dependencies:
+    import torch
     from model2vec.distill import distill
+    from model2vec.inference import StaticModelPipeline
+    from bonepick.model2vec.utils import StaticModelForClassification, StaticModelForRegression
 
 
 @click.command()
@@ -95,7 +95,11 @@ def train_model2vec(
     """Train a Model2Vec classifier or regressor.
 
     Uses static embeddings with PyTorch Lightning for efficient CPU-friendly inference.
+    Requires the 'model2vec' extra: pip install bonepick[model2vec]
     """
+    extra_dependencies.check()
+    torch.set_float32_matmul_precision("high")
+
     task_type = "regression" if regression else "classification"
 
     text_expression = field_or_expression(text_field, text_expression)
@@ -367,7 +371,10 @@ def eval_model2vec(
     """Evaluate a Model2Vec classifier on test data.
 
     Computes precision, recall, F1, and AUC metrics per class and macro averages.
+    Requires the 'model2vec' extra: pip install bonepick[model2vec]
     """
+    extra_dependencies.check()
+
     text_expression = field_or_expression(text_field, text_expression)
     label_expression = field_or_expression(label_field, label_expression)
 

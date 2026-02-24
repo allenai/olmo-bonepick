@@ -7,7 +7,6 @@ import multiprocessing
 
 import click
 import smart_open.compression
-import torch
 
 from bonepick.annotate import (
     annotate_dataset,
@@ -38,12 +37,6 @@ __all__ = ["cli", "__version__"]
 
 # set start method for multiprocessing
 multiprocessing.set_start_method("spawn", force=True)
-
-# suppresses following warning:
-#   You are using a CUDA device ('NVIDIA GB10') that has Tensor Cores. To properly utilize them, you should set
-#   `torch.set_float32_matmul_precision('medium' | 'high')` which will trade-off precision for performance.
-#   For more details, read https://pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html
-torch.set_float32_matmul_precision("high")
 
 # initialize logger
 init_logger()
