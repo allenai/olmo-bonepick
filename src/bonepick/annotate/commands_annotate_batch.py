@@ -497,7 +497,7 @@ def batch_annotate_submit(
     )
     click.echo(f"Created {len(file_groups):,} file groups for parallel processing")
 
-    common_prefix = common_path_prefix([p.path for fp in file_groups for p in fp])
+    common_prefix = common_path_prefix([p.path for fp in file_groups for p in fp] + [Path(p) for p in dataset_dir])
 
     if limit_rows is not None:
         # cheecky cumsum using reduce to accummulate row counts.
