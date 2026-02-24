@@ -121,7 +121,13 @@ async def _read_and_submit_all_batches(
 
     for path in annotation_paths:
         with smart_open.open(path, "rb") as f:  # pyright: ignore
-            prompts = [Conversation.from_log(decoder.decode(line)) for line in f]
+            prompts = []
+            for line in f:
+                try:
+                    prompt = decoder.decode(line)
+                    prompts.append(prompt)
+                except msgspec.DecodeError:
+                    continue
 
         if limit_rows is not None and total_count + len(prompts) > limit_rows:
             prompts = prompts[: limit_rows - total_count]
