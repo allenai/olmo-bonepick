@@ -8,10 +8,13 @@ from math import log10
 from pathlib import Path
 
 import click
-import datasets
 import smart_open
 import yaml
+from lazy_imports import try_import
 from tqdm import tqdm
+
+with try_import() as _datasets_deps:
+    import datasets
 
 from bonepick.cli import ByteSizeParamType, FloatOrIntParamType, PathParamType
 from bonepick.data.expressions import add_field_or_expression_command_options, field_or_expression
@@ -65,7 +68,10 @@ def import_hf_dataset(
     """Convert HF dataset to local JSONL files.
 
     Downloads and saves to train/ and test/ subdirectories with optional train/test splitting.
+    Requires the 'datasets' extra: pip install bonepick[datasets]
     """
+    _datasets_deps.check()
+
     dataset = datasets.load_dataset(name, name=subset)
     assert isinstance(dataset, datasets.DatasetDict), "Dataset is not a DatasetDict"
 
