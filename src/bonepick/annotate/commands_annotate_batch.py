@@ -115,9 +115,18 @@ async def _read_and_submit_all_batches(
     batch_meta: list[tuple[Path, int]] = []
     total_count = 0
 
-    async def _submit_with_semaphore(prompts, batch_sz):
+    async def _submit_with_semaphore(prompts, batch_sz, max_retries=5, base_delay=5.0):
         async with semaphore:
-            return await client.submit_batch_job(prompts, batch_size=batch_sz)
+            for attempt in range(max_retries + 1):
+                try:
+                    return await client.submit_batch_job(prompts, batch_size=batch_sz)
+                except Exception as e:
+                    if attempt == max_retries:
+                        raise
+                    delay = base_delay * (2 ** attempt)
+                    click.echo(f"  Batch submission failed (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                    click.echo(f"  Retrying in {delay:.0f}s...")
+                    await asyncio.sleep(delay)
 
     for path in annotation_paths:
         with smart_open.open(path, "rb") as f:  # pyright: ignore
