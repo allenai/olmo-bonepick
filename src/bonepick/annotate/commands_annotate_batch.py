@@ -407,7 +407,6 @@ def batch_annotate_submit(
 
     # Step 3: Process file groups in parallel
     click.echo("Building prompts and processing rows...")
-    num_proc = 1
     pool_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
 
     # Submit all groups and iterate in submission order to preserve file ordering
