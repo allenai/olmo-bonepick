@@ -2,14 +2,10 @@
 set -euo pipefail
 
 # Annotate bigcode_commitpack data using batch LLM annotation.
-# Processes one programming language at a time, skipping languages
-# whose output already exists on S3.
+# Skips languages whose output already exists on S3.
 #
-# Steps per language:
-#   1. Download language data from S3 (skip if batch already submitted)
-#   2. Submit batch annotation job (skip if batch already submitted)
-#   3. Wait for batch to complete and retrieve results (1h timeout, non-fatal)
-#   4. Upload annotated data back to S3
+# Phase 1 (submit): For each language, download data and submit batch job
+# Phase 2 (retrieve): For each submitted language, retrieve results and upload to S3
 
 # ============= Configure paths ============= #
 
@@ -60,13 +56,19 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Track languages that fail to retrieve
+# Track languages that need retrieval
+submitted_languages=()
 failed_languages=()
 
 # List available languages from S3 source
 echo "=== Discovering languages from S3 ==="
 languages=$(aws s3 ls "${S3_DATA_DIR}/" | awk '{print $NF}' | sed 's:/$::')
 echo "Found languages: ${languages}"
+echo ""
+
+# ====== Phase 1: Submit all batch jobs ====== #
+
+echo "=== Phase 1: Submitting batch jobs ==="
 echo ""
 
 for pl in ${languages}; do
@@ -76,31 +78,49 @@ for pl in ${languages}; do
         continue
     fi
 
-    echo -e "${GREEN}=== Processing ${pl} ===${NC}"
-
     # Check if batch was already submitted (batch dir exists)
     if [[ -d "${LOCAL_BATCH_DIR}/${pl}" ]]; then
-        echo -e "${YELLOW}  Batch already submitted for ${pl}, skipping to retrieval${NC}"
-    else
-        # Step 1: Download language data from S3
-        echo "  Downloading ${pl} from S3..."
-        s5cmd cp -sp "${S3_DATA_DIR}/${pl}/*" "${LOCAL_SRC_DIR}/${pl}/"
-        echo "  Download complete."
-
-        # Step 2: Submit batch annotation job
-        echo "  Submitting batch annotation job..."
-        uv run --extra=annotate bonepick batch-annotate-submit \
-            -d "${LOCAL_SRC_DIR}/${pl}" \
-            -b "${LOCAL_BATCH_DIR}/${pl}" \
-            -m "${MODEL}" \
-            -T "${TASK_PROMPT}" \
-            -S "${SYSTEM_PROMPT}" \
-            -i "${INPUT_FIELD}" \
-            --num-proc ${NUM_PROC}
-        echo "  Batch submitted."
+        echo -e "${YELLOW}  Batch already submitted for ${pl}, skipping download/submit${NC}"
+        submitted_languages+=("${pl}")
+        continue
     fi
 
-    # Step 3: Retrieve batch results (non-fatal, 1h timeout)
+    echo -e "${GREEN}=== Submitting ${pl} ===${NC}"
+
+    # Download language data from S3
+    echo "  Downloading ${pl} from S3..."
+    s5cmd cp -sp "${S3_DATA_DIR}/${pl}/step_final/*" "${LOCAL_SRC_DIR}/${pl}/step_final/"
+    echo "  Download complete."
+
+    # Submit batch annotation job
+    echo "  Submitting batch annotation job..."
+    uv run --extra=annotate bonepick batch-annotate-submit \
+        -d "${LOCAL_SRC_DIR}/${pl}" \
+        -b "${LOCAL_BATCH_DIR}/${pl}" \
+        -m "${MODEL}" \
+        -T "${TASK_PROMPT}" \
+        -S "${SYSTEM_PROMPT}" \
+        -i "${INPUT_FIELD}" \
+        --num-proc ${NUM_PROC}
+    echo "  Batch submitted."
+
+    submitted_languages+=("${pl}")
+    echo ""
+done
+
+echo ""
+echo "=== Phase 1 complete: ${#submitted_languages[@]} language(s) submitted ==="
+echo ""
+
+# ====== Phase 2: Retrieve all batch results ====== #
+
+echo "=== Phase 2: Retrieving batch results ==="
+echo ""
+
+for pl in "${submitted_languages[@]}"; do
+    echo -e "${GREEN}=== Retrieving ${pl} ===${NC}"
+
+    # Retrieve batch results (non-fatal, 1h timeout)
     echo "  Retrieving batch results (timeout: ${RETRIEVE_TIMEOUT}s)..."
     if uv run --extra=annotate bonepick batch-annotate-retrieve \
         -b "${LOCAL_BATCH_DIR}/${pl}" \
@@ -108,7 +128,7 @@ for pl in ${languages}; do
         --timeout "${RETRIEVE_TIMEOUT}"; then
         echo "  Batch results retrieved."
 
-        # Step 4: Upload language results to S3
+        # Upload language results to S3
         echo "  Uploading ${pl} results to S3..."
         s5cmd cp -sp "${LOCAL_OUTPUT_DIR}/${pl}/*" "${S3_OUTPUT_DIR}/${pl}/"
         echo "  Upload complete."
