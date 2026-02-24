@@ -35,6 +35,27 @@ BATCHES_TO_ANNOTATE_SUBDIR = "batches_to_annotate"
 ANNOTATION_BATCH_SUBDIR = "annotation_batch"
 
 
+async def _wait_for_batch_groups_async(
+    batch_id_groups: list[list[str]],
+    provider: str,
+    timeout: int | None,
+    poll_interval: int = 30,
+) -> list[list[dict]]:
+    """Wait for multiple batch groups concurrently, returning results per group."""
+    from lm_deluge.batches import wait_for_batch_completion_async
+
+    assert provider in ("openai", "anthropic"), "Only openai or anthropic support batch mode"
+
+    tasks = [
+        wait_for_batch_completion_async(group, provider, poll_interval=poll_interval)  # pyright: ignore
+        for group in batch_id_groups
+    ]
+    coro = asyncio.gather(*tasks)
+    if timeout is not None:
+        coro = asyncio.wait_for(coro, timeout=timeout)
+    return await coro  # pyright: ignore
+
+
 def _wait_for_batch_groups(
     batch_id_groups: list[list[str]],
     provider: str,
@@ -47,22 +68,10 @@ def _wait_for_batch_groups(
     (which itself uses ``asyncio.gather``), and all groups are awaited
     concurrently so polling happens in parallel.
     """
-    from lm_deluge.batches import wait_for_batch_completion_async
-
-    assert provider in ("openai", "anthropic"), "Only openai or anthropic support batch mode"
-
-    async def _run() -> list[list[dict]]:
-        tasks = [
-            wait_for_batch_completion_async(group, provider, poll_interval=poll_interval)  # pyright: ignore
-            for group in batch_id_groups
-        ]
-        coro = asyncio.gather(*tasks)
-        if timeout is not None:
-            coro = asyncio.wait_for(coro, timeout=timeout)
-        return await coro  # pyright: ignore
-
     try:
-        return asyncio.run(_run())
+        return asyncio.run(
+            _wait_for_batch_groups_async(batch_id_groups, provider, timeout, poll_interval)
+        )
     except asyncio.TimeoutError:
         raise click.ClickException(f"Batch wait timed out after {timeout:,}s")
 
@@ -78,6 +87,68 @@ def _extract_batch_completion(result: dict, provider: str) -> str | None:
     except (KeyError, IndexError):
         return None
     return None
+
+
+async def _read_and_submit_all_batches(
+    annotation_paths: list[Path],
+    client: "LLMClient",
+    batch_size: int,
+    limit_rows: int | None,
+) -> tuple[list[tuple[Path, int, list[str]]], int]:
+    """Read prompts from each file and submit immediately without awaiting.
+
+    Returns (batch_results, total_count) where each batch_result is
+    (path, num_prompts, batch_ids).
+    """
+    decoder = msgspec.json.Decoder()
+    tasks: list[asyncio.Task] = []
+    batch_meta: list[tuple[Path, int]] = []
+    total_count = 0
+
+    for path in annotation_paths:
+        with smart_open.open(path, "rb") as f:  # pyright: ignore
+            prompts = [Conversation.from_log(decoder.decode(line)) for line in f]
+
+        if limit_rows is not None and total_count + len(prompts) > limit_rows:
+            prompts = prompts[: limit_rows - total_count]
+
+        # Fire off submission immediately
+        task = asyncio.create_task(
+            client.submit_batch_job(prompts, batch_size=batch_size)
+        )
+        tasks.append(task)
+        batch_meta.append((path, len(prompts)))
+        total_count += len(prompts)
+
+        click.echo(f"  Queued batch {len(tasks):,} ({len(prompts):,} prompts) from {path.name}")
+
+        # Yield to event loop so in-flight submissions can make progress
+        await asyncio.sleep(0)
+
+        if limit_rows is not None and total_count >= limit_rows:
+            click.echo(f"Reached row limit of {limit_rows:,}.")
+            break
+
+    click.echo(f"Awaiting {len(tasks):,} batch submissions ({total_count:,} prompts)...")
+    all_batch_ids = await asyncio.gather(*tasks)
+
+    return [
+        (path, num_prompts, batch_ids)
+        for (path, num_prompts), batch_ids in zip(batch_meta, all_batch_ids)
+    ], total_count
+
+
+def _get_output_handle(
+    relative_subpath: str,
+    output_dir: Path,
+    output_handles: dict[str, object],
+) -> object:
+    """Get or create a file handle for the given relative subpath."""
+    if relative_subpath not in output_handles:
+        output_path = output_dir / relative_subpath
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_handles[relative_subpath] = smart_open.open(output_path, "wb")  # pyright: ignore
+    return output_handles[relative_subpath]
 
 
 class BatchedFileCounter:
@@ -454,47 +525,35 @@ def batch_annotate_submit(
         max_new_tokens=max_new_tokens,
     )
 
-    decoder = msgspec.json.Decoder()
-    total_count = 0
+    click.echo(f"Submitting up to {len(annotation_paths_to_submit):,} batches...")
 
-    with tqdm(total=len(annotation_paths_to_submit), desc="Submitting batches", unit="batch") as pbar:
-        for path in annotation_paths_to_submit:
-            with smart_open.open(path, "rb") as f:  # pyright: ignore
-                prompts = [Conversation.from_log(decoder.decode(line)) for line in f]
+    token = _batch_output_schema.set(task_prompt.schema)  # pyright: ignore
+    try:
+        batch_results, total_count = asyncio.run(
+            _read_and_submit_all_batches(
+                annotation_paths_to_submit, client, annotation_batch_size, limit_rows
+            )
+        )
+    finally:
+        _batch_output_schema.reset(token)
 
-            if limit_rows is not None and total_count + len(prompts) > limit_rows:
-                prompts = prompts[: limit_rows - total_count]
-
-            # Set output_schema via contextvar for the batch submission
-            token = _batch_output_schema.set(task_prompt.schema)  # pyright: ignore
-            try:
-                batch_ids = asyncio.run(client.submit_batch_job(prompts, batch_size=annotation_batch_size))
-            finally:
-                _batch_output_schema.reset(token)
-
-            batch_info_path = path.parent.parent / ANNOTATION_BATCH_SUBDIR / path.name
-            batch_info_path.parent.mkdir(parents=True, exist_ok=True)
-            provider = registry[model_name].api_spec
-            batch_info = {
-                "batch_ids": batch_ids,
-                "model": model_name,
-                "task_prompt_name": annotation_task_prompt,
-                "reasoning_effort": reasoning_effort,
-                "max_new_tokens": max_new_tokens,
-                "provider": provider,
-                "num_prompts": len(prompts),
-                "prompts_path": str(path),
-            }
-            total_count += len(prompts)
-            with smart_open.open(batch_info_path, "w") as f:  # pyright: ignore
-                json.dump(batch_info, f, indent=2)
-
-            pbar.update(1)
-            pbar.set_postfix(dict(total_prompts=total_count))
-
-            if limit_rows is not None and total_count >= limit_rows:
-                click.echo(f"Reached row limit of {limit_rows:,}. Stopping submission.")
-                break
+    # Write batch info files
+    provider = registry[model_name].api_spec
+    for path, num_prompts, batch_ids in batch_results:
+        batch_info_path = path.parent.parent / ANNOTATION_BATCH_SUBDIR / path.name
+        batch_info_path.parent.mkdir(parents=True, exist_ok=True)
+        batch_info = {
+            "batch_ids": batch_ids,
+            "model": model_name,
+            "task_prompt_name": annotation_task_prompt,
+            "reasoning_effort": reasoning_effort,
+            "max_new_tokens": max_new_tokens,
+            "provider": provider,
+            "num_prompts": num_prompts,
+            "prompts_path": str(path),
+        }
+        with smart_open.open(batch_info_path, "w") as f:  # pyright: ignore
+            json.dump(batch_info, f, indent=2)
 
     click.echo("\nBatch submitted successfully!")
     click.echo(f"  Total prompts submitted: {total_count:,}")
@@ -599,13 +658,6 @@ def batch_annotate_retrieve(
     # into the same output file.
     click.echo("Writing output files...")
 
-    def _get_output_handle(relative_subpath: str) -> object:
-        if relative_subpath not in output_handles:
-            output_path = output_dir / relative_subpath
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_handles[relative_subpath] = smart_open.open(output_path, "wb")  # pyright: ignore
-        return output_handles[relative_subpath]
-
     try:
         for info, results in tqdm(
             zip(batch_infos, all_results), total=len(batch_infos), desc="Processing batches", unit="batch"
@@ -623,7 +675,7 @@ def batch_annotate_retrieve(
                 completions[cid] = _extract_batch_completion(result, provider)
 
             # Read rows, pair with completions, write annotated output
-            out_file = _get_output_handle(relative_subpath)
+            out_file = _get_output_handle(relative_subpath, output_dir, output_handles)
 
             with smart_open.open(rows_path, "rb") as rows_file:  # pyright: ignore
                 for idx, line in enumerate(rows_file):
@@ -650,7 +702,7 @@ def batch_annotate_retrieve(
             passthrough_files = sorted(f for f in already_annotated_base.rglob("*") if f.is_file())
             for src in tqdm(passthrough_files, desc="Copying pass-through rows", unit="file"):
                 relative_subpath = str(src.relative_to(already_annotated_base))
-                out_file = _get_output_handle(relative_subpath)
+                out_file = _get_output_handle(relative_subpath, output_dir, output_handles)
 
                 with smart_open.open(src, "rb") as rf:  # pyright: ignore
                     for line in rf:
