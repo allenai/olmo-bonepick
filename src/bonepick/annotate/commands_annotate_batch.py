@@ -102,16 +102,22 @@ async def _read_and_submit_all_batches(
     client: "LLMClient",
     batch_size: int,
     limit_rows: int | None,
+    max_concurrent_submissions: int = 4,
 ) -> tuple[list[tuple[Path, int, list[str]]], int]:
-    """Read prompts from each file and submit immediately without awaiting.
+    """Read prompts from each file and submit with limited concurrency.
 
     Returns (batch_results, total_count) where each batch_result is
     (path, num_prompts, batch_ids).
     """
     decoder = msgspec.json.Decoder()
+    semaphore = asyncio.Semaphore(max_concurrent_submissions)
     tasks: list[asyncio.Task] = []
     batch_meta: list[tuple[Path, int]] = []
     total_count = 0
+
+    async def _submit_with_semaphore(prompts, batch_sz):
+        async with semaphore:
+            return await client.submit_batch_job(prompts, batch_size=batch_sz)
 
     for path in annotation_paths:
         with smart_open.open(path, "rb") as f:  # pyright: ignore
@@ -120,8 +126,8 @@ async def _read_and_submit_all_batches(
         if limit_rows is not None and total_count + len(prompts) > limit_rows:
             prompts = prompts[: limit_rows - total_count]
 
-        # Fire off submission immediately
-        task = asyncio.create_task(client.submit_batch_job(prompts, batch_size=batch_size))
+        # Fire off submission with concurrency limit
+        task = asyncio.create_task(_submit_with_semaphore(prompts, batch_size))
         tasks.append(task)
         batch_meta.append((path, len(prompts)))
         total_count += len(prompts)
