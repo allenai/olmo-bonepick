@@ -2,8 +2,11 @@ import asyncio
 import json
 import os
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from contextlib import ExitStack
+from functools import reduce
+from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Self
 
 import click
 import msgspec
@@ -11,11 +14,9 @@ import smart_open
 from lazy_imports import try_import
 from tqdm import tqdm
 
-from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt
 from bonepick.cli import PathParamType
-from bonepick.data.expressions import compile_jq
-from bonepick.data.file_estimates import estimate_rows_in_file, group_files_by_min_rows
-from bonepick.data.utils import is_valid_suffix
+from bonepick.data.file_estimates import group_files_by_min_rows
+from bonepick.data.utils import common_path_prefix, is_valid_suffix
 
 with try_import() as extra_dependencies:
     from lm_deluge import Conversation, LLMClient, Message
@@ -27,24 +28,41 @@ with try_import() as extra_dependencies:
 
 from bonepick.annotate.commands_annotate_stream import ReasoningEffort
 
+# paths to be used within batch directory for different stages of the annotation process.
+ROWS_ALREADY_ANNOTATED_SUBDIR = "rows_already_annotated"
+ROWS_TO_ANNOTATE_SUBDIR = "rows_to_annotate"
+BATCHES_TO_ANNOTATE_SUBDIR = "batches_to_annotate"
+ANNOTATION_BATCH_SUBDIR = "annotation_batch"
 
-def _wait_for_batches(
-    batch_ids: list[str],
+
+def _wait_for_batch_groups(
+    batch_id_groups: list[list[str]],
     provider: str,
     timeout: int | None,
     poll_interval: int = 30,
-) -> list[dict]:
-    """Wait for batch completion with optional timeout."""
+) -> list[list[dict]]:
+    """Wait for multiple batch groups concurrently, returning results per group.
+
+    Each group's batch_ids are waited on via ``wait_for_batch_completion_async``
+    (which itself uses ``asyncio.gather``), and all groups are awaited
+    concurrently so polling happens in parallel.
+    """
     from lm_deluge.batches import wait_for_batch_completion_async
 
     assert provider in ("openai", "anthropic"), "Only openai or anthropic support batch mode"
 
-    coro = wait_for_batch_completion_async(batch_ids, provider, poll_interval=poll_interval)  # pyright: ignore
-    if timeout is not None:
-        coro = asyncio.wait_for(coro, timeout=timeout)
+    async def _run() -> list[list[dict]]:
+        tasks = [
+            wait_for_batch_completion_async(group, provider, poll_interval=poll_interval)  # pyright: ignore
+            for group in batch_id_groups
+        ]
+        coro = asyncio.gather(*tasks)
+        if timeout is not None:
+            coro = asyncio.wait_for(coro, timeout=timeout)
+        return await coro  # pyright: ignore
 
     try:
-        return asyncio.run(coro)
+        return asyncio.run(_run())
     except asyncio.TimeoutError:
         raise click.ClickException(f"Batch wait timed out after {timeout:,}s")
 
@@ -62,81 +80,143 @@ def _extract_batch_completion(result: dict, provider: str) -> str | None:
     return None
 
 
-def _process_file_group(
-    file_group: list[tuple[str, str]],
+class BatchedFileCounter:
+    def __init__(
+        self,
+        dest_filename: str | Path,
+        max_rows: int | None = None,
+    ):
+        self.destination_dir = Path(dest_filename).parent
+        self.destination_dir.mkdir(parents=True, exist_ok=True)
+        self.suffix = "".join(Path(dest_filename).suffixes)
+        self.prefix = Path(dest_filename).name[: -len(self.suffix)]
+        self.max_rows = max_rows
+        self.current_count = 0
+        self.stack: ExitStack | None = None
+        self.current_file = None
+        self.paths: list[str] = []
+
+    @classmethod
+    def from_file_group(
+        cls: type[Self],
+        file_group: list[str | Path],
+        base_dest_dir: str | Path,
+        max_rows: int | None = None,
+    ) -> Self:
+        file_group_hash = sha256()
+        for file_path in sorted(file_group):
+            file_group_hash.update(str(file_path).encode())
+        hash_prefix = file_group_hash.hexdigest()[:8]
+        dest_filename = Path(base_dest_dir) / f"{hash_prefix}.jsonl.zst"
+        return cls(dest_filename=dest_filename, max_rows=max_rows)
+
+    def __enter__(self):
+        if self.stack is None:
+            self.stack = ExitStack()
+        return self
+
+    def write_row(self, row: bytes):
+        if self.stack is None:
+            raise ValueError(f"{self.__class__.__name__} must be used as a context manager")
+
+        if self.current_file is None:
+            dest_path = self.destination_dir / f"{self.prefix}_{len(self.paths):08d}{self.suffix}"
+            self.paths.append(str(dest_path))
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            self.current_file = self.stack.enter_context(smart_open.open(dest_path, "wb"))  # pyright: ignore
+
+        if self.max_rows is not None and self.current_count >= self.max_rows:
+            self.stack.pop_all()  # close current file
+            self.current_count = 0
+            self.current_file = None
+            return self.write_row(row)  # try writing again, will open new file
+
+        self.current_file.write(row.rstrip(b"\n") + b"\n")  # pyright: ignore
+        self.current_count += 1
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.stack:
+            self.stack.close()
+
+
+def _make_annotation_batches(
+    file_group: list[str | Path],
+    common_prefix: Path,
+    base_destination_dir: str | Path,
     task_prompt_name: str,
-    system_prompt_name: str | None,
     input_field_expression: str,
     reprocess_all_rows: bool,
-    max_text_length: int | None,
-    limit_rows: int | None,
-) -> dict[str, Any]:
-    """Process a group of files in a worker process.
+    max_request_count: int,
+    system_prompt_name: str | None = None,
+    max_text_length: int | None = None,
+) -> list[str]:
+    """Process file groups in parallel and create annotation batches."""
 
-    Module-level function (picklable for ProcessPoolExecutor). Reads files,
-    checks annotation status, extracts content for rows needing annotation.
-
-    Returns dict with keys:
-        row_entries: list of {"custom_id": int|None, "dest_file": str, "row": dict}
-            (custom_id is a local counter, to be remapped by the main process)
-        contents: list of extracted text strings for rows needing annotation
-        annotate_count: number of rows needing annotation
-        total_rows: total rows processed
-        skipped_rows: rows already annotated (passed through)
-    """
-    # Import and initialize inside worker (avoids pickling issues)
-    from bonepick.annotate import prompt_collections  # noqa: F401
     from bonepick.annotate.prompts import BaseAnnotationPrompt, BaseSystemPrompt
     from bonepick.data.expressions import compile_jq
 
+    # get prompts and tool to extract input field.
+    system_prompt = BaseSystemPrompt.get(system_prompt_name) if system_prompt_name else None
     task_prompt = BaseAnnotationPrompt.get(task_prompt_name)
     input_field_selector = compile_jq(input_field_expression)
 
-    encoder = msgspec.json.Encoder()
+    # encoder/decoder for writing files
     decoder = msgspec.json.Decoder()
+    encoder = msgspec.json.Encoder()
 
-    row_entries: list[dict] = []
-    contents: list[str | list] = []
-    local_annotate_count = 0
-    total_rows = 0
-    skipped_rows = 0
+    base_destination_dir = Path(base_destination_dir)
 
-    for source_path_str, rel_path in file_group:
-        source_path = Path(source_path_str)
+    all_paths_to_annotate: list[str] = []
 
-        with smart_open.open(source_path, "rb") as input_file:  # pyright: ignore
+    with ExitStack() as stack:
+        for source_path in file_group:
+            input_file = stack.enter_context(smart_open.open(source_path, "rb"))  # pyright: ignore
+
+            source_path = Path(source_path)
+            annotated_rows_subpath = (
+                base_destination_dir / ROWS_ALREADY_ANNOTATED_SUBDIR / source_path.relative_to(common_prefix)
+            )
+            rows_already_annotated = stack.enter_context(
+                BatchedFileCounter(dest_filename=annotated_rows_subpath, max_rows=max_request_count)
+            )
+            to_annotate_rows_subpath = (
+                base_destination_dir / ROWS_TO_ANNOTATE_SUBDIR / source_path.relative_to(common_prefix)
+            )
+            rows_to_annotate = stack.enter_context(
+                BatchedFileCounter(dest_filename=to_annotate_rows_subpath, max_rows=max_request_count)
+            )
+            batches_to_annotate_subpath = (
+                base_destination_dir / BATCHES_TO_ANNOTATE_SUBDIR / source_path.relative_to(common_prefix)
+            )
+            requests_to_annotate = stack.enter_context(
+                BatchedFileCounter(dest_filename=batches_to_annotate_subpath, max_rows=max_request_count)
+            )
+
             for line in input_file:
                 row = decoder.decode(line)
-                total_rows += 1
 
                 # Already annotated — pass through
                 if not reprocess_all_rows and task_prompt.name in row:
-                    row_entries.append({"custom_id": None, "dest_file": rel_path, "row": row})
-                    skipped_rows += 1
+                    rows_already_annotated.write_row(line)
                     continue
 
-                if limit_rows is not None and local_annotate_count >= limit_rows:
-                    break
-
-                # Needs annotation — use local counter as placeholder
-                row_entries.append({"custom_id": local_annotate_count, "dest_file": rel_path, "row": row})
-
+                # build conversation
+                conversation = Conversation()
+                if system_prompt:
+                    conversation.add(Message.system(system_prompt.apply()))
                 content = input_field_selector(row)
-                assert isinstance(content, (str, list)), f"Expected str or list, got {type(content)}"
-                contents.append(content)
+                conversation.add(Message.user(task_prompt.apply(content, max_text_length)))
 
-                local_annotate_count += 1
+                # build row record
+                rows_to_annotate.write_row(line)
 
-        if limit_rows is not None and local_annotate_count >= limit_rows:
-            break
+                # build request record
+                requests_to_annotate.write_row(encoder.encode(conversation.to_log()))
 
-    return {
-        "row_entries": row_entries,
-        "contents": contents,
-        "annotate_count": local_annotate_count,
-        "total_rows": total_rows,
-        "skipped_rows": skipped_rows,
-    }
+            all_paths_to_annotate.extend(requests_to_annotate.paths)
+            stack.pop_all()  # ensure all files are closed before returning paths
+
+        return all_paths_to_annotate
 
 
 @click.command()
@@ -233,17 +313,6 @@ def _process_file_group(
     type=int,
     help="Number of parallel workers for file processing (default: cpu_count)",
 )
-@click.option(
-    "--wait/--no-wait",
-    default=False,
-    help="Wait for batch completion after submission",
-)
-@click.option(
-    "--timeout",
-    default=None,
-    type=int,
-    help="Timeout in seconds for waiting (requires --wait)",
-)
 def batch_annotate_submit(
     dataset_dir: tuple[Path, ...],
     batch_dir: Path,
@@ -259,8 +328,6 @@ def batch_annotate_submit(
     limit_rows: int | None,
     annotation_batch_size: int,
     num_proc: int | None,
-    wait: bool,
-    timeout: int | None,
 ):
     """Submit batch annotation job to LLM batch API.
 
@@ -271,6 +338,7 @@ def batch_annotate_submit(
     extra_dependencies.check()
 
     from bonepick.annotate.deluge_utils import _batch_output_schema, lm_deluge_monkey_patch
+    from bonepick.annotate.prompts import BaseAnnotationPrompt
 
     lm_deluge_monkey_patch()
 
@@ -293,7 +361,6 @@ def batch_annotate_submit(
     click.echo()
 
     task_prompt = BaseAnnotationPrompt.get(annotation_task_prompt)
-    system_prompt = BaseSystemPrompt.get(annotation_system_prompt) if annotation_system_prompt else None
 
     if input_field_format != "text":
         raise NotImplementedError("Only text format is supported for now")
@@ -301,7 +368,6 @@ def batch_annotate_submit(
     # Step 1: Collect all files
     click.echo("Collecting files...")
     source_files: list[Path] = []
-    relative_paths: list[str] = []
 
     for input_dir in dataset_dir:
         for root, _, files in os.walk(input_dir):
@@ -309,9 +375,7 @@ def batch_annotate_submit(
                 fn = Path(root) / _fn
                 if not is_valid_suffix(fn):
                     continue
-                relative_path = str(fn.relative_to(input_dir))
                 source_files.append(fn)
-                relative_paths.append(relative_path)
 
     if not source_files:
         click.echo("No files found to annotate. Exiting.")
@@ -319,117 +383,64 @@ def batch_annotate_submit(
 
     click.echo(f"Found {len(source_files):,} files")
 
-    # Step 2: Estimate row counts (I/O-bound, use threads)
-    click.echo("Estimating row counts...")
-    estimated_rows: list[int] = [0] * len(source_files)
-    with ThreadPoolExecutor(max_workers=num_proc) as pool:
-        futures = {pool.submit(estimate_rows_in_file, f): i for i, f in enumerate(source_files)}
-        for future in tqdm(futures, total=len(futures), desc="Estimating rows", unit="file"):
-            idx = futures[future]
-            estimated_rows[idx] = future.result()
-
-    total_estimated = sum(estimated_rows)
-    click.echo(f"Estimated total rows: {total_estimated:,}")
-
-    # Step 3: Group files by min rows (using annotation_batch_size as threshold)
-    file_groups = group_files_by_min_rows(source_files, relative_paths, estimated_rows, annotation_batch_size)
+    # Step 2: Group files by min rows (using annotation_batch_size as threshold)
+    file_groups = group_files_by_min_rows(
+        files=source_files, min_rows_per_group=annotation_batch_size, num_proc=num_proc
+    )
     click.echo(f"Created {len(file_groups):,} file groups for parallel processing")
 
-    # If limit_rows is set, estimate how many groups we need (with 2x buffer for skipped rows)
-    if limit_rows is not None:
-        rows_budget = limit_rows * 2
-        accumulated = 0
-        groups_needed = len(file_groups)
-        for i, group in enumerate(file_groups):
-            for file_path, _ in group:
-                idx = source_files.index(file_path)
-                accumulated += estimated_rows[idx]
-            if accumulated >= rows_budget:
-                groups_needed = i + 1
-                break
-        file_groups = file_groups[:groups_needed]
-        click.echo(f"  Using {len(file_groups):,} groups (limit_rows={limit_rows:,})")
+    common_prefix = common_path_prefix([p.path for fp in file_groups for p in fp])
 
-    # Step 4: Process file groups in parallel
+    if limit_rows is not None:
+        # cheecky cumsum using reduce to accummulate row counts.
+        cumulative_rows = reduce(
+            lambda acc, fg: acc + [sum(f.est for f in fg) + (acc[-1] if acc else 0)], file_groups, []
+        )
+        file_groups = [
+            fg
+            # the shift by one is because we want to stop if next cumulative sum is larger than
+            # limit, not the current one.
+            for fg, cum_rows in zip(file_groups, [0] + cumulative_rows)
+            if cum_rows <= limit_rows
+        ]
+        click.echo(f"Limited to {limit_rows:,} rows across {len(file_groups):,} file groups")
+
+    # Step 3: Process file groups in parallel
     click.echo("Building prompts and processing rows...")
+    num_proc = 1
     pool_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
 
-    # Convert file groups to picklable format (strings instead of Paths)
-    picklable_groups = [[(str(fp), rp) for fp, rp in group] for group in file_groups]
-
     # Submit all groups and iterate in submission order to preserve file ordering
-    group_results: list[dict[str, Any]] = []
+    annotation_paths_to_submit: list[Path] = []
+
     with pool_cls(max_workers=num_proc) as pool:
         futures = []
-        for pg in picklable_groups:
+        for fg in file_groups:
             future = pool.submit(
-                _process_file_group,
-                file_group=pg,
+                _make_annotation_batches,
+                file_group=[f.path for f in fg],  # type: ignore
+                common_prefix=common_prefix,
                 task_prompt_name=annotation_task_prompt,
                 system_prompt_name=annotation_system_prompt,
+                base_destination_dir=batch_dir,
                 input_field_expression=input_field_expression,
                 reprocess_all_rows=reprocess_all_rows,
+                max_request_count=annotation_batch_size,
                 max_text_length=max_text_length,
-                limit_rows=limit_rows * 2 if limit_rows is not None else None,
             )
             futures.append(future)
 
         for future in tqdm(futures, total=len(futures), desc="Processing groups", unit="group"):
-            group_results.append(future.result())
+            try:
+                group_result = future.result()
+            except Exception as e:
+                # cancel remaining futures to avoid unnecessary work
+                click.echo(f"Error processing group: {e}")
+                for f in futures:
+                    f.cancel()
+                raise click.ClickException(f"Error processing group: {e}") from e
 
-    # Step 5: Merge results in submission order, assign global custom_ids
-    encoder = msgspec.json.Encoder()
-    rows_path = batch_dir / "rows.jsonl.zst"
-    prompts: list[Conversation] = []
-    custom_id_counter = 0
-    total_rows = 0
-    skipped_rows = 0
-    limit_reached = False
-
-    click.echo("Writing rows and building conversations...")
-    with smart_open.open(rows_path, "wb") as rows_file:  # pyright: ignore
-        for result in group_results:
-            if limit_reached:
-                break
-
-            total_rows += result["total_rows"]
-            skipped_rows += result["skipped_rows"]
-            content_idx = 0
-
-            for entry in result["row_entries"]:
-                if entry["custom_id"] is None:
-                    # Pass-through (already annotated)
-                    rows_file.write(encoder.encode(entry) + b"\n")
-                else:
-                    # Check global limit
-                    if limit_rows is not None and custom_id_counter >= limit_rows:
-                        click.echo(f"\nReached limit of {limit_rows:,} rows to annotate")
-                        limit_reached = True
-                        break
-
-                    # Remap local ID to global
-                    entry["custom_id"] = custom_id_counter
-                    rows_file.write(encoder.encode(entry) + b"\n")
-
-                    # Build conversation from content string
-                    content = result["contents"][content_idx]
-                    content_idx += 1
-
-                    conversation = Conversation()
-                    if system_prompt:
-                        conversation.add(Message.system(system_prompt.apply()))
-                    conversation.add(Message.user(task_prompt.apply(content, max_text_length)))
-                    prompts.append(conversation)
-
-                    custom_id_counter += 1
-
-    click.echo(f"\nTotal rows: {total_rows:,}")
-    click.echo(f"Rows to annotate: {custom_id_counter:,}")
-    click.echo(f"Rows skipped (already annotated): {skipped_rows:,}")
-
-    if custom_id_counter == 0:
-        click.echo("No rows need annotation. Exiting.")
-        return
+            annotation_paths_to_submit.extend([Path(p) for p in group_result])
 
     # Step 6: Submit batch job
     click.echo("\nInitializing LLM client...")
@@ -444,43 +455,50 @@ def batch_annotate_submit(
         max_new_tokens=max_new_tokens,
     )
 
-    click.echo(f"Submitting {custom_id_counter:,} prompts to batch API...")
+    decoder = msgspec.json.Decoder()
+    total_count = 0
 
-    # Set output_schema via contextvar for the batch submission
-    token = _batch_output_schema.set(task_prompt.schema)  # pyright: ignore
-    try:
-        batch_ids = asyncio.run(client.submit_batch_job(prompts, batch_size=annotation_batch_size))
-    finally:
-        _batch_output_schema.reset(token)
+    with tqdm(total=len(annotation_paths_to_submit), desc="Submitting batches", unit="batch") as pbar:
+        for path in annotation_paths_to_submit:
+            with smart_open.open(path, "rb") as f:  # pyright: ignore
+                prompts = [Conversation.from_log(decoder.decode(line)) for line in f]
 
-    # Convert to list of strings for JSON serialization
-    batch_ids = [str(bid) for bid in batch_ids]
+            if limit_rows is not None and total_count + len(prompts) > limit_rows:
+                prompts = prompts[: limit_rows - total_count]
 
-    # Step 7: Write manifest
-    provider = registry[model_name].api_spec
-    manifest = {
-        "batch_ids": batch_ids,
-        "provider": provider,
-        "model": model_name,
-        "task_prompt_name": annotation_task_prompt,
-        "system_prompt_name": annotation_system_prompt,
-        "num_prompts": custom_id_counter,
-        "num_total_rows": total_rows,
-    }
+            # Set output_schema via contextvar for the batch submission
+            token = _batch_output_schema.set(task_prompt.schema)  # pyright: ignore
+            try:
+                batch_ids = asyncio.run(client.submit_batch_job(prompts, batch_size=annotation_batch_size))
+            finally:
+                _batch_output_schema.reset(token)
 
-    manifest_path = batch_dir / "manifest.json"
-    with open(manifest_path, "w") as f:
-        json.dump(manifest, f, indent=2)
+            batch_info_path = path.parent.parent / ANNOTATION_BATCH_SUBDIR / path.name
+            batch_info_path.parent.mkdir(parents=True, exist_ok=True)
+            provider = registry[model_name].api_spec
+            batch_info = {
+                "batch_ids": batch_ids,
+                "model": model_name,
+                "task_prompt_name": annotation_task_prompt,
+                "reasoning_effort": reasoning_effort,
+                "max_new_tokens": max_new_tokens,
+                "provider": provider,
+                "num_prompts": len(prompts),
+                "prompts_path": str(path),
+            }
+            total_count += len(prompts)
+            with smart_open.open(batch_info_path, "w") as f:  # pyright: ignore
+                json.dump(batch_info, f, indent=2)
+
+            pbar.update(1)
+            pbar.set_postfix(dict(total_prompts=total_count))
+
+            if limit_rows is not None and total_count >= limit_rows:
+                click.echo(f"Reached row limit of {limit_rows:,}. Stopping submission.")
+                break
 
     click.echo("\nBatch submitted successfully!")
-    click.echo(f"  Batch IDs: {batch_ids}")
-    click.echo(f"  Manifest: {manifest_path}")
-    click.echo(f"  Rows file: {rows_path}")
-
-    if wait:
-        click.echo("\nWaiting for batch completion...")
-        results = _wait_for_batches(batch_ids, provider, timeout)
-        click.echo(f"Batch completed with {len(results):,} results")
+    click.echo(f"  Total prompts submitted: {total_count:,}")
 
 
 @click.command()
@@ -511,105 +529,134 @@ def batch_annotate_retrieve(
 ):
     """Retrieve batch annotation results.
 
-    Reads the manifest and rows from a batch directory, waits for batch
-    completion, then writes annotated output preserving directory structure.
+    Reads batch info files from the batch directory, waits for batch
+    completion, then writes annotated output combining newly annotated
+    rows with already-annotated pass-through rows. Preserves the
+    subdirectory structure from the original dataset.
     """
     extra_dependencies.check()
 
     from bonepick.annotate.deluge_utils import lm_deluge_monkey_patch
+    from bonepick.annotate.prompts import BaseAnnotationPrompt
 
     lm_deluge_monkey_patch()
 
-    # Step 1: Read manifest
-    manifest_path = batch_dir / "manifest.json"
-    with open(manifest_path, "r") as f:
-        manifest = json.load(f)
+    encoder = msgspec.json.Encoder()
+    decoder = msgspec.json.Decoder()
 
-    batch_ids = manifest["batch_ids"]
-    model = manifest["model"]
-    task_prompt_name = manifest["task_prompt_name"]
-    num_prompts = manifest["num_prompts"]
+    # Step 1: Find and read all batch info files (may be nested)
+    batch_info_files = sorted(batch_dir.rglob(f"{ANNOTATION_BATCH_SUBDIR}/*"))
+    batch_info_files = [f for f in batch_info_files if f.is_file()]
 
-    provider = registry[model].api_spec
+    if not batch_info_files:
+        raise click.ClickException(f"No batch info files found under {batch_dir}")
 
-    click.echo("Batch retrieval")
-    click.echo(f"  Batch dir:    {batch_dir}")
-    click.echo(f"  Output dir:   {output_dir}")
-    click.echo(f"  Model:        {model}")
-    click.echo(f"  Provider:     {provider}")
-    click.echo(f"  Task prompt:  {task_prompt_name}")
-    click.echo(f"  Batch IDs:    {batch_ids}")
-    click.echo(f"  Num prompts:  {num_prompts:,}")
-    click.echo()
+    batch_infos: list[dict] = []
+    for bif in batch_info_files:
+        with smart_open.open(bif, "r") as f:  # pyright: ignore
+            batch_infos.append(json.load(f))
 
+    # Extract common config from first batch info
+    task_prompt_name = batch_infos[0]["task_prompt_name"]
+    provider = batch_infos[0]["provider"]
+    model = batch_infos[0]["model"]
     task_prompt = BaseAnnotationPrompt.get(task_prompt_name)
 
-    # Step 2: Wait for batch completion
-    timeout_msg = f" (timeout: {timeout:,}s)" if timeout else ""
-    click.echo(f"Waiting for batch completion...{timeout_msg}")
-    results = _wait_for_batches(batch_ids, provider, timeout)
+    batches_base = batch_dir / BATCHES_TO_ANNOTATE_SUBDIR
+    already_annotated_base = batch_dir / ROWS_ALREADY_ANNOTATED_SUBDIR
+    total_prompts = sum(info["num_prompts"] for info in batch_infos)
 
-    click.echo(f"Retrieved {len(results):,} results")
+    click.echo("Batch retrieval")
+    click.echo(f"  Batch dir:     {batch_dir}")
+    click.echo(f"  Output dir:    {output_dir}")
+    click.echo(f"  Model:         {model}")
+    click.echo(f"  Provider:      {provider}")
+    click.echo(f"  Task prompt:   {task_prompt_name}")
+    click.echo(f"  Batch infos:   {len(batch_infos):,}")
+    click.echo(f"  Total prompts: {total_prompts:,}")
+    click.echo()
 
-    # Step 3: Build lookup dict {custom_id: completion_text}
-    completions: dict[int, str | None] = {}
-    for result in results:
-        cid = int(result["custom_id"])
-        completions[cid] = _extract_batch_completion(result, provider)
-
-    succeeded = sum(1 for v in completions.values() if v is not None)
-    failed = sum(1 for v in completions.values() if v is None)
-    click.echo(f"  Succeeded: {succeeded:,}")
-    click.echo(f"  Failed:    {failed:,}")
-
-    # Step 4: Stream through rows and write output
-    rows_path = batch_dir / "rows.jsonl.zst"
-    encoder, decoder = msgspec.json.Encoder(), msgspec.json.Decoder()
-
-    # Open output files as needed
-    output_handles: dict[str, object] = {}
+    # Step 2: Wait for all batches concurrently. Results are returned per group
+    # (one group per batch_info) so custom_ids (0..N-1) don't collide.
     successful_docs = 0
     failed_docs = 0
-    passthrough_docs = 0
+    output_handles: dict[str, object] = {}
 
-    click.echo("\nWriting output files...")
+    timeout_msg = f" (timeout: {timeout:,}s)" if timeout else ""
+    click.echo(f"Waiting for batch completion...{timeout_msg}")
+
+    all_results = _wait_for_batch_groups(
+        batch_id_groups=[[str(bid) for bid in info["batch_ids"]] for info in batch_infos],
+        provider=provider,
+        timeout=timeout,
+    )
+
+    total_results = sum(len(r) for r in all_results)
+    click.echo(f"Retrieved {total_results:,} results")
+    click.echo()
+
+    # Step 3: Write annotated rows. Output files are keyed by their relative
+    # subpath so that annotated and pass-through rows from the same source merge
+    # into the same output file.
+    click.echo("Writing output files...")
+
+    def _get_output_handle(relative_subpath: str) -> object:
+        if relative_subpath not in output_handles:
+            output_path = output_dir / relative_subpath
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_handles[relative_subpath] = smart_open.open(output_path, "wb")  # pyright: ignore
+        return output_handles[relative_subpath]
+
     try:
-        with smart_open.open(rows_path, "rb") as rows_file:  # pyright: ignore
-            for line in tqdm(rows_file, desc="Processing rows", unit="row"):
-                row_entry = decoder.decode(line)
-                custom_id = row_entry["custom_id"]
-                dest_file = row_entry["dest_file"]
-                row = row_entry["row"]
+        for info, results in tqdm(
+            zip(batch_infos, all_results), total=len(batch_infos), desc="Processing batches", unit="batch"
+        ):
+            prompts_path = Path(info["prompts_path"])
 
-                dest_path = output_dir / dest_file
+            # Derive relative subpath and corresponding rows file
+            relative_subpath = str(prompts_path.relative_to(batches_base))
+            rows_path = batch_dir / ROWS_TO_ANNOTATE_SUBDIR / relative_subpath
 
-                # Open output file if not already open
-                if dest_file not in output_handles:
-                    dest_path.parent.mkdir(parents=True, exist_ok=True)
-                    output_handles[dest_file] = smart_open.open(dest_path, "wb")  # pyright: ignore
+            # Build completions dict {custom_id: completion_text}
+            completions: dict[int, str | None] = {}
+            for result in results:
+                cid = int(result["custom_id"])
+                completions[cid] = _extract_batch_completion(result, provider)
 
-                out_f = output_handles[dest_file]
+            # Read rows, pair with completions, write annotated output
+            out_file = _get_output_handle(relative_subpath)
 
-                if custom_id is None:
-                    # Pass-through row (already annotated)
-                    out_f.write(encoder.encode(row) + b"\n")  # pyright: ignore
-                    passthrough_docs += 1
-                    continue
+            with smart_open.open(rows_path, "rb") as rows_file:  # pyright: ignore
+                for idx, line in enumerate(rows_file):
+                    completion = completions.get(idx)
+                    if completion is None:
+                        failed_docs += 1
+                        continue
 
-                # Look up completion
-                completion = completions.get(custom_id)
-                if completion is None:
-                    failed_docs += 1
-                    continue
+                    try:
+                        parsed = task_prompt.parse(completion)
+                    except Exception:
+                        failed_docs += 1
+                        continue
 
-                try:
-                    parsed_response = task_prompt.parse(completion)
-                except Exception:
-                    failed_docs += 1
-                    continue
+                    row = decoder.decode(line)
+                    row[task_prompt.name] = parsed
+                    out_file.write(encoder.encode(row) + b"\n")  # pyright: ignore
+                    successful_docs += 1
 
-                out_f.write(encoder.encode({**row, task_prompt.name: parsed_response}) + b"\n")  # pyright: ignore
-                successful_docs += 1
+        # Step 3: Copy pass-through rows (already annotated), preserving subdirectory structure
+        passthrough_docs = 0
+
+        if already_annotated_base.exists():
+            passthrough_files = sorted(f for f in already_annotated_base.rglob("*") if f.is_file())
+            for src in tqdm(passthrough_files, desc="Copying pass-through rows", unit="file"):
+                relative_subpath = str(src.relative_to(already_annotated_base))
+                out_file = _get_output_handle(relative_subpath)
+
+                with smart_open.open(src, "rb") as rf:  # pyright: ignore
+                    for line in rf:
+                        out_file.write(line)  # pyright: ignore
+                        passthrough_docs += 1
     finally:
         for handle in output_handles.values():
             handle.close()  # pyright: ignore

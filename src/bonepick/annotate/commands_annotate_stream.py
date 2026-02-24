@@ -376,8 +376,6 @@ def annotate_dataset(
 
                     output_file.write(encoder.encode({**row, task_prompt.name: parsed_response}) + b"\n")
                     successful_docs_cnt += 1
-
-            click.echo(f"  Wrote {len(batch_rows):,} rows to {destination_file.name}")
             pbar.update(1)
 
         pbar.close()

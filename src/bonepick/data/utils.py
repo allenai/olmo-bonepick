@@ -13,7 +13,7 @@ from contextlib import ExitStack
 from functools import cached_property
 from math import floor, log10
 from pathlib import Path
-from typing import ClassVar, Generator, Generic, Self, TypeVar
+from typing import ClassVar, Generator, Generic, Iterable, Self, TypeVar
 
 import msgspec
 import smart_open
@@ -837,3 +837,32 @@ def pretty_size(size: int | float, precision: int = 2, unit: str = "B") -> str:
         i += 1
 
     return f"{size / 1024 ** (i - 1):.{precision}f} {mappings[i - 1]}"
+
+
+def common_path_prefix(paths: Iterable[Path]) -> Path:
+    """
+    Return the longest common path prefix shared by all given paths.
+
+    The result is a Path representing a directory (or file prefix) that
+    is common to all inputs. Raises ValueError if `paths` is empty.
+    """
+    paths = list(paths)
+    if not paths:
+        raise ValueError("paths must be non-empty")
+
+    # Normalize (no filesystem access; purely lexical)
+    split_parts = [p.resolve().parts if p.is_absolute() else p.parts for p in paths]
+
+    # Zip stops at shortest path automatically
+    common_parts = []
+    for components in zip(*split_parts):
+        if all(c == components[0] for c in components):
+            common_parts.append(components[0])
+        else:
+            break
+
+    if not common_parts:
+        # No shared prefix (e.g., different drives on Windows)
+        return Path()
+
+    return Path(*common_parts)

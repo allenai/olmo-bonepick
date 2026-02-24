@@ -1,8 +1,10 @@
 import gzip
-import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from backports.zstd import open as zstd_open
+from fsspec.caching import NamedTuple
+from tqdm import tqdm
 
 
 def estimate_rows_in_file(path: Path, min_compressed_bytes: int = 131_072) -> int:
@@ -127,51 +129,33 @@ def _estimate_rows_uncompressed(path: Path, file_size: int, chunk_size: int) -> 
     return lines_read
 
 
+class FileRowCount(NamedTuple):
+    path: Path
+    est: int
+
+
 def group_files_by_min_rows(
-    files: list[Path],
-    relative_paths: list[str],
-    estimated_rows: list[int],
-    min_rows_per_group: int,
-) -> list[list[tuple[Path, str]]]:
-    """Group files greedily until each group reaches a minimum row count.
-
-    Iterates files in order, accumulating estimated rows. When the accumulated
-    count reaches min_rows_per_group, the current group is finalized. The last
-    group is merged into the previous one if it's smaller than the threshold
-    (unless it's the only group).
-
-    Args:
-        files: List of file paths.
-        relative_paths: List of relative path strings (parallel to files).
-        estimated_rows: List of estimated row counts (parallel to files).
-        min_rows_per_group: Minimum estimated rows per group.
-
-    Returns:
-        List of groups, each a list of (file_path, relative_path) tuples.
-    """
+    files: list[Path], min_rows_per_group: int, num_proc: int = 1
+) -> list[list[FileRowCount]]:
     if not files:
         return []
 
-    groups: list[list[tuple[Path, str]]] = []
-    current_group: list[tuple[Path, str]] = []
-    current_rows = 0
+    all_estimated_rows: list[int] = [0] * len(files)
+    with ThreadPoolExecutor(max_workers=num_proc) as pool:
+        futures = {pool.submit(estimate_rows_in_file, f): i for i, f in enumerate(files)}
+        for future in tqdm(futures, total=len(futures), desc="Estimating rows", unit="file"):
+            idx = futures[future]
+            all_estimated_rows[idx] = future.result()
 
-    for file_path, rel_path, est_rows in zip(files, relative_paths, estimated_rows):
-        current_group.append((file_path, rel_path))
-        current_rows += est_rows
+    groups: list[list[FileRowCount]] = [[]]
+    sizes: list[int] = [0]
 
-        if current_rows >= min_rows_per_group:
-            groups.append(current_group)
-            current_group = []
-            current_rows = 0
+    for file_path, estimated_rows in zip(files, all_estimated_rows):
+        groups[-1].append(FileRowCount(path=file_path, est=estimated_rows))
+        sizes[-1] += estimated_rows
 
-    # Handle remaining files
-    if current_group:
-        if groups:
-            # Merge into previous group
-            groups[-1].extend(current_group)
-        else:
-            # Only group
-            groups.append(current_group)
+        if sizes[-1] >= min_rows_per_group:
+            groups.append([])
+            sizes.append(0)
 
     return groups
