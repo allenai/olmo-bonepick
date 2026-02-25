@@ -99,7 +99,7 @@ def _extract_batch_completion(result: dict, provider: str) -> str | None:
 
 async def _read_and_submit_all_batches(
     annotation_paths: list[Path],
-    client: "LLMClient",
+    client: "LLMClient",    # pyright: ignore
     batch_size: int,
     limit_rows: int | None,
     max_concurrent_submissions: int = 4,
