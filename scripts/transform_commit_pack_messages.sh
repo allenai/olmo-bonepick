@@ -136,6 +136,8 @@ if ${DO_SUBMIT}; then
 
         # Submit batch annotation job
         echo "  Submitting batch annotation job..."
+        # Enables Bash command tracing; prints each command before executing it.
+        set -x
         uv run --extra=annotate bonepick batch-annotate-submit \
             -d "${LOCAL_SRC_DIR}/${pl}" \
             -b "${LOCAL_BATCH_DIR}/${pl}" \
@@ -144,6 +146,7 @@ if ${DO_SUBMIT}; then
             -S "${SYSTEM_PROMPT}" \
             -i "${INPUT_FIELD}" \
             --num-proc ${NUM_PROC}
+        set +x
         echo "  Batch submitted."
 
         submitted_languages+=("${pl}")
