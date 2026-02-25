@@ -265,7 +265,7 @@ def _make_annotation_batches(
 @click.option(
     "-d",
     "--dataset-dir",
-    type=PathParamType(exists=True, is_dir=True),
+    type=PathParamType(exists=True, is_dir=True, is_file=True),
     required=True,
     multiple=True,
     help="Dataset directory (can be specified multiple times)",
