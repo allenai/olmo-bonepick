@@ -1,5 +1,5 @@
 import gzip
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -11,7 +11,7 @@ from tqdm import tqdm
 def estimate_rows_in_file(path: Path, min_compressed_bytes: int = 131_072) -> int:
     """Estimate the number of rows in a JSONL file by reading a sample and extrapolating.
 
-    For compressed files, reads decompressed chunks until at least 10% of the compressed
+    For compressed files, reads decompressed chunks until at least 5% of the compressed
     file has been consumed (minimum min_compressed_bytes). For uncompressed files, reads
     1MB chunks and extrapolates from bytes read vs file size.
 
@@ -59,7 +59,7 @@ def _estimate_rows_compressed_zstd(path: Path, file_size: int, chunk_size: int, 
                 lines_read += len(parts) - 1
 
                 compressed_consumed = raw_fh.tell()
-                min_threshold = max(min_compressed_bytes, int(file_size * 0.10))
+                min_threshold = max(min_compressed_bytes, int(file_size * 0.05))
                 if compressed_consumed >= min_threshold:
                     if lines_read == 0:
                         return 0
@@ -90,7 +90,7 @@ def _estimate_rows_compressed_gzip(path: Path, file_size: int, chunk_size: int, 
                 lines_read += len(parts) - 1
 
                 compressed_consumed = raw_fh.tell()
-                min_threshold = max(min_compressed_bytes, int(file_size * 0.10))
+                min_threshold = max(min_compressed_bytes, int(file_size * 0.05))
                 if compressed_consumed >= min_threshold:
                     if lines_read == 0:
                         return 0
@@ -148,8 +148,9 @@ def group_files_by_min_rows(
     all_estimated_rows: list[int] = [0] * len(files)
 
 
+    pool_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
     with ExitStack() as stack:
-        pool = stack.enter_context(ThreadPoolExecutor(max_workers=num_proc))
+        pool = stack.enter_context(pool_cls(max_workers=num_proc))
         futures = {pool.submit(estimate_rows_in_file, f): (i, f) for i, f in enumerate(files)}
 
         pbar = stack.enter_context(

@@ -421,6 +421,13 @@ def batch_annotate_submit(
     source_files: list[Path] = []
 
     for input_dir in dataset_dir:
+
+        # is a file, collect it as-is
+        if Path(input_dir).is_file():
+            source_files.append(Path(input_dir))
+            continue
+
+        # is a directory, walk it and collect all files
         for root, _, files in os.walk(input_dir):
             for _fn in files:
                 fn = Path(root) / _fn
