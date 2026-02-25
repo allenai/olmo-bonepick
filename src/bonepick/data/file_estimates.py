@@ -1,5 +1,5 @@
 import gzip
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from backports.zstd import open as zstd_open
@@ -139,13 +139,29 @@ def group_files_by_min_rows(
 ) -> list[list[FileRowCount]]:
     if not files:
         return []
+    if min_rows_per_group <= 0:
+        raise ValueError(f"min_rows_per_group must be > 0, got {min_rows_per_group}")
+    if num_proc <= 0:
+        raise ValueError(f"num_proc must be > 0, got {num_proc}")
 
     all_estimated_rows: list[int] = [0] * len(files)
-    with ThreadPoolExecutor(max_workers=num_proc) as pool:
-        futures = {pool.submit(estimate_rows_in_file, f): i for i, f in enumerate(files)}
-        for future in tqdm(futures, total=len(futures), desc="Estimating rows", unit="file"):
-            idx = futures[future]
-            all_estimated_rows[idx] = future.result()
+    pool = ThreadPoolExecutor(max_workers=num_proc)
+    futures = {}
+    try:
+        futures = {pool.submit(estimate_rows_in_file, f): (i, f) for i, f in enumerate(files)}
+        for future in tqdm(as_completed(futures), total=len(futures), desc="Estimating rows", unit="file"):
+            idx, file_path = futures[future]
+            try:
+                all_estimated_rows[idx] = future.result()
+            except Exception as e:
+                raise RuntimeError(f"Failed to estimate rows for {file_path}: {e}") from e
+    except BaseException:
+        for pending in futures:
+            pending.cancel()
+        pool.shutdown(wait=False, cancel_futures=True)
+        raise
+    else:
+        pool.shutdown(wait=True)
 
     groups: list[list[FileRowCount]] = [[]]
     sizes: list[int] = [0]
@@ -157,5 +173,8 @@ def group_files_by_min_rows(
         if sizes[-1] >= min_rows_per_group:
             groups.append([])
             sizes.append(0)
+
+    if groups[-1] == []:
+        groups.pop()
 
     return groups
