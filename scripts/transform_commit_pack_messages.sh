@@ -49,6 +49,20 @@ SYSTEM_PROMPT=${SYSTEM_PROMPT:-"code_system"}
 INPUT_FIELD=${INPUT_FIELD:-".message"}
 RETRIEVE_TIMEOUT=${RETRIEVE_TIMEOUT:-3600}
 NUM_PROC=${NUM_PROC:-$(nproc)}
+ALLOW_SKIP_BATCHES=${ALLOW_SKIP_BATCHES:-false}
+
+SKIP_FAILED_BATCHES_FLAG=()
+case "${ALLOW_SKIP_BATCHES,,}" in
+    1|true|yes|y)
+        SKIP_FAILED_BATCHES_FLAG=(--skip-failed-batches)
+        ;;
+    0|false|no|n|"")
+        ;;
+    *)
+        echo "Invalid ALLOW_SKIP_BATCHES value: '${ALLOW_SKIP_BATCHES}' (expected true/false)"
+        exit 1
+        ;;
+esac
 
 # =========== Beginning of script =========== #
 
@@ -72,6 +86,7 @@ echo "Local source directory: ${LOCAL_SRC_DIR}"
 echo "Local batch directory: ${LOCAL_BATCH_DIR}"
 echo "Local output directory: ${LOCAL_OUTPUT_DIR}"
 echo "Retrieve timeout (s): ${RETRIEVE_TIMEOUT}"
+echo "Allow skip batches: ${ALLOW_SKIP_BATCHES}"
 echo "Number of processes: ${NUM_PROC}"
 echo "====================="
 echo ""
@@ -171,7 +186,8 @@ if ${DO_RETRIEVE}; then
         if uv run --extra=annotate bonepick batch-annotate-retrieve \
             -b "${LOCAL_BATCH_DIR}/${pl}" \
             -o "${LOCAL_OUTPUT_DIR}/${pl}" \
-            --timeout "${RETRIEVE_TIMEOUT}"; then
+            --timeout "${RETRIEVE_TIMEOUT}" \
+            "${SKIP_FAILED_BATCHES_FLAG[@]}"; then
             echo "  Batch results retrieved."
 
             # Upload language results to S3

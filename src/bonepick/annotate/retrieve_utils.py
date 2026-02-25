@@ -239,6 +239,7 @@ async def wait_for_batch_downloads_async(
     timeout: int | None,
     poll_interval: int,
     reporter: Callable[[str], None],
+    skip_failed_batches: bool,
 ) -> list[Path]:
     """Wait for batch completion concurrently and persist outputs on disk."""
     import aiohttp
@@ -269,7 +270,7 @@ async def wait_for_batch_downloads_async(
     reporter(f"Waiting for and downloading {len(pending_batch_ids):,} remaining batches...")
 
     async with aiohttp.ClientSession() as session:
-        tasks: list[asyncio.Task[str]] = []
+        tasks: list[asyncio.Task[tuple[str, Exception | None]]] = []
         ready_batch_ids: set[str] = set()
         downloading_batch_ids: set[str] = set()
         in_progress_batch_ids: set[str] = set()
@@ -379,11 +380,11 @@ async def wait_for_batch_downloads_async(
             _set_batch_status(batch_id, status)
             _report_status()
 
-        for batch_id in pending_batch_ids:
+        async def _download_with_error_capture(batch_id: str) -> tuple[str, Exception | None]:
             destination_path = result_path_for_batch(results_dir=results_dir, batch_id=batch_id)
-            if provider == "openai":
-                task = asyncio.create_task(
-                    wait_and_download_openai_batch_async(
+            try:
+                if provider == "openai":
+                    await wait_and_download_openai_batch_async(
                         session=session,
                         batch_id=batch_id,
                         destination_path=destination_path,
@@ -391,10 +392,8 @@ async def wait_for_batch_downloads_async(
                         on_status_change=_on_status_change,
                         download_semaphore=download_semaphore,
                     )
-                )
-            else:
-                task = asyncio.create_task(
-                    wait_and_download_anthropic_batch_async(
+                else:
+                    await wait_and_download_anthropic_batch_async(
                         session=session,
                         batch_id=batch_id,
                         destination_path=destination_path,
@@ -402,23 +401,46 @@ async def wait_for_batch_downloads_async(
                         on_status_change=_on_status_change,
                         download_semaphore=download_semaphore,
                     )
-                )
-            tasks.append(task)
+                return batch_id, None
+            except Exception as exc:
+                return batch_id, exc
+
+        for batch_id in pending_batch_ids:
+            tasks.append(asyncio.create_task(_download_with_error_capture(batch_id)))
 
         async def _wait_and_report() -> None:
             _report_status(force=True)
             for finished_task in asyncio.as_completed(tasks):
-                downloaded_batch_id = await finished_task
-                _set_batch_status(downloaded_batch_id, "completed")
-                downloaded_line = (
-                    f"  {click.style('Downloaded', fg='green', bold=True)} "
-                    f"{click.style(f'{len(completed_batch_ids):,}/{total_pending:,}', fg='green')}: "
-                    f"{downloaded_batch_id}{RESULT_SUFFIX}"
-                )
-                if use_rich_live and rich_live is not None:
-                    rich_live.console.print(downloaded_line)
+                finished_batch_id, error = await finished_task
+                if error is not None:
+                    if not skip_failed_batches:
+                        for pending_task in tasks:
+                            if not pending_task.done():
+                                pending_task.cancel()
+                        await asyncio.gather(*tasks, return_exceptions=True)
+                        raise error
+                    _set_batch_status(finished_batch_id, "completed")
+                    error_text = str(error).strip() or error.__class__.__name__
+                    skipped_line = (
+                        f"  {click.style('Skipped', fg='yellow', bold=True)} "
+                        f"{click.style(f'{len(completed_batch_ids):,}/{total_pending:,}', fg='yellow')}: "
+                        f"{finished_batch_id} ({error_text})"
+                    )
+                    if use_rich_live and rich_live is not None:
+                        rich_live.console.print(skipped_line)
+                    else:
+                        reporter(skipped_line)
                 else:
-                    reporter(downloaded_line)
+                    _set_batch_status(finished_batch_id, "completed")
+                    downloaded_line = (
+                        f"  {click.style('Downloaded', fg='green', bold=True)} "
+                        f"{click.style(f'{len(completed_batch_ids):,}/{total_pending:,}', fg='green')}: "
+                        f"{finished_batch_id}{RESULT_SUFFIX}"
+                    )
+                    if use_rich_live and rich_live is not None:
+                        rich_live.console.print(downloaded_line)
+                    else:
+                        reporter(downloaded_line)
                 _report_status()
 
         try:
@@ -430,7 +452,10 @@ async def wait_for_batch_downloads_async(
             if rich_live is not None:
                 rich_live.stop()
 
-    return [result_path_for_batch(results_dir=results_dir, batch_id=batch_id) for batch_id in normalized_batch_ids]
+    result_paths = [
+        result_path_for_batch(results_dir=results_dir, batch_id=batch_id) for batch_id in normalized_batch_ids
+    ]
+    return [result_path for result_path in result_paths if result_path.exists()]
 
 
 def wait_for_batch_downloads(
@@ -440,6 +465,7 @@ def wait_for_batch_downloads(
     timeout: int | None,
     poll_interval: int = 10,
     reporter: Callable[[str], None] = click.echo,
+    skip_failed_batches: bool = False,
 ) -> list[Path]:
     """Synchronous wrapper for concurrent retrieval downloads."""
     try:
@@ -451,6 +477,7 @@ def wait_for_batch_downloads(
                 timeout=timeout,
                 poll_interval=poll_interval,
                 reporter=reporter,
+                skip_failed_batches=skip_failed_batches,
             )
         )
     except asyncio.TimeoutError as exc:

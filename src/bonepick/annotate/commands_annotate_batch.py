@@ -555,6 +555,7 @@ def _process_single_batch_result(
     output_dir: Path,
     provider: str,
     task_prompt_name: str,
+    skip_missing_batch_results: bool = False,
 ) -> tuple[int, int]:
     """Merge one batch-info file into an output shard.
 
@@ -576,6 +577,8 @@ def _process_single_batch_result(
     for batch_id in info["batch_ids"]:
         result_path = result_path_for_batch(results_dir=results_base, batch_id=str(batch_id))
         if not result_path.exists():
+            if skip_missing_batch_results:
+                continue
             raise FileNotFoundError(f"Missing downloaded batch results: {result_path}")
 
         # Support legacy cache files that were plain JSONL with a .zst suffix.
@@ -679,6 +682,12 @@ def _load_batch_infos(batch_info_files: list[Path]) -> list[dict]:
     help="Timeout in seconds for waiting for batch completion",
 )
 @click.option(
+    "--skip-failed-batches",
+    is_flag=True,
+    default=False,
+    help="Skip failed/cancelled/expired batch downloads and continue with available results",
+)
+@click.option(
     "-p",
     "--num-proc",
     default=None,
@@ -689,6 +698,7 @@ def batch_annotate_retrieve(
     batch_dir: Path,
     output_dir: Path,
     timeout: int | None,
+    skip_failed_batches: bool,
     num_proc: int | None,
 ):
     """Retrieve batch annotation results.
@@ -750,8 +760,21 @@ def batch_annotate_retrieve(
         results_dir=results_base,
         timeout=timeout,
         reporter=click.echo,
+        skip_failed_batches=skip_failed_batches,
     )
     click.echo(f"Result files ready: {len(result_files):,}")
+    missing_batch_ids = [
+        batch_id
+        for batch_id in all_batch_ids
+        if not result_path_for_batch(results_dir=results_base, batch_id=batch_id).exists()
+    ]
+    if missing_batch_ids:
+        if not skip_failed_batches:
+            raise click.ClickException(
+                f"{len(missing_batch_ids):,} batch results are missing. "
+                "Re-run with --skip-failed-batches to continue with partial results."
+            )
+        click.echo(f"Skipping {len(missing_batch_ids):,} batches without result files.")
     click.echo()
 
     # Step 3: Process each annotation batch info in parallel. Each worker reads
@@ -773,6 +796,7 @@ def batch_annotate_retrieve(
                 output_dir=output_dir,
                 provider=provider,
                 task_prompt_name=task_prompt_name,
+                skip_missing_batch_results=skip_failed_batches,
             )
             for info in batch_infos
         ]
@@ -803,4 +827,5 @@ def batch_annotate_retrieve(
     click.echo(f"  Pass-through rows: {passthrough_docs:,}")
     click.echo(f"  Annotated rows:    {successful_docs:,}")
     click.echo(f"  Failed rows:       {failed_docs:,}")
+    click.echo(f"  Skipped batches:   {len(missing_batch_ids):,}")
     click.echo(f"  Output directory:  {output_dir}")
