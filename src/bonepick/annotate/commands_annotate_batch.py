@@ -35,46 +35,206 @@ ROWS_ALREADY_ANNOTATED_SUBDIR = "rows_already_annotated"
 ROWS_TO_ANNOTATE_SUBDIR = "rows_to_annotate"
 BATCHES_TO_ANNOTATE_SUBDIR = "batches_to_annotate"
 ANNOTATION_BATCH_SUBDIR = "annotation_batch"
+RESULTS_SUBDIR = "results"
+
+
+async def _download_response_to_file(
+    session,
+    url: str,
+    headers: dict[str, str],
+    destination_path: Path,
+) -> None:
+    """Stream an HTTP response body into a local compressed result file."""
+    # Keep the same compression suffix on temp files so smart_open applies
+    # the expected compressor instead of writing plain JSONL bytes.
+    tmp_path = destination_path.with_name(f"{destination_path.stem}.tmp{destination_path.suffix}")
+    try:
+        async with session.get(url, headers=headers) as response:
+            if response.status != 200:
+                text = await response.text()
+                raise ValueError(f"Error downloading batch output from {url}: {text}")
+
+            with smart_open.open(tmp_path, "wb") as wf:  # pyright: ignore
+                async for chunk in response.content.iter_chunked(1024 * 1024):
+                    if chunk:
+                        wf.write(chunk)
+
+        tmp_path.replace(destination_path)
+    except Exception:
+        if tmp_path.exists():
+            tmp_path.unlink()
+        raise
+
+
+async def _wait_and_download_openai_batch_async(
+    session,
+    batch_id: str,
+    destination_path: Path,
+    poll_interval: int = 30,
+) -> str:
+    """Poll OpenAI batch until completion, then download JSONL output to disk."""
+    api_key = os.getenv("OPENAI_API_KEY")
+    if api_key is None:
+        raise ValueError("OPENAI_API_KEY environment variable must be set.")
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    status_url = f"https://api.openai.com/v1/batches/{batch_id}"
+
+    while True:
+        async with session.get(status_url, headers=headers) as response:
+            if response.status != 200:
+                text = await response.text()
+                raise ValueError(f"Error checking OpenAI batch status for {batch_id}: {text}")
+
+            batch_data = await response.json()
+            status = batch_data["status"]
+
+            if status == "completed":
+                output_file_id = batch_data.get("output_file_id")
+                if not output_file_id:
+                    raise ValueError(f"No output file available for OpenAI batch {batch_id}")
+
+                output_url = f"https://api.openai.com/v1/files/{output_file_id}/content"
+                await _download_response_to_file(
+                    session=session,
+                    url=output_url,
+                    headers=headers,
+                    destination_path=destination_path,
+                )
+                return batch_id
+
+            if status in ("failed", "expired", "cancelled"):
+                raise ValueError(f"OpenAI batch {batch_id} failed with status: {status}")
+
+        await asyncio.sleep(poll_interval)
+
+
+async def _wait_and_download_anthropic_batch_async(
+    session,
+    batch_id: str,
+    destination_path: Path,
+    poll_interval: int = 30,
+) -> str:
+    """Poll Anthropic batch until completion, then download JSONL output to disk."""
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if api_key is None:
+        raise ValueError("ANTHROPIC_API_KEY environment variable must be set.")
+
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+    status_url = f"https://api.anthropic.com/v1/messages/batches/{batch_id}"
+
+    while True:
+        async with session.get(status_url, headers=headers) as response:
+            if response.status != 200:
+                text = await response.text()
+                raise ValueError(f"Error checking Anthropic batch status for {batch_id}: {text}")
+
+            batch_data = await response.json()
+            status = batch_data["processing_status"]
+
+            if status == "ended":
+                output_url = f"https://api.anthropic.com/v1/messages/batches/{batch_id}/results"
+                await _download_response_to_file(
+                    session=session,
+                    url=output_url,
+                    headers=headers,
+                    destination_path=destination_path,
+                )
+                return batch_id
+
+            if status in ("canceled", "expired"):
+                raise ValueError(f"Anthropic batch {batch_id} failed with status: {status}")
+
+        await asyncio.sleep(poll_interval)
 
 
 async def _wait_for_batch_groups_async(
-    batch_id_groups: list[list[str]],
+    batch_ids: list[str],
     provider: str,
+    results_dir: Path,
     timeout: int | None,
     poll_interval: int = 30,
-) -> list[list[dict]]:
-    """Wait for multiple batch groups concurrently, returning results per group."""
-    from lm_deluge.batches import wait_for_batch_completion_async
+) -> list[Path]:
+    """Wait for batches concurrently and persist each result as ``<batch_id>.jsonl.zst``."""
+    import aiohttp
 
     assert provider in ("openai", "anthropic"), "Only openai or anthropic support batch mode"
 
-    tasks = [
-        wait_for_batch_completion_async(group, provider, poll_interval=poll_interval)  # pyright: ignore
-        for group in batch_id_groups
-    ]
-    coro = asyncio.gather(*tasks)
-    if timeout is not None:
-        coro = asyncio.wait_for(coro, timeout=timeout)
-    return await coro  # pyright: ignore
+    results_dir.mkdir(parents=True, exist_ok=True)
+
+    normalized_batch_ids = [str(bid) for bid in batch_ids]
+    existing_batch_ids = [bid for bid in normalized_batch_ids if (results_dir / f"{bid}.jsonl.zst").exists()]
+    existing_batch_id_set = set(existing_batch_ids)
+    if existing_batch_ids:
+        click.echo(f"Found {len(existing_batch_ids):,} existing result files; skipping those downloads.")
+
+    remaining_batch_ids = [bid for bid in normalized_batch_ids if bid not in existing_batch_id_set]
+    if not remaining_batch_ids:
+        click.echo("No remaining batch downloads needed.")
+        return [results_dir / f"{bid}.jsonl.zst" for bid in normalized_batch_ids]
+
+    click.echo(f"Waiting for and downloading {len(remaining_batch_ids):,} remaining batches...")
+
+    async with aiohttp.ClientSession() as session:
+        tasks: list[asyncio.Task[str]] = []
+        for batch_id in remaining_batch_ids:
+            destination = results_dir / f"{batch_id}.jsonl.zst"
+            if provider == "openai":
+                task = asyncio.create_task(
+                    _wait_and_download_openai_batch_async(
+                        session=session,
+                        batch_id=batch_id,
+                        destination_path=destination,
+                        poll_interval=poll_interval,
+                    )
+                )
+            else:
+                task = asyncio.create_task(
+                    _wait_and_download_anthropic_batch_async(
+                        session=session,
+                        batch_id=batch_id,
+                        destination_path=destination,
+                        poll_interval=poll_interval,
+                    )
+                )
+            tasks.append(task)
+
+        async def _wait_and_report() -> None:
+            completed = 0
+            for finished in asyncio.as_completed(tasks):
+                downloaded_batch_id = await finished
+                completed += 1
+                click.echo(f"  Downloaded {completed:,}/{len(tasks):,}: {downloaded_batch_id}.jsonl.zst")
+
+        if timeout is not None:
+            await asyncio.wait_for(_wait_and_report(), timeout=timeout)
+        else:
+            await _wait_and_report()
+
+    return [results_dir / f"{bid}.jsonl.zst" for bid in normalized_batch_ids]
 
 
 def _wait_for_batch_groups(
-    batch_id_groups: list[list[str]],
+    batch_ids: list[str],
     provider: str,
+    results_dir: Path,
     timeout: int | None,
     poll_interval: int = 30,
-) -> list[list[dict]]:
-    """Wait for multiple batch groups concurrently, returning results per group.
-
-    Each group's batch_ids are waited on via ``wait_for_batch_completion_async``
-    (which itself uses ``asyncio.gather``), and all groups are awaited
-    concurrently so polling happens in parallel.
-    """
+) -> list[Path]:
+    """Wait for batches concurrently and persist outputs to local result files."""
     try:
         return asyncio.run(
             _wait_for_batch_groups_async(
-                batch_id_groups=batch_id_groups,
+                batch_ids=batch_ids,
                 provider=provider,
+                results_dir=results_dir,
                 timeout=timeout,
                 poll_interval=poll_interval,
             )
@@ -99,7 +259,7 @@ def _extract_batch_completion(result: dict, provider: str) -> str | None:
 
 async def _read_and_submit_all_batches(
     annotation_paths: list[Path],
-    client: "LLMClient",    # pyright: ignore
+    client: "LLMClient",  # pyright: ignore
     batch_size: int,
     limit_rows: int | None,
     max_concurrent_submissions: int = 4,
@@ -123,7 +283,7 @@ async def _read_and_submit_all_batches(
                 except Exception as e:
                     if attempt == max_retries:
                         raise
-                    delay = base_delay * (2 ** attempt)
+                    delay = base_delay * (2**attempt)
                     click.echo(f"  Batch submission failed (attempt {attempt + 1}/{max_retries + 1}): {e}")
                     click.echo(f"  Retrying in {delay:.0f}s...")
                     await asyncio.sleep(delay)
@@ -164,19 +324,6 @@ async def _read_and_submit_all_batches(
     return [
         (path, num_prompts, batch_ids) for (path, num_prompts), batch_ids in zip(batch_meta, all_batch_ids)
     ], total_count
-
-
-def _get_output_handle(
-    relative_subpath: str,
-    output_dir: Path,
-    output_handles: dict[str, object],
-) -> object:
-    """Get or create a file handle for the given relative subpath."""
-    if relative_subpath not in output_handles:
-        output_path = output_dir / relative_subpath
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_handles[relative_subpath] = smart_open.open(output_path, "wb")  # pyright: ignore
-    return output_handles[relative_subpath]
 
 
 class BatchedFileCounter:
@@ -611,15 +758,16 @@ def batch_annotate_submit(
 
 def _process_single_batch_result(
     info: dict,
-    results: list[dict],
     batch_dir: Path,
     batches_base: Path,
+    results_base: Path,
+    output_dir: Path,
     provider: str,
     task_prompt_name: str,
-) -> tuple[str, list[bytes], int, int]:
-    """Process one batch: match completions to rows and return annotated rows.
+) -> tuple[str, int, int]:
+    """Process one batch and write annotated rows directly to output.
 
-    Returns (relative_subpath, annotated_row_bytes, success_count, fail_count).
+    Returns (relative_subpath, success_count, fail_count).
     """
     from bonepick.annotate.prompts import BaseAnnotationPrompt
 
@@ -630,17 +778,39 @@ def _process_single_batch_result(
     prompts_path = Path(info["prompts_path"])
     relative_subpath = str(prompts_path.relative_to(batches_base))
     rows_path = batch_dir / ROWS_TO_ANNOTATE_SUBDIR / relative_subpath
+    output_path = output_dir / relative_subpath
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     completions: dict[int, str | None] = {}
-    for result in results:
-        cid = int(result["custom_id"])
-        completions[cid] = _extract_batch_completion(result=result, provider=provider)
+    for batch_id in info["batch_ids"]:
+        result_path = results_base / f"{batch_id}.jsonl.zst"
+        if not result_path.exists():
+            raise FileNotFoundError(f"Missing downloaded batch results: {result_path}")
 
-    annotated_rows: list[bytes] = []
+        with open(result_path, "rb") as probe:
+            prefix = probe.read(4)
+
+        # Support legacy cache files that were plain JSONL with a .zst suffix.
+        result_file_opener = smart_open.open if prefix == b"\x28\xb5\x2f\xfd" else open
+        with result_file_opener(result_path, "rb") as result_file:  # pyright: ignore
+            for line in result_file:
+                try:
+                    result = decoder.decode(line)
+                except msgspec.DecodeError:
+                    continue
+                try:
+                    cid = int(result["custom_id"])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                completions[cid] = _extract_batch_completion(result=result, provider=provider)
+
     successful = 0
     failed = 0
 
-    with smart_open.open(rows_path, "rb") as rows_file:  # pyright: ignore
+    with (
+        smart_open.open(rows_path, "rb") as rows_file,  # pyright: ignore
+        smart_open.open(output_path, "wb") as output_file,  # pyright: ignore
+    ):
         for idx, line in enumerate(rows_file):
             completion = completions.get(idx)
             if completion is None:
@@ -653,23 +823,33 @@ def _process_single_batch_result(
                 continue
             row = decoder.decode(line)
             row[task_prompt.name] = parsed
-            annotated_rows.append(encoder.encode(row) + b"\n")
+            output_file.write(encoder.encode(row) + b"\n")  # pyright: ignore
             successful += 1
 
-    return relative_subpath, annotated_rows, successful, failed
+    return relative_subpath, successful, failed
 
 
-def _read_single_passthrough(
+def _copy_single_passthrough(
     src: Path,
     already_annotated_base: Path,
-) -> tuple[str, list[bytes]]:
-    """Read one passthrough file and return its relative subpath and raw rows."""
+    output_dir: Path,
+) -> tuple[str, int]:
+    """Copy one passthrough file into output, appending if target exists."""
     relative_subpath = str(src.relative_to(already_annotated_base))
-    rows: list[bytes] = []
-    with smart_open.open(src, "rb") as rf:  # pyright: ignore
-        for line in rf:
-            rows.append(line)
-    return relative_subpath, rows
+    output_path = output_dir / relative_subpath
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    mode = "ab" if output_path.exists() else "wb"
+    row_count = 0
+    with (
+        smart_open.open(src, "rb") as read_file,  # pyright: ignore
+        smart_open.open(output_path, mode) as write_file,  # pyright: ignore
+    ):
+        for line in read_file:
+            write_file.write(line)  # pyright: ignore
+            row_count += 1
+
+    return relative_subpath, row_count
 
 
 @click.command()
@@ -757,87 +937,79 @@ def batch_annotate_retrieve(
     click.echo(f"  Total prompts: {total_prompts:,}")
     click.echo()
 
-    # Step 2: Wait for all batches concurrently. Results are returned per group
-    # (one group per batch_info) so custom_ids (0..N-1) don't collide.
+    # Step 2: Wait for all batches concurrently and download each output file.
     successful_docs = 0
     failed_docs = 0
-    output_handles: dict[str, object] = {}
+    results_base = batch_dir / RESULTS_SUBDIR
+    results_base.mkdir(parents=True, exist_ok=True)
+
+    all_batch_ids: list[str] = []
+    seen_batch_ids: set[str] = set()
+    for info in batch_infos:
+        for batch_id in info["batch_ids"]:
+            batch_id_str = str(batch_id)
+            if batch_id_str in seen_batch_ids:
+                continue
+            seen_batch_ids.add(batch_id_str)
+            all_batch_ids.append(batch_id_str)
 
     timeout_msg = f" (timeout: {timeout:,}s)" if timeout else ""
-    click.echo(f"Waiting for batch completion...{timeout_msg}")
+    click.echo(f"Waiting for batch completion and downloading results...{timeout_msg}")
 
-    all_results = _wait_for_batch_groups(
-        batch_id_groups=[[str(bid) for bid in info["batch_ids"]] for info in batch_infos],
+    result_files = _wait_for_batch_groups(
+        batch_ids=all_batch_ids,
         provider=provider,
+        results_dir=results_base,
         timeout=timeout,
     )
-
-    total_results = sum(len(r) for r in all_results)
-    click.echo(f"Retrieved {total_results:,} results")
+    click.echo(f"Result files ready: {len(result_files):,}")
     click.echo()
 
-    # Step 3: Process annotated rows and copy pass-through rows in parallel.
-    # Output files are keyed by relative subpath so that annotated and
-    # pass-through rows from the same source merge into the same output file.
+    # Step 3: Process each annotation batch info in parallel. Each worker reads
+    # rows + downloaded result files and writes annotated output directly.
     num_proc = num_proc or os.cpu_count() or 1
     pool_cls = ProcessPoolExecutor if num_proc > 1 else ThreadPoolExecutor
 
     click.echo(f"Writing output files (workers: {num_proc})...")
     passthrough_docs = 0
 
-    try:
-        with pool_cls(max_workers=num_proc) as pool:
-            # Process batch results in parallel
-            batch_futures = [
-                pool.submit(
-                    _process_single_batch_result,
-                    info=info,
-                    results=results,
-                    batch_dir=batch_dir,
-                    batches_base=batches_base,
-                    provider=provider,
-                    task_prompt_name=task_prompt_name,
+    with pool_cls(max_workers=num_proc) as pool:
+        batch_futures = [
+            pool.submit(
+                _process_single_batch_result,
+                info=info,
+                batch_dir=batch_dir,
+                batches_base=batches_base,
+                results_base=results_base,
+                output_dir=output_dir,
+                provider=provider,
+                task_prompt_name=task_prompt_name,
+            )
+            for info in batch_infos
+        ]
+
+        for future in tqdm(batch_futures, desc="Processing batches", unit="batch"):
+            _, successful, failed = future.result()
+            successful_docs += successful
+            failed_docs += failed
+
+    # Step 4: Copy pass-through rows (already annotated) from disk.
+    if already_annotated_base.exists():
+        passthrough_files = sorted(f for f in already_annotated_base.rglob("*") if f.is_file())
+        with ThreadPoolExecutor(max_workers=num_proc) as copy_pool:
+            pt_futures = [
+                copy_pool.submit(
+                    _copy_single_passthrough,
+                    src=src,
+                    already_annotated_base=already_annotated_base,
+                    output_dir=output_dir,
                 )
-                for info, results in zip(batch_infos, all_results)
+                for src in passthrough_files
             ]
 
-            for future in tqdm(batch_futures, desc="Processing batches", unit="batch"):
-                relative_subpath, annotated_rows, successful, failed = future.result()
-                successful_docs += successful
-                failed_docs += failed
-                out_file = _get_output_handle(
-                    relative_subpath=relative_subpath,
-                    output_dir=output_dir,
-                    output_handles=output_handles,
-                )
-                for row_bytes in annotated_rows:
-                    out_file.write(row_bytes)  # pyright: ignore
-
-            # Copy pass-through rows (already annotated) in parallel
-            if already_annotated_base.exists():
-                passthrough_files = sorted(f for f in already_annotated_base.rglob("*") if f.is_file())
-                pt_futures = [
-                    pool.submit(
-                        _read_single_passthrough,
-                        src=src,
-                        already_annotated_base=already_annotated_base,
-                    )
-                    for src in passthrough_files
-                ]
-
-                for future in tqdm(pt_futures, desc="Copying pass-through rows", unit="file"):
-                    relative_subpath, rows = future.result()
-                    out_file = _get_output_handle(
-                        relative_subpath=relative_subpath,
-                        output_dir=output_dir,
-                        output_handles=output_handles,
-                    )
-                    for row_bytes in rows:
-                        out_file.write(row_bytes)  # pyright: ignore
-                        passthrough_docs += 1
-    finally:
-        for handle in output_handles.values():
-            handle.close()  # pyright: ignore
+            for future in tqdm(pt_futures, desc="Copying pass-through rows", unit="file"):
+                _, copied_rows = future.result()
+                passthrough_docs += copied_rows
 
     click.echo("\nSummary:")
     click.echo(f"  Pass-through rows: {passthrough_docs:,}")
