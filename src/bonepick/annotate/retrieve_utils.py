@@ -21,18 +21,28 @@ RESULT_SUFFIX = ".jsonl.zst"
 ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 DEFAULT_MAX_CONCURRENT_DOWNLOADS = 8
 
-BatchDownloadStatus = Literal["ready", "downloading"]
+BatchDownloadStatus = Literal["ready", "downloading", "in_progress", "other", "completed"]
 BatchStatusReporter = Callable[[str, BatchDownloadStatus], None]
 
 
-def _format_batch_status_line(ready: int, downloading: int, downloaded: int, total: int) -> str:
+def _format_batch_status_line(
+    *,
+    completed: int,
+    ready: int,
+    downloading: int,
+    in_progress: int,
+    other: int,
+    total: int,
+) -> str:
     """Build a colorized one-line status summary for batch retrieval progress."""
     return (
         f"  {click.style('Status:', fg='cyan', bold=True)} "
+        f"{click.style('completed', fg='green')}={click.style(f'{completed:,}', fg='green', bold=True)}/"
+        f"{click.style(f'{total:,}', fg='green')} "
         f"{click.style('ready', fg='yellow')}={click.style(f'{ready:,}', fg='yellow', bold=True)} "
         f"{click.style('downloading', fg='blue')}={click.style(f'{downloading:,}', fg='blue', bold=True)} "
-        f"{click.style('downloaded', fg='green')}="
-        f"{click.style(f'{downloaded:,}', fg='green', bold=True)}/{click.style(f'{total:,}', fg='green')}"
+        f"{click.style('in-progress', fg='magenta')}={click.style(f'{in_progress:,}', fg='magenta', bold=True)} "
+        f"{click.style('other', fg='red')}={click.style(f'{other:,}', fg='red', bold=True)}"
     )
 
 
@@ -147,6 +157,12 @@ async def wait_and_download_openai_batch_async(
             if status in ("failed", "expired", "cancelled"):
                 raise ValueError(f"OpenAI batch {batch_id} failed with status: {status}")
 
+            if on_status_change is not None:
+                if status in ("validating", "in_progress", "finalizing", "cancelling"):
+                    on_status_change(batch_id, "in_progress")
+                else:
+                    on_status_change(batch_id, "other")
+
         await asyncio.sleep(poll_interval)
 
 
@@ -207,6 +223,12 @@ async def wait_and_download_anthropic_batch_async(
             if status in ("canceled", "expired"):
                 raise ValueError(f"Anthropic batch {batch_id} failed with status: {status}")
 
+            if on_status_change is not None:
+                if status in ("in_progress", "canceling"):
+                    on_status_change(batch_id, "in_progress")
+                else:
+                    on_status_change(batch_id, "other")
+
         await asyncio.sleep(poll_interval)
 
 
@@ -250,8 +272,10 @@ async def wait_for_batch_downloads_async(
         tasks: list[asyncio.Task[str]] = []
         ready_batch_ids: set[str] = set()
         downloading_batch_ids: set[str] = set()
-        downloaded_batch_ids: set[str] = set()
-        last_status_snapshot: tuple[int, int, int] | None = None
+        in_progress_batch_ids: set[str] = set()
+        other_batch_ids: set[str] = set(pending_batch_ids)
+        completed_batch_ids: set[str] = set()
+        last_status_snapshot: tuple[int, int, int, int, int] | None = None
         total_pending = len(pending_batch_ids)
         download_semaphore = asyncio.Semaphore(min(DEFAULT_MAX_CONCURRENT_DOWNLOADS, total_pending))
         use_rich_live = False
@@ -271,8 +295,11 @@ async def wait_for_batch_downloads_async(
                     TextColumn("[bold cyan]Batch retrieval[/bold cyan]"),
                     BarColumn(),
                     MofNCompleteColumn(),
+                    TextColumn("• [green]completed[/green] {task.completed:,.0f}"),
                     TextColumn("• [yellow]ready[/yellow] {task.fields[ready]}"),
                     TextColumn("• [blue]downloading[/blue] {task.fields[downloading]}"),
+                    TextColumn("• [magenta]in-progress[/magenta] {task.fields[in_progress]}"),
+                    TextColumn("• [red]other[/red] {task.fields[other]}"),
                 )
                 rich_task_id = rich_progress.add_task(
                     "download",
@@ -280,6 +307,8 @@ async def wait_for_batch_downloads_async(
                     completed=0,
                     ready="0",
                     downloading="0",
+                    in_progress="0",
+                    other=f"{total_pending:,}",
                 )
                 rich_live = Live(rich_progress, console=rich_console, refresh_per_second=10, transient=False)
                 rich_live.start()
@@ -292,7 +321,13 @@ async def wait_for_batch_downloads_async(
 
         def _report_status(force: bool = False) -> None:
             nonlocal last_status_snapshot
-            snapshot = (len(ready_batch_ids), len(downloading_batch_ids), len(downloaded_batch_ids))
+            snapshot = (
+                len(completed_batch_ids),
+                len(ready_batch_ids),
+                len(downloading_batch_ids),
+                len(in_progress_batch_ids),
+                len(other_batch_ids),
+            )
             if not force and snapshot == last_status_snapshot:
                 return
             last_status_snapshot = snapshot
@@ -300,31 +335,48 @@ async def wait_for_batch_downloads_async(
             if use_rich_live and rich_progress is not None and rich_task_id is not None:
                 rich_progress.update(
                     rich_task_id,
-                    completed=snapshot[2],
+                    completed=snapshot[0],
                     total=total_pending,
-                    ready=f"{snapshot[0]:,}",
-                    downloading=f"{snapshot[1]:,}",
+                    ready=f"{snapshot[1]:,}",
+                    downloading=f"{snapshot[2]:,}",
+                    in_progress=f"{snapshot[3]:,}",
+                    other=f"{snapshot[4]:,}",
                 )
                 return
 
             reporter(
                 _format_batch_status_line(
-                    ready=snapshot[0],
-                    downloading=snapshot[1],
-                    downloaded=snapshot[2],
+                    completed=snapshot[0],
+                    ready=snapshot[1],
+                    downloading=snapshot[2],
+                    in_progress=snapshot[3],
+                    other=snapshot[4],
                     total=total_pending,
                 )
             )
 
-        def _on_status_change(batch_id: str, status: BatchDownloadStatus) -> None:
-            if batch_id in downloaded_batch_ids:
+        def _set_batch_status(batch_id: str, status: BatchDownloadStatus) -> None:
+            if batch_id in completed_batch_ids and status != "completed":
                 return
-            if status == "ready":
+
+            ready_batch_ids.discard(batch_id)
+            downloading_batch_ids.discard(batch_id)
+            in_progress_batch_ids.discard(batch_id)
+            other_batch_ids.discard(batch_id)
+
+            if status == "completed":
+                completed_batch_ids.add(batch_id)
+            elif status == "ready":
                 ready_batch_ids.add(batch_id)
-                downloading_batch_ids.discard(batch_id)
             elif status == "downloading":
-                ready_batch_ids.discard(batch_id)
                 downloading_batch_ids.add(batch_id)
+            elif status == "in_progress":
+                in_progress_batch_ids.add(batch_id)
+            else:
+                other_batch_ids.add(batch_id)
+
+        def _on_status_change(batch_id: str, status: BatchDownloadStatus) -> None:
+            _set_batch_status(batch_id, status)
             _report_status()
 
         for batch_id in pending_batch_ids:
@@ -357,12 +409,10 @@ async def wait_for_batch_downloads_async(
             _report_status(force=True)
             for finished_task in asyncio.as_completed(tasks):
                 downloaded_batch_id = await finished_task
-                ready_batch_ids.discard(downloaded_batch_id)
-                downloading_batch_ids.discard(downloaded_batch_id)
-                downloaded_batch_ids.add(downloaded_batch_id)
+                _set_batch_status(downloaded_batch_id, "completed")
                 downloaded_line = (
                     f"  {click.style('Downloaded', fg='green', bold=True)} "
-                    f"{click.style(f'{len(downloaded_batch_ids):,}/{total_pending:,}', fg='green')}: "
+                    f"{click.style(f'{len(completed_batch_ids):,}/{total_pending:,}', fg='green')}: "
                     f"{downloaded_batch_id}{RESULT_SUFFIX}"
                 )
                 if use_rich_live and rich_live is not None:
