@@ -6,6 +6,7 @@ set -euo pipefail
 LOCAL_PREFIX="${LOCAL_PREFIX:-/mnt/raid0/ai2-llm}"
 REMOTE_PREFIX="${REMOTE_PREFIX:-s3://ai2-llm}"
 REL_INPUT_DIR="${INPUT_DIR:-classifiers/pdf-quality/samples}"
+REL_BATCH_DIR="${BATCH_DIR:-classifiers/pdf-quality/batch}"
 REL_OUTPUT_DIR="${OUTPUT_DIR:-classifiers/pdf-quality/data}"
 
 TASK_PROMPTS=(
@@ -54,7 +55,7 @@ if [[ "${MODE}" == "all" || "${MODE}" == "submit" ]]; then
     for TASK_PROMPT in "${TASK_PROMPTS[@]}"; do
         uv run --extra=annotate bonepick batch-annotate-submit \
             -d "${LOCAL_PREFIX}/${REL_INPUT_DIR}" \
-            -b "${LOCAL_PREFIX}/${REL_OUTPUT_DIR}" \
+            -b "${LOCAL_PREFIX}/${REL_BATCH_DIR}" \
             -m "${MODEL_NAME}" \
             -T "${TASK_PROMPT}" \
             -S "${SYSTEM_PROMPT}" \
@@ -68,7 +69,7 @@ if [[ "${MODE}" == "all" || "${MODE}" == "retrieve" ]]; then
 
     for TASK_PROMPT in "${TASK_PROMPTS[@]}"; do
         uv run --extra=annotate bonepick batch-annotate-retrieve \
-            -b "${LOCAL_PREFIX}/${REL_OUTPUT_DIR}/${TASK_PROMPT}" \
+            -b "${LOCAL_PREFIX}/${REL_BATCH_DIR}/${TASK_PROMPT}" \
             -o "${LOCAL_PREFIX}/${REL_OUTPUT_DIR}/${TASK_PROMPT}" \
             --timeout "${RETRIEVE_TIMEOUT}" \
             "${SKIP_FAILED_BATCHES_FLAG[@]}"
