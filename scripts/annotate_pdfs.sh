@@ -80,6 +80,7 @@ LOCAL_INPUT_DIR="${LOCAL_PREFIX}/${REL_INPUT_DIR}"
 LOCAL_BATCH_DIR="${LOCAL_PREFIX}/${REL_BATCH_DIR}"
 LOCAL_OUTPUT_DIR="${LOCAL_PREFIX}/${REL_OUTPUT_DIR}"
 REMOTE_INPUT_DIR="${REMOTE_PREFIX}/${REL_INPUT_DIR}"
+REMOTE_OUTPUT_DIR="${REMOTE_PREFIX}/${REL_OUTPUT_DIR}"
 
 TASK_PROMPTS=(
     "finepdfish_edu"
@@ -98,6 +99,7 @@ fi
 NUM_PROC="${NUM_PROC:-${DEFAULT_NUM_PROC}}"
 RETRIEVE_TIMEOUT="${RETRIEVE_TIMEOUT:-3600}"
 ALLOW_SKIP_BATCHES="${ALLOW_SKIP_BATCHES:-false}"
+LIMIT_ROWS="${LIMIT_ROWS:-1000000}"
 
 SKIP_FAILED_BATCHES_FLAG=()
 case "${ALLOW_SKIP_BATCHES,,}" in
@@ -120,17 +122,20 @@ log "Task prompts: ${TASK_PROMPTS[*]}"
 log "System prompt: ${SYSTEM_PROMPT}"
 log "Input field: ${INPUT_FIELD}"
 log "Remote input directory: ${REMOTE_INPUT_DIR}"
+log "Remote output directory: ${REMOTE_OUTPUT_DIR}"
 log "Local input directory: ${LOCAL_INPUT_DIR}"
 log "Local batch directory: ${LOCAL_BATCH_DIR}"
 log "Local output directory: ${LOCAL_OUTPUT_DIR}"
 log "Retrieve timeout (s): ${RETRIEVE_TIMEOUT}"
 log "Allow skip batches: ${ALLOW_SKIP_BATCHES}"
+log "Limit rows per task prompt: ${LIMIT_ROWS}"
 log "Number of processes: ${NUM_PROC}"
 log "====================="
 
 submitted_prompts=()
 retrieved_prompts=()
 failed_prompts=()
+uploaded_prompts=()
 
 # ====== Phase 1: Sync + submit batch jobs ====== #
 
@@ -149,6 +154,7 @@ if ${DO_SUBMIT}; then
             -T "${task_prompt}" \
             -S "${SYSTEM_PROMPT}" \
             -i "${INPUT_FIELD}" \
+            --limit-rows "${LIMIT_ROWS}" \
             --num-proc "${NUM_PROC}"
         submitted_prompts+=("${task_prompt}")
         log "Submitted task prompt: ${task_prompt}"
@@ -178,6 +184,11 @@ if ${DO_RETRIEVE}; then
             "${SKIP_FAILED_BATCHES_FLAG[@]}"; then
             retrieved_prompts+=("${task_prompt}")
             log "Retrieved task prompt: ${task_prompt}"
+
+            log "Uploading task prompt to remote output: ${task_prompt}"
+            s5cmd cp -sp "${prompt_output_dir}/*" "${REMOTE_OUTPUT_DIR}/${task_prompt}/"
+            uploaded_prompts+=("${task_prompt}")
+            log "Uploaded task prompt: ${task_prompt}"
         else
             failed_prompts+=("${task_prompt}")
             warn "Failed retrieval for ${task_prompt}; continuing with remaining prompts"
@@ -193,6 +204,10 @@ fi
 log "Retrieved prompts: ${#retrieved_prompts[@]}"
 if [[ ${#retrieved_prompts[@]} -gt 0 ]]; then
     log "Retrieved list: ${retrieved_prompts[*]}"
+fi
+log "Uploaded prompts: ${#uploaded_prompts[@]}"
+if [[ ${#uploaded_prompts[@]} -gt 0 ]]; then
+    log "Uploaded list: ${uploaded_prompts[*]}"
 fi
 
 if [[ ${#failed_prompts[@]} -gt 0 ]]; then
