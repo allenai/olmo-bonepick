@@ -100,6 +100,7 @@ NUM_PROC="${NUM_PROC:-${DEFAULT_NUM_PROC}}"
 RETRIEVE_TIMEOUT="${RETRIEVE_TIMEOUT:-3600}"
 ALLOW_SKIP_BATCHES="${ALLOW_SKIP_BATCHES:-false}"
 LIMIT_ROWS="${LIMIT_ROWS:-1000000}"
+MAX_TEXT_LENGTH="${MAX_TEXT_LENGTH:-10000}"
 
 SKIP_FAILED_BATCHES_FLAG=()
 case "${ALLOW_SKIP_BATCHES,,}" in
@@ -129,6 +130,7 @@ log "Local output directory: ${LOCAL_OUTPUT_DIR}"
 log "Retrieve timeout (s): ${RETRIEVE_TIMEOUT}"
 log "Allow skip batches: ${ALLOW_SKIP_BATCHES}"
 log "Limit rows per task prompt: ${LIMIT_ROWS}"
+log "Max text length (chars): ${MAX_TEXT_LENGTH}"
 log "Number of processes: ${NUM_PROC}"
 log "====================="
 
@@ -154,6 +156,7 @@ if ${DO_SUBMIT}; then
             -T "${task_prompt}" \
             -S "${SYSTEM_PROMPT}" \
             -i "${INPUT_FIELD}" \
+            --max-text-length "${MAX_TEXT_LENGTH}" \
             --limit-rows "${LIMIT_ROWS}" \
             --num-proc "${NUM_PROC}"
         submitted_prompts+=("${task_prompt}")
