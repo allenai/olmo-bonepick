@@ -153,7 +153,7 @@ if ${DO_SUBMIT}; then
         log "Submitting task prompt: ${task_prompt}"
         uv run --extra=annotate bonepick batch-annotate-submit \
             -d "${LOCAL_INPUT_DIR}" \
-            -b "${LOCAL_BATCH_DIR}" \
+            -b "${LOCAL_BATCH_DIR}/${task_prompt}" \
             -m "${MODEL_NAME}" \
             -T "${task_prompt}" \
             -S "${SYSTEM_PROMPT}" \
