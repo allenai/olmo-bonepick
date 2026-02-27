@@ -695,6 +695,12 @@ def _load_batch_infos(batch_info_files: list[Path]) -> list[dict]:
     help="Skip failed/cancelled/expired batch downloads and continue with available results",
 )
 @click.option(
+    "--skip-in-progress",
+    is_flag=True,
+    default=False,
+    help="Skip batches that are still processing and continue with available completed results",
+)
+@click.option(
     "-p",
     "--num-proc",
     default=None,
@@ -706,6 +712,7 @@ def batch_annotate_retrieve(
     output_dir: Path,
     timeout: int | None,
     skip_failed_batches: bool,
+    skip_in_progress: bool,
     num_proc: int | None,
 ):
     """Retrieve batch annotation results.
@@ -768,6 +775,7 @@ def batch_annotate_retrieve(
         timeout=timeout,
         reporter=click.echo,
         skip_failed_batches=skip_failed_batches,
+        skip_in_progress=skip_in_progress,
     )
     click.echo(f"Result files ready: {len(result_files):,}")
     missing_batch_ids = [
@@ -775,11 +783,12 @@ def batch_annotate_retrieve(
         for batch_id in all_batch_ids
         if not result_path_for_batch(results_dir=results_base, batch_id=batch_id).exists()
     ]
+    allow_partial_batch_results = skip_failed_batches or skip_in_progress
     if missing_batch_ids:
-        if not skip_failed_batches:
+        if not allow_partial_batch_results:
             raise click.ClickException(
                 f"{len(missing_batch_ids):,} batch results are missing. "
-                "Re-run with --skip-failed-batches to continue with partial results."
+                "Re-run with --skip-failed-batches or --skip-in-progress to continue with partial results."
             )
         click.echo(f"Skipping {len(missing_batch_ids):,} batches without result files.")
     click.echo()
@@ -803,7 +812,7 @@ def batch_annotate_retrieve(
                 output_dir=output_dir,
                 provider=provider,
                 task_prompt_name=task_prompt_name,
-                skip_missing_batch_results=skip_failed_batches,
+                skip_missing_batch_results=allow_partial_batch_results,
             )
             for info in batch_infos
         ]

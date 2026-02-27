@@ -99,6 +99,7 @@ fi
 NUM_PROC="${NUM_PROC:-${DEFAULT_NUM_PROC}}"
 RETRIEVE_TIMEOUT="${RETRIEVE_TIMEOUT:-3600}"
 ALLOW_SKIP_BATCHES="${ALLOW_SKIP_BATCHES:-false}"
+ALLOW_SKIP_IN_PROGRESS="${ALLOW_SKIP_IN_PROGRESS:-false}"
 LIMIT_ROWS="${LIMIT_ROWS:-500000}"
 MAX_TEXT_LENGTH="${MAX_TEXT_LENGTH:-10000}"
 ANNOTATION_BATCH_SIZE="${ANNOTATION_BATCH_SIZE:-50000}"
@@ -112,6 +113,18 @@ case "${ALLOW_SKIP_BATCHES,,}" in
         ;;
     *)
         die "Invalid ALLOW_SKIP_BATCHES value: '${ALLOW_SKIP_BATCHES}' (expected true/false)"
+        ;;
+esac
+
+SKIP_IN_PROGRESS_FLAG=()
+case "${ALLOW_SKIP_IN_PROGRESS,,}" in
+    1|true|yes|y)
+        SKIP_IN_PROGRESS_FLAG=(--skip-in-progress)
+        ;;
+    0|false|no|n|"")
+        ;;
+    *)
+        die "Invalid ALLOW_SKIP_IN_PROGRESS value: '${ALLOW_SKIP_IN_PROGRESS}' (expected true/false)"
         ;;
 esac
 
@@ -130,6 +143,7 @@ log "Local batch directory: ${LOCAL_BATCH_DIR}"
 log "Local output directory: ${LOCAL_OUTPUT_DIR}"
 log "Retrieve timeout (s): ${RETRIEVE_TIMEOUT}"
 log "Allow skip batches: ${ALLOW_SKIP_BATCHES}"
+log "Allow skip in-progress: ${ALLOW_SKIP_IN_PROGRESS}"
 log "Limit rows per task prompt: ${LIMIT_ROWS}"
 log "Max text length (chars): ${MAX_TEXT_LENGTH}"
 log "Annotation batch size: ${ANNOTATION_BATCH_SIZE}"
@@ -187,7 +201,8 @@ if ${DO_RETRIEVE}; then
             -b "${prompt_batch_dir}" \
             -o "${prompt_output_dir}" \
             --timeout "${RETRIEVE_TIMEOUT}" \
-            "${SKIP_FAILED_BATCHES_FLAG[@]}"; then
+            "${SKIP_FAILED_BATCHES_FLAG[@]}" \
+            "${SKIP_IN_PROGRESS_FLAG[@]}"; then
             retrieved_prompts+=("${task_prompt}")
             log "Retrieved task prompt: ${task_prompt}"
 

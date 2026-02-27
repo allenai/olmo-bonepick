@@ -25,6 +25,16 @@ BatchDownloadStatus = Literal["ready", "downloading", "in_progress", "other", "c
 BatchStatusReporter = Callable[[str, BatchDownloadStatus], None]
 
 
+class BatchInProgressError(ValueError):
+    """Raised when retrieval is configured to skip still-processing batches."""
+
+    def __init__(self, provider: str, batch_id: str, status: str):
+        self.provider = provider
+        self.batch_id = batch_id
+        self.status = status
+        super().__init__(f"{provider} batch {batch_id} is still processing (status: {status})")
+
+
 def _format_batch_status_line(
     *,
     completed: int,
@@ -105,6 +115,7 @@ async def wait_and_download_openai_batch_async(
     poll_interval: int,
     on_status_change: BatchStatusReporter | None = None,
     download_semaphore: asyncio.Semaphore | None = None,
+    skip_in_progress: bool = False,
 ) -> str:
     """Poll OpenAI batch until completion, then download output to disk."""
     api_key = os.getenv("OPENAI_API_KEY")
@@ -157,11 +168,11 @@ async def wait_and_download_openai_batch_async(
             if status in ("failed", "expired", "cancelled"):
                 raise ValueError(f"OpenAI batch {batch_id} failed with status: {status}")
 
+            is_in_progress = status in ("validating", "in_progress", "finalizing", "cancelling")
             if on_status_change is not None:
-                if status in ("validating", "in_progress", "finalizing", "cancelling"):
-                    on_status_change(batch_id, "in_progress")
-                else:
-                    on_status_change(batch_id, "other")
+                on_status_change(batch_id, "in_progress" if is_in_progress else "other")
+            if skip_in_progress:
+                raise BatchInProgressError(provider="OpenAI", batch_id=batch_id, status=status)
 
         await asyncio.sleep(poll_interval)
 
@@ -173,6 +184,7 @@ async def wait_and_download_anthropic_batch_async(
     poll_interval: int,
     on_status_change: BatchStatusReporter | None = None,
     download_semaphore: asyncio.Semaphore | None = None,
+    skip_in_progress: bool = False,
 ) -> str:
     """Poll Anthropic batch until completion, then download output to disk."""
     api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -223,11 +235,11 @@ async def wait_and_download_anthropic_batch_async(
             if status in ("canceled", "expired"):
                 raise ValueError(f"Anthropic batch {batch_id} failed with status: {status}")
 
+            is_in_progress = status in ("in_progress", "canceling")
             if on_status_change is not None:
-                if status in ("in_progress", "canceling"):
-                    on_status_change(batch_id, "in_progress")
-                else:
-                    on_status_change(batch_id, "other")
+                on_status_change(batch_id, "in_progress" if is_in_progress else "other")
+            if skip_in_progress:
+                raise BatchInProgressError(provider="Anthropic", batch_id=batch_id, status=status)
 
         await asyncio.sleep(poll_interval)
 
@@ -240,6 +252,7 @@ async def wait_for_batch_downloads_async(
     poll_interval: int,
     reporter: Callable[[str], None],
     skip_failed_batches: bool,
+    skip_in_progress: bool,
 ) -> list[Path]:
     """Wait for batch completion concurrently and persist outputs on disk."""
     import aiohttp
@@ -267,7 +280,10 @@ async def wait_for_batch_downloads_async(
             result_path_for_batch(results_dir=results_dir, batch_id=batch_id) for batch_id in normalized_batch_ids
         ]
 
-    reporter(f"Waiting for and downloading {len(pending_batch_ids):,} remaining batches...")
+    if skip_in_progress:
+        reporter(f"Checking {len(pending_batch_ids):,} remaining batches and downloading completed ones...")
+    else:
+        reporter(f"Waiting for and downloading {len(pending_batch_ids):,} remaining batches...")
 
     async with aiohttp.ClientSession() as session:
         tasks: list[asyncio.Task[tuple[str, Exception | None]]] = []
@@ -391,6 +407,7 @@ async def wait_for_batch_downloads_async(
                         poll_interval=poll_interval,
                         on_status_change=_on_status_change,
                         download_semaphore=download_semaphore,
+                        skip_in_progress=skip_in_progress,
                     )
                 else:
                     await wait_and_download_anthropic_batch_async(
@@ -400,6 +417,7 @@ async def wait_for_batch_downloads_async(
                         poll_interval=poll_interval,
                         on_status_change=_on_status_change,
                         download_semaphore=download_semaphore,
+                        skip_in_progress=skip_in_progress,
                     )
                 return batch_id, None
             except Exception as exc:
@@ -413,14 +431,20 @@ async def wait_for_batch_downloads_async(
             for finished_task in asyncio.as_completed(tasks):
                 finished_batch_id, error = await finished_task
                 if error is not None:
-                    if not skip_failed_batches:
+                    should_skip = skip_failed_batches or (
+                        skip_in_progress and isinstance(error, BatchInProgressError)
+                    )
+                    if not should_skip:
                         for pending_task in tasks:
                             if not pending_task.done():
                                 pending_task.cancel()
                         await asyncio.gather(*tasks, return_exceptions=True)
                         raise error
                     _set_batch_status(finished_batch_id, "completed")
-                    error_text = str(error).strip() or error.__class__.__name__
+                    if isinstance(error, BatchInProgressError):
+                        error_text = f"still processing (status: {error.status})"
+                    else:
+                        error_text = str(error).strip() or error.__class__.__name__
                     skipped_line = (
                         f"  {click.style('Skipped', fg='yellow', bold=True)} "
                         f"{click.style(f'{len(completed_batch_ids):,}/{total_pending:,}', fg='yellow')}: "
@@ -466,6 +490,7 @@ def wait_for_batch_downloads(
     poll_interval: int = 10,
     reporter: Callable[[str], None] = click.echo,
     skip_failed_batches: bool = False,
+    skip_in_progress: bool = False,
 ) -> list[Path]:
     """Synchronous wrapper for concurrent retrieval downloads."""
     try:
@@ -478,6 +503,7 @@ def wait_for_batch_downloads(
                 poll_interval=poll_interval,
                 reporter=reporter,
                 skip_failed_batches=skip_failed_batches,
+                skip_in_progress=skip_in_progress,
             )
         )
     except asyncio.TimeoutError as exc:
