@@ -107,7 +107,7 @@ for index in "${!PATTERNS[@]}"; do
     listing_file="${LISTING_DIR}/pattern_$(printf '%02d' "$((index + 1))").txt"
 
     log "Listing pattern $((index + 1))/${#PATTERNS[@]}: $pattern"
-    if ! s5cmd ls "$pattern" > "$listing_file"; then
+    if ! s5cmd ls --show-fullpath "$pattern" > "$listing_file"; then
         log "ERROR listing failed for pattern: $pattern"
         pattern_failures=$((pattern_failures + 1))
         continue
@@ -120,7 +120,15 @@ for index in "${!PATTERNS[@]}"; do
         continue
     fi
 
-    awk '{print $4}' "$listing_file" >> "$MANIFEST_RAW"
+    first_path="$(awk 'NR == 1 {print $NF}' "$listing_file")"
+    if [[ "$first_path" != s3://* ]]; then
+        log "ERROR s5cmd did not emit full S3 URIs for pattern: $pattern"
+        log "ERROR first listed path was: $first_path"
+        pattern_failures=$((pattern_failures + 1))
+        continue
+    fi
+
+    awk '{print $NF}' "$listing_file" >> "$MANIFEST_RAW"
     log "Matched $match_count shard(s)"
 done
 
