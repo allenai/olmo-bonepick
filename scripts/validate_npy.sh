@@ -37,6 +37,88 @@ log() {
     printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
 }
 
+segment_has_glob() {
+    local segment="$1"
+    [[ "$segment" == *'*'* || "$segment" == *'?'* || "$segment" == *'['* ]]
+}
+
+join_key() {
+    local prefix="$1"
+    local segment="$2"
+    if [[ -z "$prefix" ]]; then
+        printf '%s\n' "$segment"
+    else
+        printf '%s/%s\n' "$prefix" "$segment"
+    fi
+}
+
+list_s3_prefix() {
+    local bucket="$1"
+    local prefix="$2"
+    local uri="s3://${bucket}"
+    if [[ -n "$prefix" ]]; then
+        uri="${uri}/${prefix}/"
+    else
+        uri="${uri}/"
+    fi
+    aws s3 ls "$uri"
+}
+
+expand_s3_pattern() {
+    local pattern="$1"
+    local destination="$2"
+    local without_scheme bucket key_pattern
+    local -a segments prefixes next_prefixes
+    local index last_index segment prefix line name key
+
+    without_scheme="${pattern#s3://}"
+    bucket="${without_scheme%%/*}"
+    key_pattern="${without_scheme#*/}"
+    IFS='/' read -r -a segments <<< "$key_pattern"
+    prefixes=("")
+    last_index=$((${#segments[@]} - 1))
+
+    for index in "${!segments[@]}"; do
+        segment="${segments[$index]}"
+        next_prefixes=()
+
+        if segment_has_glob "$segment"; then
+            for prefix in "${prefixes[@]}"; do
+                while IFS= read -r line; do
+                    [[ -z "$line" ]] && continue
+
+                    if [[ "$index" -lt "$last_index" ]]; then
+                        [[ "$line" == *" PRE "* ]] || continue
+                        name="${line##*PRE }"
+                        name="${name%/}"
+                    else
+                        [[ "$line" == *" PRE "* ]] && continue
+                        name="${line##* }"
+                    fi
+
+                    if [[ "$name" == $segment ]]; then
+                        next_prefixes+=("$(join_key "$prefix" "$name")")
+                    fi
+                done < <(list_s3_prefix "$bucket" "$prefix")
+            done
+        else
+            for prefix in "${prefixes[@]}"; do
+                next_prefixes+=("$(join_key "$prefix" "$segment")")
+            done
+        fi
+
+        prefixes=("${next_prefixes[@]}")
+        if [[ "${#prefixes[@]}" -eq 0 ]]; then
+            break
+        fi
+    done
+
+    : > "$destination"
+    for key in "${prefixes[@]}"; do
+        printf 's3://%s/%s\n' "$bucket" "$key"
+    done >> "$destination"
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALIDATOR="${VALIDATOR:-${SCRIPT_DIR}/validate_npy.py}"
 RUN_ROOT="${RUN_ROOT:-/mnt/raid0/validate_npy}"
@@ -53,7 +135,7 @@ readonly SCRIPT_DIR VALIDATOR RUN_ROOT UV_CACHE_DIR JOBS SAMPLE_SIZE CHECK_SOURC
 export UV_CACHE_DIR
 
 check_command uv
-check_command s5cmd
+check_command aws
 check_command awk
 check_command sort
 check_command cksum
@@ -106,8 +188,8 @@ for index in "${!PATTERNS[@]}"; do
     pattern="${PATTERNS[$index]}"
     listing_file="${LISTING_DIR}/pattern_$(printf '%02d' "$((index + 1))").txt"
 
-    log "Listing pattern $((index + 1))/${#PATTERNS[@]}: $pattern"
-    if ! s5cmd ls --show-fullpath "$pattern" > "$listing_file"; then
+    log "Expanding pattern $((index + 1))/${#PATTERNS[@]}: $pattern"
+    if ! expand_s3_pattern "$pattern" "$listing_file"; then
         log "ERROR listing failed for pattern: $pattern"
         pattern_failures=$((pattern_failures + 1))
         continue
@@ -120,15 +202,15 @@ for index in "${!PATTERNS[@]}"; do
         continue
     fi
 
-    first_path="$(awk 'NR == 1 {print $NF}' "$listing_file")"
+    first_path="$(awk 'NR == 1 {print $1}' "$listing_file")"
     if [[ "$first_path" != s3://* ]]; then
-        log "ERROR s5cmd did not emit full S3 URIs for pattern: $pattern"
-        log "ERROR first listed path was: $first_path"
+        log "ERROR pattern expansion did not emit full S3 URIs for pattern: $pattern"
+        log "ERROR first expanded path was: $first_path"
         pattern_failures=$((pattern_failures + 1))
         continue
     fi
 
-    awk '{print $NF}' "$listing_file" >> "$MANIFEST_RAW"
+    cat "$listing_file" >> "$MANIFEST_RAW"
     log "Matched $match_count shard(s)"
 done
 
