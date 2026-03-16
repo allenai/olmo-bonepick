@@ -39,6 +39,7 @@ from typing import BinaryIO, Iterator
 from urllib.parse import urlparse
 
 import boto3
+import botocore.exceptions
 import click
 import numpy as np
 from tokenizers import Tokenizer
@@ -198,7 +199,43 @@ def iter_s3_candidates(target: str, recursive: bool, s3_client) -> Iterator[str]
                 yield f"s3://{bucket}/{key}"
 
 
+def _file_exists(location: str, s3_client) -> bool:
+    if is_s3_uri(location):
+        bucket, key = parse_s3_uri(location)
+        try:
+            s3_client.head_object(Bucket=bucket, Key=key)
+            return True
+        except botocore.exceptions.ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") == "404":
+                return False
+            raise
+    return Path(location).exists()
+
+
+def _discover_pair_for_specific_file(target: str, s3_client) -> list[ShardPair]:
+    """Fast path: construct the shard pair directly from a specific file URI."""
+    base = drop_suffix(target)
+    if target.endswith(".npy"):
+        npy_location = target
+        csv_location = base + ".csv.gz"
+    else:
+        csv_location = target
+        npy_location = base + ".npy"
+
+    if not _file_exists(npy_location, s3_client):
+        raise ValidationError(f"File not found: {npy_location}")
+    if not _file_exists(csv_location, s3_client):
+        raise ValidationError(f"File not found: {csv_location}")
+
+    return [ShardPair(base=base, npy_location=npy_location, csv_location=csv_location)]
+
+
 def discover_pairs(target: str, recursive: bool, s3_client) -> list[ShardPair]:
+    # Fast path for a specific .npy or .csv.gz file (no glob) — avoids listing the
+    # entire parent directory which is O(n²) when the shell wrapper calls us per-shard.
+    if not has_glob(target) and target.endswith(tuple(VALID_EXTENSIONS)):
+        return _discover_pair_for_specific_file(target, s3_client)
+
     all_candidates = list(
         iter_s3_candidates(target, recursive, s3_client)
         if is_s3_uri(target)
@@ -208,12 +245,10 @@ def discover_pairs(target: str, recursive: bool, s3_client) -> list[ShardPair]:
         raise ValidationError(f"No .npy/.csv.gz files found under {target}")
 
     if is_s3_uri(target):
-        wildcard_or_exact = target if has_glob(target) or target.endswith(tuple(VALID_EXTENSIONS)) else None
+        wildcard_or_exact = target if has_glob(target) else None
     else:
         normalized_target = normalize_local_pattern(target)
         wildcard_or_exact = normalized_target if has_glob(target) else None
-        if Path(target).exists() and Path(target).is_file():
-            wildcard_or_exact = str(Path(target).resolve())
 
     grouped: dict[str, dict[str, str]] = defaultdict(dict)
     matched_bases: set[str] = set()

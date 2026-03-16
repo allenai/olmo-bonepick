@@ -84,6 +84,13 @@ expand_s3_pattern() {
 
         if segment_has_glob "$segment"; then
             for prefix in "${prefixes[@]}"; do
+                local ls_output
+                local ls_rc=0
+                ls_output="$(list_s3_prefix "$bucket" "$prefix" 2>&1)" || ls_rc=$?
+                if [[ "$ls_rc" -ne 0 ]]; then
+                    echo "WARNING: aws s3 ls failed for s3://${bucket}/${prefix}/ (rc=${ls_rc})" >&2
+                    continue
+                fi
                 while IFS= read -r line; do
                     [[ -z "$line" ]] && continue
 
@@ -99,7 +106,7 @@ expand_s3_pattern() {
                     if [[ "$name" == $segment ]]; then
                         next_prefixes+=("$(join_key "$prefix" "$name")")
                     fi
-                done < <(list_s3_prefix "$bucket" "$prefix")
+                done <<< "$ls_output"
             done
         else
             for prefix in "${prefixes[@]}"; do
@@ -258,7 +265,7 @@ base_name="$(basename "${uri%.npy}")"
 checksum="$(printf "%s" "$uri" | cksum | awk "{print \$1}")"
 log_file="${LOG_DIR}/${base_name}_${checksum}.log"
 
-cmd=(uv run "$VALIDATOR" "$uri" "--sample-size" "$SAMPLE_SIZE")
+cmd=(uv run "$VALIDATOR" "$uri" "--sample-size" "$SAMPLE_SIZE" "--no-recursive")
 if [[ "$CHECK_SOURCES" != "1" ]]; then
     cmd+=("--skip-sources")
 fi
